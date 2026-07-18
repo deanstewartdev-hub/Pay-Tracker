@@ -4,36 +4,42 @@
     <base target="_top">
 
     <meta charset="UTF-8">
+
     <meta
       name="viewport"
       content="width=device-width, initial-scale=1, viewport-fit=cover"
     >
+
     <meta
       name="description"
-      content="Pay Tracker personal finance and earnings dashboard."
+      content="Pay Tracker earnings, finance and savings dashboard."
     >
-    <meta name="theme-color" content="#111827">
 
-    <title><?= app.appName ?></title>
+    <meta name="theme-color" content="#0f172a">
 
-    <?!= includePayTrackerHtml_('Web/Styles'); ?>
+    <title><?= app.pageTitle ?> | <?= app.appName ?></title>
+
+    <?!= includePayTrackerHtml_('Frontend/Web/Styles'); ?>
   </head>
 
   <body>
     <noscript>
       <section class="app-noscript">
-        <h1>JavaScript is required</h1>
-        <p>
-          Pay Tracker needs JavaScript enabled in your browser to display the
-          dashboard and communicate with Google Apps Script.
-        </p>
+        <div class="app-noscript__content">
+          <h1>JavaScript is required</h1>
+
+          <p>
+            Pay Tracker requires JavaScript to display the dashboard and
+            communicate with the Google Apps Script backend.
+          </p>
+        </div>
       </section>
     </noscript>
 
     <div
       id="pay-tracker-app"
       class="app-shell"
-      data-active-page="<?= app.activePage ?>"
+      data-active-route="<?= app.activeRoute ?>"
       data-version="<?= app.version ?>"
     >
       <aside
@@ -41,64 +47,99 @@
         class="app-sidebar"
         aria-label="Primary navigation"
       >
-        <?!= includePayTrackerHtml_('Web/Components/Sidebar'); ?>
+        <?!= includePayTrackerHtml_('Frontend/Layout/Sidebar'); ?>
       </aside>
 
-      <div class="app-main">
-        <header id="app-header" class="app-header">
-          <?!= includePayTrackerHtml_('Web/Components/Header'); ?>
+      <div class="app-workspace">
+        <header
+          id="app-header"
+          class="app-header"
+        >
+          <?!= includePayTrackerHtml_('Frontend/Layout/Header'); ?>
         </header>
 
         <main
-          id="app-content"
-          class="app-content"
+          id="app-main-content"
+          class="app-main-content"
           tabindex="-1"
-          aria-labelledby="page-title"
         >
-          <div
+          <section
             id="app-loading-state"
-            class="loading-panel"
+            class="app-state app-loading-state"
             role="status"
             aria-live="polite"
           >
-            <div class="loading-spinner" aria-hidden="true"></div>
+            <div
+              class="loading-spinner"
+              aria-hidden="true"
+            ></div>
 
-            <div>
-              <p class="loading-title">Loading Pay Tracker</p>
-              <p class="loading-message">
-                Preparing your financial dashboard…
+            <div class="app-state__content">
+              <h1 class="app-state__title">
+                Loading Pay Tracker
+              </h1>
+
+              <p class="app-state__message">
+                Preparing your financial dashboard.
               </p>
             </div>
-          </div>
+          </section>
 
           <section
             id="dashboard-page"
             class="app-page"
-            data-page="dashboard"
-            aria-label="Dashboard"
+            data-route="dashboard"
+            aria-labelledby="dashboard-page-title"
             hidden
           >
-            <?!= includePayTrackerHtml_('Web/Components/Dashboard'); ?>
+            <?!= includePayTrackerHtml_('Frontend/Components/Dashboard'); ?>
           </section>
 
           <section
             id="pay-page"
             class="app-page"
-            data-page="pay"
-            aria-label="Pay"
+            data-route="pay"
+            aria-labelledby="pay-page-title"
             hidden
           >
-            <div class="page-placeholder">
-              <div class="page-placeholder-icon" aria-hidden="true">£</div>
+            <header class="page-header">
+              <div>
+                <p class="page-header__eyebrow">
+                  Earnings
+                </p>
 
-              <h2>Pay tracking</h2>
+                <h1
+                  id="pay-page-title"
+                  class="page-header__title"
+                >
+                  Pay
+                </h1>
 
-              <p>
-                Weekly earnings, shifts, deductions and PaySheet calculations
-                will appear here.
+                <p class="page-header__description">
+                  View your weekly earnings, shifts, estimated deductions and
+                  PaySheet calculations.
+                </p>
+              </div>
+            </header>
+
+            <div class="empty-state">
+              <div
+                class="empty-state__icon"
+                aria-hidden="true"
+              >
+                £
+              </div>
+
+              <h2 class="empty-state__title">
+                Pay workspace
+              </h2>
+
+              <p class="empty-state__message">
+                Your NHS, Relief Warden, Night Security and Logging earnings
+                will be connected here.
               </p>
 
-              <span class="status-badge status-badge-development">
+              <span class="status-badge status-badge--development">
                 In development
               </span>
             </div>
@@ -107,20 +148,47 @@
           <section
             id="finance-page"
             class="app-page"
-            data-page="finance"
-            aria-label="Finance"
+            data-route="finance"
+            aria-labelledby="finance-page-title"
             hidden
           >
-            <div class="page-placeholder">
-              <div class="page-placeholder-icon" aria-hidden="true">▤</div>
+            <header class="page-header">
+              <div>
+                <p class="page-header__eyebrow">
+                  Money management
+                </p>
 
-              <h2>Finance</h2>
+                <h1
+                  id="finance-page-title"
+                  class="page-header__title"
+                >
+                  Finance
+                </h1>
 
-              <p>
-                Bills, debts, repayments and payment history will appear here.
+                <p class="page-header__description">
+                  Manage bills, debts, repayments and payment history.
+                </p>
+              </div>
+            </header>
+
+            <div class="empty-state">
+              <div
+                class="empty-state__icon"
+                aria-hidden="true"
+              >
+                ▤
+              </div>
+
+              <h2 class="empty-state__title">
+                Finance workspace
+              </h2>
+
+              <p class="empty-state__message">
+                Your bills, debts, finance payments and dashboard data will
+                appear here.
               </p>
 
-              <span class="status-badge status-badge-development">
+              <span class="status-badge status-badge--development">
                 In development
               </span>
             </div>
@@ -129,21 +197,48 @@
           <section
             id="savings-page"
             class="app-page"
-            data-page="savings"
-            aria-label="Savings"
+            data-route="savings"
+            aria-labelledby="savings-page-title"
             hidden
           >
-            <div class="page-placeholder">
-              <div class="page-placeholder-icon" aria-hidden="true">◎</div>
+            <header class="page-header">
+              <div>
+                <p class="page-header__eyebrow">
+                  Financial goals
+                </p>
 
-              <h2>Savings</h2>
+                <h1
+                  id="savings-page-title"
+                  class="page-header__title"
+                >
+                  Savings
+                </h1>
 
-              <p>
-                Savings pots, contributions, allocations and forecasts will
-                appear here.
+                <p class="page-header__description">
+                  Manage savings pots, contribution allocations and future
+                  forecasts.
+                </p>
+              </div>
+            </header>
+
+            <div class="empty-state">
+              <div
+                class="empty-state__icon"
+                aria-hidden="true"
+              >
+                ◎
+              </div>
+
+              <h2 class="empty-state__title">
+                Savings workspace
+              </h2>
+
+              <p class="empty-state__message">
+                Savings pots, weekly disposable-income contributions and
+                forecasts will appear here.
               </p>
 
-              <span class="status-badge status-badge-development">
+              <span class="status-badge status-badge--development">
                 In development
               </span>
             </div>
@@ -152,21 +247,144 @@
           <section
             id="goals-page"
             class="app-page"
-            data-page="goals"
-            aria-label="Life Goals"
+            data-route="goals"
+            aria-labelledby="goals-page-title"
             hidden
           >
-            <div class="page-placeholder">
-              <div class="page-placeholder-icon" aria-hidden="true">⚑</div>
+            <header class="page-header">
+              <div>
+                <p class="page-header__eyebrow">
+                  Long-term planning
+                </p>
 
-              <h2>Life goals</h2>
+                <h1
+                  id="goals-page-title"
+                  class="page-header__title"
+                >
+                  Life Goals
+                </h1>
 
-              <p>
-                Long-term goals, linked savings pots and completion forecasts
-                will appear here.
+                <p class="page-header__description">
+                  Track long-term financial goals and linked savings pots.
+                </p>
+              </div>
+            </header>
+
+            <div class="empty-state">
+              <div
+                class="empty-state__icon"
+                aria-hidden="true"
+              >
+                ⚑
+              </div>
+
+              <h2 class="empty-state__title">
+                Life goals workspace
+              </h2>
+
+              <p class="empty-state__message">
+                Goal progress, target dates and completion forecasts will
+                appear here.
               </p>
 
-              <span class="status-badge status-badge-development">
+              <span class="status-badge status-badge--development">
+                In development
+              </span>
+            </div>
+          </section>
+
+          <section
+            id="reports-page"
+            class="app-page"
+            data-route="reports"
+            aria-labelledby="reports-page-title"
+            hidden
+          >
+            <header class="page-header">
+              <div>
+                <p class="page-header__eyebrow">
+                  Analysis
+                </p>
+
+                <h1
+                  id="reports-page-title"
+                  class="page-header__title"
+                >
+                  Reports
+                </h1>
+
+                <p class="page-header__description">
+                  Review earnings, spending, savings and cash-flow trends.
+                </p>
+              </div>
+            </header>
+
+            <div class="empty-state">
+              <div
+                class="empty-state__icon"
+                aria-hidden="true"
+              >
+                ↗
+              </div>
+
+              <h2 class="empty-state__title">
+                Reports workspace
+              </h2>
+
+              <p class="empty-state__message">
+                Charts, comparisons and financial summaries will appear here.
+              </p>
+
+              <span class="status-badge status-badge--development">
+                In development
+              </span>
+            </div>
+          </section>
+
+          <section
+            id="calendar-page"
+            class="app-page"
+            data-route="calendar"
+            aria-labelledby="calendar-page-title"
+            hidden
+          >
+            <header class="page-header">
+              <div>
+                <p class="page-header__eyebrow">
+                  Work schedule
+                </p>
+
+                <h1
+                  id="calendar-page-title"
+                  class="page-header__title"
+                >
+                  Calendar
+                </h1>
+
+                <p class="page-header__description">
+                  Review imported shifts and Google Calendar synchronisation.
+                </p>
+              </div>
+            </header>
+
+            <div class="empty-state">
+              <div
+                class="empty-state__icon"
+                aria-hidden="true"
+              >
+                31
+              </div>
+
+              <h2 class="empty-state__title">
+                Calendar workspace
+              </h2>
+
+              <p class="empty-state__message">
+                Work shifts, calendar imports and synchronisation tools will
+                appear here.
+              </p>
+
+              <span class="status-badge status-badge--development">
                 In development
               </span>
             </div>
@@ -175,21 +393,47 @@
           <section
             id="settings-page"
             class="app-page"
-            data-page="settings"
-            aria-label="Settings"
+            data-route="settings"
+            aria-labelledby="settings-page-title"
             hidden
           >
-            <div class="page-placeholder">
-              <div class="page-placeholder-icon" aria-hidden="true">⚙</div>
+            <header class="page-header">
+              <div>
+                <p class="page-header__eyebrow">
+                  Configuration
+                </p>
 
-              <h2>Settings</h2>
+                <h1
+                  id="settings-page-title"
+                  class="page-header__title"
+                >
+                  Settings
+                </h1>
 
-              <p>
-                Pay Tracker configuration and module preferences will appear
+                <p class="page-header__description">
+                  Configure Pay Tracker preferences and module behaviour.
+                </p>
+              </div>
+            </header>
+
+            <div class="empty-state">
+              <div
+                class="empty-state__icon"
+                aria-hidden="true"
+              >
+                ⚙
+              </div>
+
+              <h2 class="empty-state__title">
+                Settings workspace
+              </h2>
+
+              <p class="empty-state__message">
+                Pay, finance, savings and application settings will appear
                 here.
               </p>
 
-              <span class="status-badge status-badge-development">
+              <span class="status-badge status-badge--development">
                 In development
               </span>
             </div>
@@ -197,23 +441,33 @@
 
           <section
             id="app-error-state"
-            class="error-panel"
+            class="app-state app-error-state"
             role="alert"
             aria-live="assertive"
             hidden
           >
-            <div class="error-panel-icon" aria-hidden="true">!</div>
+            <div
+              class="app-error-state__icon"
+              aria-hidden="true"
+            >
+              !
+            </div>
 
-            <div>
-              <h2>Pay Tracker could not finish loading</h2>
+            <div class="app-state__content">
+              <h1 class="app-state__title">
+                Pay Tracker could not finish loading
+              </h1>
 
-              <p id="app-error-message">
+              <p
+                id="app-error-message"
+                class="app-state__message"
+              >
                 An unexpected error occurred.
               </p>
 
               <button
                 id="retry-app-button"
-                class="button button-primary"
+                class="button button--primary"
                 type="button"
               >
                 Try again
@@ -222,15 +476,11 @@
           </section>
         </main>
 
-        <footer class="app-footer">
-          <span>
-            <?= app.appName ?>
-            v<?= app.version ?>
-          </span>
-
-          <span id="app-connection-status" class="connection-status">
-            Connecting…
-          </span>
+        <footer
+          id="app-footer"
+          class="app-footer"
+        >
+          <?!= includePayTrackerHtml_('Frontend/Layout/Footer'); ?>
         </footer>
       </div>
 
@@ -241,13 +491,19 @@
         aria-label="Close navigation"
         hidden
       ></button>
+
+      <div
+        id="toast-region"
+        class="toast-region"
+        aria-live="polite"
+        aria-atomic="true"
+      ></div>
     </div>
 
     <script>
-      window.PAY_TRACKER_BOOTSTRAP =
-        <?!= JSON.stringify(app).replace(/</g, '\\u003c') ?>;
+      window.PAY_TRACKER_BOOTSTRAP = <?!= bootstrapJson ?>;
     </script>
 
-    <?!= includePayTrackerHtml_('Web/Scripts'); ?>
+    <?!= includePayTrackerHtml_('Frontend/Web/Scripts'); ?>
   </body>
 </html>

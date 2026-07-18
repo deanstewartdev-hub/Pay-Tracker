@@ -1,0 +1,543 @@
+<div class="topbar">
+  <div class="topbar__left">
+    <button
+      id="sidebar-open-button"
+      class="icon-button topbar__menu-button"
+      type="button"
+      aria-label="Open navigation"
+      title="Open navigation"
+    >
+      <svg
+        viewBox="0 0 24 24"
+        aria-hidden="true"
+      >
+        <path
+          d="M4 6h16v2H4V6Zm0 5h16v2H4v-2Zm0 5h16v2H4v-2Z"
+          fill="currentColor"
+        />
+      </svg>
+    </button>
+
+    <div class="topbar__page-copy">
+      <p class="topbar__eyebrow">
+        Pay Tracker
+      </p>
+
+      <h1
+        id="page-title"
+        class="topbar__title"
+      >
+        <?= app.pageTitle ?>
+      </h1>
+    </div>
+  </div>
+
+  <div class="topbar__right">
+    <div class="topbar__search">
+      <label
+        class="topbar__search-label"
+        for="global-search-input"
+      >
+        Search Pay Tracker
+      </label>
+
+      <div class="topbar__search-control">
+        <span
+          class="topbar__search-icon"
+          aria-hidden="true"
+        >
+          <svg
+            viewBox="0 0 24 24"
+            role="presentation"
+          >
+            <path
+              d="m21 19.59-4.35-4.35A7.5 7.5 0 1 0 15.24 16.65L19.59 21 21 19.59ZM5 10.5a5.5 5.5 0 1 1 11 0 5.5 5.5 0 0 1-11 0Z"
+              fill="currentColor"
+            />
+          </svg>
+        </span>
+
+        <input
+          id="global-search-input"
+          class="topbar__search-input"
+          type="search"
+          placeholder="Search pay, bills or savings"
+          autocomplete="off"
+        >
+
+        <kbd class="topbar__search-shortcut">
+          Ctrl K
+        </kbd>
+      </div>
+    </div>
+
+    <button
+      id="refresh-app-button"
+      class="icon-button"
+      type="button"
+      aria-label="Refresh dashboard"
+      title="Refresh dashboard"
+    >
+      <svg
+        viewBox="0 0 24 24"
+        aria-hidden="true"
+      >
+        <path
+          d="M12 4a8 8 0 1 1-7.45 5.09l1.87.7A6 6 0 1 0 8 7.08V10H6V4h6v2H9.48A7.96 7.96 0 0 1 12 4Z"
+          fill="currentColor"
+        />
+      </svg>
+    </button>
+
+    <button
+      id="theme-toggle-button"
+      class="icon-button"
+      type="button"
+      aria-label="Change theme"
+      title="Change theme"
+    >
+      <span
+        id="theme-light-icon"
+        aria-hidden="true"
+      >
+        <svg
+          viewBox="0 0 24 24"
+          role="presentation"
+        >
+          <path
+            d="M12 4a8 8 0 1 1 0 16 8 8 0 0 1 0-16Zm0 2a6 6 0 1 0 0 12 6 6 0 0 0 0-12ZM11 1h2v2h-2V1Zm0 20h2v2h-2v-2ZM1 11h2v2H1v-2Zm20 0h2v2h-2v-2ZM4.22 2.81l1.41 1.42-1.41 1.41-1.42-1.41 1.42-1.42Zm14.14 14.14 1.42 1.41-1.42 1.42-1.41-1.42 1.41-1.41ZM2.81 19.78l1.42-1.42 1.41 1.42-1.41 1.41-1.42-1.41ZM18.36 5.64l-1.41-1.41 1.41-1.42 1.42 1.42-1.42 1.41Z"
+            fill="currentColor"
+          />
+        </svg>
+      </span>
+
+      <span
+        id="theme-dark-icon"
+        aria-hidden="true"
+        hidden
+      >
+        <svg
+          viewBox="0 0 24 24"
+          role="presentation"
+        >
+          <path
+            d="M21 15.5A9.5 9.5 0 0 1 8.5 3a9.5 9.5 0 1 0 12.5 12.5ZM5 12.5A7.5 7.5 0 0 1 15.5 5.6 7.5 7.5 0 1 1 5 12.5Z"
+            fill="currentColor"
+          />
+        </svg>
+      </span>
+    </button>
+
+    <button
+      id="notifications-button"
+      class="icon-button topbar__notification-button"
+      type="button"
+      aria-label="View notifications"
+      title="View notifications"
+    >
+      <svg
+        viewBox="0 0 24 24"
+        aria-hidden="true"
+      >
+        <path
+          d="M12 2a6 6 0 0 1 6 6v3.59l1.7 1.7A1 1 0 0 1 19 15H5a1 1 0 0 1-.7-1.71L6 11.59V8a6 6 0 0 1 6-6Zm-4 11h8V8a4 4 0 0 0-8 0v5Zm2 4h4a2 2 0 1 1-4 0Z"
+          fill="currentColor"
+        />
+      </svg>
+
+      <span
+        id="notification-count"
+        class="topbar__notification-count"
+        aria-label="0 notifications"
+        hidden
+      >
+        0
+      </span>
+    </button>
+
+    <button
+      id="profile-button"
+      class="topbar__profile-button"
+      type="button"
+      aria-label="Open profile menu"
+      aria-expanded="false"
+    >
+      <span
+        class="topbar__profile-avatar"
+        aria-hidden="true"
+      >
+        DS
+      </span>
+
+      <span class="topbar__profile-copy">
+        <span class="topbar__profile-name">
+          Dean Stewart
+        </span>
+
+        <span class="topbar__profile-role">
+          Owner
+        </span>
+      </span>
+
+      <span
+        class="topbar__profile-chevron"
+        aria-hidden="true"
+      >
+        <svg
+          viewBox="0 0 24 24"
+          role="presentation"
+        >
+          <path
+            d="m7 10 5 5 5-5H7Z"
+            fill="currentColor"
+          />
+        </svg>
+      </span>
+    </button>
+  </div>
+
+  <div
+    id="profile-menu"
+    class="profile-menu"
+    hidden
+  >
+    <button
+      class="profile-menu__item"
+      type="button"
+      data-profile-action="profile"
+    >
+      Profile
+    </button>
+
+    <button
+      class="profile-menu__item"
+      type="button"
+      data-profile-action="settings"
+    >
+      Settings
+    </button>
+
+    <div class="profile-menu__divider"></div>
+
+    <button
+      class="profile-menu__item"
+      type="button"
+      data-profile-action="about"
+    >
+      About Pay Tracker
+    </button>
+  </div>
+</div>
+
+<style>
+  .topbar {
+    position: relative;
+    min-height: var(--header-height);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 24px;
+    padding: 12px 24px;
+  }
+
+  .topbar__left,
+  .topbar__right {
+    display: flex;
+    align-items: center;
+  }
+
+  .topbar__left {
+    min-width: 0;
+    gap: 14px;
+  }
+
+  .topbar__right {
+    gap: 10px;
+  }
+
+  .topbar__menu-button {
+    display: none;
+    flex: 0 0 auto;
+  }
+
+  .topbar__page-copy {
+    min-width: 0;
+  }
+
+  .topbar__eyebrow {
+    margin: 0 0 1px;
+    color: var(--color-text-soft);
+    font-size: 0.72rem;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  .topbar__title {
+    overflow: hidden;
+    margin: 0;
+    color: var(--color-text);
+    font-size: 1.28rem;
+    line-height: 1.2;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .topbar__search {
+    width: min(360px, 30vw);
+  }
+
+  .topbar__search-label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  .topbar__search-control {
+    min-height: 42px;
+    display: grid;
+    grid-template-columns: 20px minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 9px;
+    padding: 0 10px 0 13px;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-medium);
+    background: var(--color-surface-muted);
+    transition:
+      border-color var(--transition-fast),
+      background-color var(--transition-fast),
+      box-shadow var(--transition-fast);
+  }
+
+  .topbar__search-control:focus-within {
+    border-color: var(--color-primary);
+    background: var(--color-surface);
+    box-shadow: 0 0 0 3px
+      color-mix(
+        in srgb,
+        var(--color-primary) 16%,
+        transparent
+      );
+  }
+
+  .topbar__search-icon {
+    color: var(--color-text-soft);
+  }
+
+  .topbar__search-icon svg {
+    width: 19px;
+    height: 19px;
+  }
+
+  .topbar__search-input {
+    min-width: 0;
+    border: 0;
+    outline: 0;
+    background: transparent;
+    color: var(--color-text);
+  }
+
+  .topbar__search-input::placeholder {
+    color: var(--color-text-soft);
+  }
+
+  .topbar__search-shortcut {
+    padding: 2px 6px;
+    border: 1px solid var(--color-border);
+    border-radius: 6px;
+    background: var(--color-surface);
+    color: var(--color-text-soft);
+    font-family: inherit;
+    font-size: 0.7rem;
+    line-height: 1.4;
+  }
+
+  .icon-button svg {
+    width: 20px;
+    height: 20px;
+  }
+
+  .topbar__notification-button {
+    position: relative;
+  }
+
+  .topbar__notification-count {
+    position: absolute;
+    top: -5px;
+    right: -5px;
+    min-width: 20px;
+    height: 20px;
+    display: grid;
+    place-items: center;
+    padding: 0 5px;
+    border: 2px solid var(--color-surface);
+    border-radius: var(--radius-pill);
+    background: var(--color-danger);
+    color: #ffffff;
+    font-size: 0.68rem;
+    font-weight: 800;
+  }
+
+  .topbar__profile-button {
+    min-height: 46px;
+    display: grid;
+    grid-template-columns: 36px minmax(0, 1fr) 18px;
+    align-items: center;
+    gap: 9px;
+    padding: 5px 8px 5px 6px;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-medium);
+    background: var(--color-surface);
+    color: var(--color-text);
+    cursor: pointer;
+    text-align: left;
+    transition:
+      background-color var(--transition-fast),
+      border-color var(--transition-fast);
+  }
+
+  .topbar__profile-button:hover {
+    border-color: var(--color-border-strong);
+    background: var(--color-surface-muted);
+  }
+
+  .topbar__profile-avatar {
+    width: 34px;
+    height: 34px;
+    display: grid;
+    place-items: center;
+    border-radius: 50%;
+    background: var(--color-primary-soft);
+    color: var(--color-primary);
+    font-size: 0.8rem;
+    font-weight: 800;
+  }
+
+  .topbar__profile-copy {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .topbar__profile-name {
+    overflow: hidden;
+    font-size: 0.82rem;
+    font-weight: 800;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .topbar__profile-role {
+    color: var(--color-text-soft);
+    font-size: 0.7rem;
+  }
+
+  .topbar__profile-chevron {
+    color: var(--color-text-soft);
+  }
+
+  .topbar__profile-chevron svg {
+    width: 18px;
+    height: 18px;
+  }
+
+  .profile-menu {
+    position: absolute;
+    top: calc(100% - 4px);
+    right: 24px;
+    z-index: 60;
+    width: 220px;
+    padding: 8px;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-medium);
+    background: var(--color-surface);
+    box-shadow: var(--shadow-large);
+  }
+
+  .profile-menu__item {
+    width: 100%;
+    padding: 10px 12px;
+    border: 0;
+    border-radius: var(--radius-small);
+    background: transparent;
+    color: var(--color-text);
+    cursor: pointer;
+    text-align: left;
+  }
+
+  .profile-menu__item:hover {
+    background: var(--color-surface-muted);
+  }
+
+  .profile-menu__divider {
+    height: 1px;
+    margin: 6px 4px;
+    background: var(--color-border);
+  }
+
+  @media (max-width: 1120px) {
+    .topbar__search {
+      width: min(280px, 26vw);
+    }
+
+    .topbar__profile-copy {
+      display: none;
+    }
+
+    .topbar__profile-button {
+      grid-template-columns: 36px 18px;
+    }
+  }
+
+  @media (max-width: 860px) {
+    .topbar {
+      padding-right: 18px;
+      padding-left: 18px;
+    }
+
+    .topbar__menu-button {
+      display: inline-grid;
+    }
+
+    .topbar__search {
+      display: none;
+    }
+  }
+
+  @media (max-width: 560px) {
+    .topbar {
+      gap: 10px;
+      padding-right: 12px;
+      padding-left: 12px;
+    }
+
+    .topbar__eyebrow {
+      display: none;
+    }
+
+    .topbar__title {
+      font-size: 1.06rem;
+    }
+
+    #refresh-app-button {
+      display: none;
+    }
+
+    .topbar__profile-chevron {
+      display: none;
+    }
+
+    .topbar__profile-button {
+      grid-template-columns: 36px;
+      padding-right: 5px;
+    }
+
+    .profile-menu {
+      right: 12px;
+    }
+  }
+</style>

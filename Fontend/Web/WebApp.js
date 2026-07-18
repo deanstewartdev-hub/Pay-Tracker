@@ -1,221 +1,373 @@
 /*******************************************************
  * PAY TRACKER V2.6
- * Web/WebApp.js
+ * Frontend/Web/WebApp.js
  *
  * Purpose:
- * - Web application entry point
- * - HTML template rendering
- * - Shared frontend file inclusion
- * - Initial application configuration
+ * - Serve the Pay Tracker web application
+ * - Define frontend routes and navigation
+ * - Build the initial application bootstrap context
+ * - Load reusable HTML partials
+ * - Provide safe startup and error handling
  *
- * This file does not modify spreadsheet data.
+ * Notes:
+ * - Google Sheets remains the database.
+ * - Existing spreadsheet features are not changed.
+ * - This file does not write to spreadsheet data.
  *******************************************************/
 
-const PayTrackerWebApp = Object.freeze({
+const PayTrackerWebConfig = Object.freeze({
   VERSION: '2.6.0',
 
   APP_NAME: 'Pay Tracker',
 
-  DEFAULT_PAGE: 'dashboard',
+  DEFAULT_ROUTE: 'dashboard',
 
-  PAGES: Object.freeze({
+  ROUTES: Object.freeze({
     DASHBOARD: 'dashboard',
     PAY: 'pay',
     FINANCE: 'finance',
     SAVINGS: 'savings',
     GOALS: 'goals',
+    REPORTS: 'reports',
+    CALENDAR: 'calendar',
     SETTINGS: 'settings'
   }),
 
-  PAGE_TITLES: Object.freeze({
+  ROUTE_TITLES: Object.freeze({
     dashboard: 'Dashboard',
     pay: 'Pay',
     finance: 'Finance',
     savings: 'Savings',
     goals: 'Life Goals',
+    reports: 'Reports',
+    calendar: 'Calendar',
     settings: 'Settings'
   }),
 
-  HTML_FILES: Object.freeze({
-    INDEX: 'Web/Index',
-    STYLES: 'Web/Styles',
-    SCRIPTS: 'Web/Scripts',
-    SIDEBAR: 'Web/Components/Sidebar',
-    HEADER: 'Web/Components/Header',
-    DASHBOARD: 'Web/Components/Dashboard'
+  HTML: Object.freeze({
+    INDEX: 'Frontend/Web/Index',
+    STYLES: 'Frontend/Web/Styles',
+    SCRIPTS: 'Frontend/Web/Scripts',
+
+    LAYOUT_HEADER: 'Frontend/Layout/Header',
+    LAYOUT_SIDEBAR: 'Frontend/Layout/Sidebar',
+    LAYOUT_FOOTER: 'Frontend/Layout/Footer',
+
+    DASHBOARD_PAGE: 'Frontend/Components/Dashboard'
   })
 });
 
 /**
  * Serves the Pay Tracker web application.
  *
- * Example routes:
+ * Supported examples:
  *   /exec
  *   /exec?page=dashboard
  *   /exec?page=pay
  *   /exec?page=finance
  *   /exec?page=savings
  *
- * @param {GoogleAppsScript.Events.DoGet} event Web request event.
+ * @param {GoogleAppsScript.Events.DoGet=} event Web request event.
  * @return {GoogleAppsScript.HTML.HtmlOutput} Rendered web application.
  */
 function doGet(event) {
   try {
-    const requestedPage = getPayTrackerRequestedPage_(event);
+    const requestedRoute = getPayTrackerRequestedRoute_(event);
+    const applicationContext =
+      buildPayTrackerWebApplicationContext_(requestedRoute);
+
     const template = HtmlService.createTemplateFromFile(
-      PayTrackerWebApp.HTML_FILES.INDEX
+      PayTrackerWebConfig.HTML.INDEX
     );
 
-    template.app = buildPayTrackerWebAppContext_(requestedPage);
+    template.app = applicationContext;
+    template.bootstrapJson =
+      serializePayTrackerBootstrapData_(applicationContext);
 
     return template
       .evaluate()
-      .setTitle(PayTrackerWebApp.APP_NAME)
-      .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL)
-      .addMetaTag('viewport', 'width=device-width, initial-scale=1');
+      .setTitle(
+        applicationContext.pageTitle +
+          ' | ' +
+          PayTrackerWebConfig.APP_NAME
+      )
+      .addMetaTag(
+        'viewport',
+        'width=device-width, initial-scale=1, viewport-fit=cover'
+      )
+      .setXFrameOptionsMode(
+        HtmlService.XFrameOptionsMode.ALLOWALL
+      );
   } catch (error) {
-    console.error('Pay Tracker web application failed to load.', error);
+    console.error(
+      'Pay Tracker web application failed during startup.',
+      error
+    );
 
-    return createPayTrackerWebErrorPage_(error);
+    return createPayTrackerWebErrorOutput_(error);
   }
 }
 
 /**
- * Includes another HTML file inside an Apps Script HTML template.
+ * Includes a reusable HTML partial.
  *
- * Usage inside HTML:
- *   <?!= includePayTrackerHtml_('Web/Styles'); ?>
+ * Example:
+ *   <?!= includePayTrackerHtml_('Frontend/Web/Styles'); ?>
  *
  * @param {string} filename Apps Script HTML filename without extension.
- * @return {string} File contents.
+ * @return {string} HTML file contents.
  */
 function includePayTrackerHtml_(filename) {
-  if (!filename || typeof filename !== 'string') {
-    throw new Error('A valid HTML filename is required.');
+  const normalizedFilename = String(filename || '').trim();
+
+  if (!normalizedFilename) {
+    throw new Error(
+      'A valid HTML filename is required when including a partial.'
+    );
   }
 
-  return HtmlService.createHtmlOutputFromFile(filename).getContent();
+  return HtmlService
+    .createHtmlOutputFromFile(normalizedFilename)
+    .getContent();
 }
 
 /**
- * Returns the initial frontend application configuration.
+ * Returns the application configuration for frontend refreshes.
  *
- * This method can also be called from google.script.run after the page loads.
+ * This method may be called with google.script.run.
  *
+ * @param {string=} requestedRoute Optional requested route.
  * @return {Object} Serializable application configuration.
  */
-function getPayTrackerWebAppConfig() {
-  return buildPayTrackerWebAppContext_(PayTrackerWebApp.DEFAULT_PAGE);
+function getPayTrackerWebApplicationConfig(requestedRoute) {
+  const route = normalizePayTrackerRoute_(requestedRoute);
+
+  return buildPayTrackerWebApplicationContext_(route);
 }
 
 /**
- * Creates the server-side context passed into Index.html.
+ * Returns a lightweight backend health response.
  *
- * @param {string} requestedPage Valid application page.
+ * The frontend uses this to confirm that Apps Script is reachable.
+ *
+ * @return {Object} Health-check result.
+ */
+function getPayTrackerWebHealth() {
+  return {
+    success: true,
+    application: PayTrackerWebConfig.APP_NAME,
+    version: PayTrackerWebConfig.VERSION,
+    status: 'online',
+    checkedAt: new Date().toISOString()
+  };
+}
+
+/**
+ * Builds the initial application context.
+ *
+ * @param {string} requestedRoute Requested application route.
  * @return {Object} Serializable application context.
  * @private
  */
-function buildPayTrackerWebAppContext_(requestedPage) {
-  const page = isPayTrackerValidPage_(requestedPage)
-    ? requestedPage
-    : PayTrackerWebApp.DEFAULT_PAGE;
+function buildPayTrackerWebApplicationContext_(requestedRoute) {
+  const activeRoute = normalizePayTrackerRoute_(requestedRoute);
 
   return {
-    appName: PayTrackerWebApp.APP_NAME,
-    version: PayTrackerWebApp.VERSION,
-    activePage: page,
-    pageTitle: PayTrackerWebApp.PAGE_TITLES[page],
-    pages: [
-      {
-        id: PayTrackerWebApp.PAGES.DASHBOARD,
-        label: PayTrackerWebApp.PAGE_TITLES.dashboard,
-        icon: 'dashboard'
-      },
-      {
-        id: PayTrackerWebApp.PAGES.PAY,
-        label: PayTrackerWebApp.PAGE_TITLES.pay,
-        icon: 'payments'
-      },
-      {
-        id: PayTrackerWebApp.PAGES.FINANCE,
-        label: PayTrackerWebApp.PAGE_TITLES.finance,
-        icon: 'account_balance'
-      },
-      {
-        id: PayTrackerWebApp.PAGES.SAVINGS,
-        label: PayTrackerWebApp.PAGE_TITLES.savings,
-        icon: 'savings'
-      },
-      {
-        id: PayTrackerWebApp.PAGES.GOALS,
-        label: PayTrackerWebApp.PAGE_TITLES.goals,
-        icon: 'flag'
-      },
-      {
-        id: PayTrackerWebApp.PAGES.SETTINGS,
-        label: PayTrackerWebApp.PAGE_TITLES.settings,
-        icon: 'settings'
-      }
-    ],
+    appName: PayTrackerWebConfig.APP_NAME,
+    version: PayTrackerWebConfig.VERSION,
+    activeRoute: activeRoute,
+    pageTitle:
+      PayTrackerWebConfig.ROUTE_TITLES[activeRoute] ||
+      PayTrackerWebConfig.ROUTE_TITLES[
+        PayTrackerWebConfig.DEFAULT_ROUTE
+      ],
+    navigation: buildPayTrackerNavigation_(),
+    environment: getPayTrackerWebEnvironment_(),
     generatedAt: new Date().toISOString()
   };
 }
 
 /**
- * Extracts and validates the requested route from the web request.
+ * Builds the main application navigation.
  *
- * @param {GoogleAppsScript.Events.DoGet} event Web request event.
- * @return {string} Normalized page identifier.
+ * @return {Object[]} Navigation records.
  * @private
  */
-function getPayTrackerRequestedPage_(event) {
+function buildPayTrackerNavigation_() {
+  return [
+    {
+      id: PayTrackerWebConfig.ROUTES.DASHBOARD,
+      label: PayTrackerWebConfig.ROUTE_TITLES.dashboard,
+      icon: 'dashboard',
+      section: 'main',
+      enabled: true
+    },
+    {
+      id: PayTrackerWebConfig.ROUTES.PAY,
+      label: PayTrackerWebConfig.ROUTE_TITLES.pay,
+      icon: 'payments',
+      section: 'main',
+      enabled: true
+    },
+    {
+      id: PayTrackerWebConfig.ROUTES.FINANCE,
+      label: PayTrackerWebConfig.ROUTE_TITLES.finance,
+      icon: 'account_balance_wallet',
+      section: 'main',
+      enabled: true
+    },
+    {
+      id: PayTrackerWebConfig.ROUTES.SAVINGS,
+      label: PayTrackerWebConfig.ROUTE_TITLES.savings,
+      icon: 'savings',
+      section: 'main',
+      enabled: true
+    },
+    {
+      id: PayTrackerWebConfig.ROUTES.GOALS,
+      label: PayTrackerWebConfig.ROUTE_TITLES.goals,
+      icon: 'flag',
+      section: 'main',
+      enabled: true
+    },
+    {
+      id: PayTrackerWebConfig.ROUTES.REPORTS,
+      label: PayTrackerWebConfig.ROUTE_TITLES.reports,
+      icon: 'monitoring',
+      section: 'analysis',
+      enabled: true
+    },
+    {
+      id: PayTrackerWebConfig.ROUTES.CALENDAR,
+      label: PayTrackerWebConfig.ROUTE_TITLES.calendar,
+      icon: 'calendar_month',
+      section: 'analysis',
+      enabled: true
+    },
+    {
+      id: PayTrackerWebConfig.ROUTES.SETTINGS,
+      label: PayTrackerWebConfig.ROUTE_TITLES.settings,
+      icon: 'settings',
+      section: 'system',
+      enabled: true
+    }
+  ];
+}
+
+/**
+ * Extracts the requested route from the Apps Script web event.
+ *
+ * @param {GoogleAppsScript.Events.DoGet=} event Web request event.
+ * @return {string} Normalized route.
+ * @private
+ */
+function getPayTrackerRequestedRoute_(event) {
   if (
     !event ||
     !event.parameter ||
     typeof event.parameter.page !== 'string'
   ) {
-    return PayTrackerWebApp.DEFAULT_PAGE;
+    return PayTrackerWebConfig.DEFAULT_ROUTE;
   }
 
-  const requestedPage = event.parameter.page.trim().toLowerCase();
-
-  return isPayTrackerValidPage_(requestedPage)
-    ? requestedPage
-    : PayTrackerWebApp.DEFAULT_PAGE;
+  return normalizePayTrackerRoute_(event.parameter.page);
 }
 
 /**
- * Determines whether a page identifier is supported.
+ * Normalizes and validates an application route.
  *
- * @param {string} page Page identifier.
- * @return {boolean} True when supported.
+ * @param {*} route Requested route.
+ * @return {string} Valid application route.
  * @private
  */
-function isPayTrackerValidPage_(page) {
-  if (!page || typeof page !== 'string') {
-    return false;
+function normalizePayTrackerRoute_(route) {
+  const normalizedRoute = String(route || '')
+    .trim()
+    .toLowerCase();
+
+  if (!normalizedRoute) {
+    return PayTrackerWebConfig.DEFAULT_ROUTE;
   }
 
+  if (!isPayTrackerRouteValid_(normalizedRoute)) {
+    return PayTrackerWebConfig.DEFAULT_ROUTE;
+  }
+
+  return normalizedRoute;
+}
+
+/**
+ * Determines whether a route exists.
+ *
+ * @param {string} route Route identifier.
+ * @return {boolean} True when the route is supported.
+ * @private
+ */
+function isPayTrackerRouteValid_(route) {
   return Object.prototype.hasOwnProperty.call(
-    PayTrackerWebApp.PAGE_TITLES,
-    page
+    PayTrackerWebConfig.ROUTE_TITLES,
+    route
   );
 }
 
 /**
- * Generates a safe fallback page when the primary template fails.
+ * Creates environment information for the frontend.
  *
- * @param {*} error Error raised while rendering the web application.
- * @return {GoogleAppsScript.HTML.HtmlOutput} Error page.
+ * No private spreadsheet identifiers are exposed.
+ *
+ * @return {Object} Environment information.
  * @private
  */
-function createPayTrackerWebErrorPage_(error) {
+function getPayTrackerWebEnvironment_() {
+  const activeSpreadsheet =
+    SpreadsheetApp.getActiveSpreadsheet();
+
+  let spreadsheetName = 'Pay Tracker';
+
+  if (activeSpreadsheet) {
+    spreadsheetName =
+      activeSpreadsheet.getName() || spreadsheetName;
+  }
+
+  return {
+    spreadsheetName: spreadsheetName,
+    runtime: 'Google Apps Script',
+    database: 'Google Sheets'
+  };
+}
+
+/**
+ * Serializes startup data for safe insertion into JavaScript.
+ *
+ * Characters that could terminate or alter a script element are escaped.
+ *
+ * @param {Object} value Bootstrap value.
+ * @return {string} Safe JSON string.
+ * @private
+ */
+function serializePayTrackerBootstrapData_(value) {
+  return JSON.stringify(value)
+    .replace(/</g, '\\u003c')
+    .replace(/>/g, '\\u003e')
+    .replace(/&/g, '\\u0026')
+    .replace(/\u2028/g, '\\u2028')
+    .replace(/\u2029/g, '\\u2029');
+}
+
+/**
+ * Creates a safe fallback page when the main application fails.
+ *
+ * @param {*} error Startup error.
+ * @return {GoogleAppsScript.HTML.HtmlOutput} Error output.
+ * @private
+ */
+function createPayTrackerWebErrorOutput_(error) {
   const message =
     error && error.message
       ? String(error.message)
-      : 'An unexpected error occurred.';
+      : 'An unexpected startup error occurred.';
 
-  const safeMessage = escapePayTrackerHtml_(message);
+  const safeMessage = escapePayTrackerWebHtml_(message);
 
   const html = [
     '<!DOCTYPE html>',
@@ -224,44 +376,56 @@ function createPayTrackerWebErrorPage_(error) {
     '  <base target="_top">',
     '  <meta charset="UTF-8">',
     '  <meta name="viewport" content="width=device-width, initial-scale=1">',
-    '  <title>Pay Tracker</title>',
+    '  <title>Pay Tracker | Startup Error</title>',
     '  <style>',
+    '    :root {',
+    '      color-scheme: light dark;',
+    '      font-family: Inter, Arial, sans-serif;',
+    '    }',
+    '    * { box-sizing: border-box; }',
     '    body {',
     '      margin: 0;',
     '      min-height: 100vh;',
     '      display: grid;',
     '      place-items: center;',
     '      padding: 24px;',
-    '      box-sizing: border-box;',
-    '      background: #f3f4f6;',
-    '      color: #111827;',
-    '      font-family: Arial, sans-serif;',
+    '      background: #0f172a;',
+    '      color: #e2e8f0;',
     '    }',
     '    .error-card {',
     '      width: 100%;',
-    '      max-width: 560px;',
+    '      max-width: 620px;',
     '      padding: 32px;',
-    '      box-sizing: border-box;',
-    '      border: 1px solid #e5e7eb;',
-    '      border-radius: 16px;',
-    '      background: #ffffff;',
+    '      border: 1px solid #334155;',
+    '      border-radius: 18px;',
+    '      background: #111827;',
     '    }',
-    '    h1 { margin-top: 0; }',
-    '    p { line-height: 1.6; }',
+    '    h1 {',
+    '      margin: 0 0 12px;',
+    '      font-size: 1.75rem;',
+    '    }',
+    '    p {',
+    '      margin: 0;',
+    '      color: #cbd5e1;',
+    '      line-height: 1.6;',
+    '    }',
     '    code {',
     '      display: block;',
-    '      margin-top: 16px;',
-    '      padding: 12px;',
+    '      margin-top: 20px;',
+    '      padding: 14px;',
     '      overflow-wrap: anywhere;',
-    '      border-radius: 8px;',
-    '      background: #f9fafb;',
+    '      border-radius: 10px;',
+    '      background: #020617;',
+    '      color: #f8fafc;',
     '    }',
     '  </style>',
     '</head>',
     '<body>',
     '  <main class="error-card">',
-    '    <h1>Pay Tracker could not load</h1>',
-    '    <p>The web application encountered an error while starting.</p>',
+    '    <h1>Pay Tracker could not start</h1>',
+    '    <p>',
+    '      The web application encountered an error before the dashboard loaded.',
+    '    </p>',
     '    <code>' + safeMessage + '</code>',
     '  </main>',
     '</body>',
@@ -270,18 +434,21 @@ function createPayTrackerWebErrorPage_(error) {
 
   return HtmlService
     .createHtmlOutput(html)
-    .setTitle('Pay Tracker — Error')
-    .addMetaTag('viewport', 'width=device-width, initial-scale=1');
+    .setTitle('Pay Tracker | Startup Error')
+    .addMetaTag(
+      'viewport',
+      'width=device-width, initial-scale=1'
+    );
 }
 
 /**
- * Escapes a value before inserting it into fallback HTML.
+ * Escapes text for insertion into fallback HTML.
  *
  * @param {*} value Value to escape.
- * @return {string} Escaped text.
+ * @return {string} Escaped HTML.
  * @private
  */
-function escapePayTrackerHtml_(value) {
+function escapePayTrackerWebHtml_(value) {
   return String(value)
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
