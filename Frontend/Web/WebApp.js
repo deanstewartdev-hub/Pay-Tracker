@@ -4,16 +4,21 @@
  *
  * Purpose:
  * - Serve the Pay Tracker web application
- * - Build the frontend bootstrap configuration
- * - Load Apps Script HTML partials safely
- * - Support local folder organisation through clasp
+ * - Resolve frontend routes
+ * - Build the application bootstrap payload
+ * - Render the main frontend template
+ *
+ * Architecture:
+ * - Only Index.html is evaluated as an Apps Script template
+ * - Included partials contain no server-side variables
+ * - Frontend state is injected through a bootstrap JSON object
  *******************************************************/
 
-const PayTrackerWebConfig = Object.freeze({
+const PAY_TRACKER_WEB_CONFIG = Object.freeze({
   APP_NAME: 'Pay Tracker',
   VERSION: '2.6.0',
   DEFAULT_ROUTE: 'dashboard',
-  ENTRY_FILE: 'Index',
+  ENTRY_TEMPLATE: 'Frontend/Index',
 
   ROUTES: Object.freeze({
     DASHBOARD: 'dashboard',
@@ -31,78 +36,73 @@ const PayTrackerWebConfig = Object.freeze({
  * Serves the Pay Tracker web application.
  *
  * @param {Object=} event Apps Script web request event.
- * @return {GoogleAppsScript.HTML.HtmlOutput} Web application output.
+ * @return {GoogleAppsScript.HTML.HtmlOutput} Rendered application.
  */
 function doGet(event) {
   try {
-    const appContext =
-      buildPayTrackerWebApplicationContext_(event);
+    const applicationState =
+      buildPayTrackerApplicationState_(event);
 
     const template = HtmlService.createTemplateFromFile(
-      PayTrackerWebConfig.ENTRY_FILE
+      PAY_TRACKER_WEB_CONFIG.ENTRY_TEMPLATE
     );
 
-    template.app = appContext;
     template.bootstrapJson =
-      serializePayTrackerWebBootstrap_(appContext);
+      serializePayTrackerBootstrap_(applicationState);
 
     return template
       .evaluate()
       .setTitle(
-        appContext.pageTitle +
+        applicationState.pageTitle +
           ' | ' +
-          PayTrackerWebConfig.APP_NAME
-      )
-      .setXFrameOptionsMode(
-        HtmlService.XFrameOptionsMode.ALLOWALL
+          applicationState.appName
       )
       .addMetaTag(
         'viewport',
         'width=device-width, initial-scale=1'
+      )
+      .setXFrameOptionsMode(
+        HtmlService.XFrameOptionsMode.ALLOWALL
       );
   } catch (error) {
     console.error(
-      'Pay Tracker web application startup failed.',
+      'Pay Tracker web application failed to start.',
       error
     );
 
-    return buildPayTrackerWebErrorOutput_(error);
+    return buildPayTrackerStartupError_(error);
   }
 }
 
 /**
- * Includes an HTML partial.
+ * Includes a frontend HTML partial without evaluating it
+ * as a separate template.
  *
- * Apps Script does not preserve local folder paths when clasp uploads
- * project files. For example:
+ * This is intentionally equivalent to the proven
+ * Project Savannah pattern.
  *
- * Frontend/Layout/Header.html
+ * Included partials must not depend on template variables.
  *
- * becomes:
- *
- * Header
- *
- * Therefore this helper accepts either the original local path or the
- * flattened Apps Script filename.
- *
- * @param {string} filePath Local path or Apps Script file name.
- * @return {string} Evaluated HTML content.
+ * @param {string} fileName Apps Script HTML filename.
+ * @return {string} Raw HTML content.
  */
-function includePayTrackerHtml_(filePath) {
-  const fileName =
-    getPayTrackerAppsScriptFileName_(filePath);
+function includePayTrackerHtml(fileName) {
+  const normalizedFileName = String(fileName || '').trim();
+
+  if (!normalizedFileName) {
+    throw new Error(
+      'A frontend include filename is required.'
+    );
+  }
 
   try {
     return HtmlService
-      .createTemplateFromFile(fileName)
-      .evaluate()
+      .createHtmlOutputFromFile(normalizedFileName)
       .getContent();
   } catch (error) {
     throw new Error(
-      'Could not include HTML file "' +
-        fileName +
-        '" from "' +
-        String(filePath || '') +
+      'Could not include frontend file "' +
+        normalizedFileName +
         '". ' +
         getPayTrackerWebErrorMessage_(error)
     );
@@ -110,63 +110,15 @@ function includePayTrackerHtml_(filePath) {
 }
 
 /**
- * Converts a local project path into the filename used by Apps Script.
+ * Returns a lightweight application health response.
  *
- * Examples:
- * Frontend/Web/Styles       -> Styles
- * Frontend/Layout/Header    -> Header
- * Frontend/Components/Dashboard.html -> Dashboard
- *
- * @param {string} filePath File path.
- * @return {string} Apps Script filename.
- * @private
- */
-function getPayTrackerAppsScriptFileName_(filePath) {
-  const normalizedPath = String(filePath || '')
-    .trim()
-    .replace(/\\/g, '/');
-
-  if (!normalizedPath) {
-    throw new Error(
-      'An HTML filename is required.'
-    );
-  }
-
-  const pathParts = normalizedPath.split('/');
-  const fileName = pathParts[pathParts.length - 1]
-    .replace(/\.html$/i, '')
-    .trim();
-
-  if (!fileName) {
-    throw new Error(
-      'The HTML filename could not be determined from "' +
-        normalizedPath +
-        '".'
-    );
-  }
-
-  return fileName;
-}
-
-/**
- * Returns frontend application configuration.
- *
- * @return {Object} Application configuration.
- */
-function getPayTrackerWebApplicationConfig() {
-  return buildPayTrackerWebApplicationContext_();
-}
-
-/**
- * Returns a lightweight backend health response.
- *
- * @return {Object} Health information.
+ * @return {Object} Health response.
  */
 function getPayTrackerWebHealth() {
   return {
     success: true,
-    application: PayTrackerWebConfig.APP_NAME,
-    version: PayTrackerWebConfig.VERSION,
+    application: PAY_TRACKER_WEB_CONFIG.APP_NAME,
+    version: PAY_TRACKER_WEB_CONFIG.VERSION,
     runtime: 'Google Apps Script',
     database: 'Google Sheets',
     checkedAt: new Date().toISOString()
@@ -174,29 +126,47 @@ function getPayTrackerWebHealth() {
 }
 
 /**
- * Creates the frontend application context.
+ * Returns the frontend bootstrap configuration.
+ *
+ * @return {Object} Application state.
+ */
+function getPayTrackerWebBootstrap() {
+  return buildPayTrackerApplicationState_();
+}
+
+/**
+ * Builds the application state injected into Index.html.
  *
  * @param {Object=} event Apps Script request event.
- * @return {Object} Application context.
+ * @return {Object} Application state.
  * @private
  */
-function buildPayTrackerWebApplicationContext_(event) {
-  const requestedRoute =
-    getPayTrackerRequestedRoute_(event);
+function buildPayTrackerApplicationState_(event) {
+  const activeRoute =
+    resolvePayTrackerRoute_(event);
 
   return {
-    appName: PayTrackerWebConfig.APP_NAME,
-    version: PayTrackerWebConfig.VERSION,
-    activeRoute: requestedRoute,
-    pageTitle:
-      getPayTrackerRouteTitle_(requestedRoute),
+    appName: PAY_TRACKER_WEB_CONFIG.APP_NAME,
+    version: PAY_TRACKER_WEB_CONFIG.VERSION,
+    activeRoute: activeRoute,
+    pageTitle: getPayTrackerRouteTitle_(activeRoute),
 
-    navigation:
-      buildPayTrackerWebNavigation_(),
+    navigation: buildPayTrackerNavigation_(),
 
     environment: {
       runtime: 'Apps Script',
       database: 'Google Sheets'
+    },
+
+    features: {
+      dashboard: true,
+      pay: true,
+      finance: true,
+      savings: true,
+      goals: true,
+      reports: true,
+      calendar: true,
+      settings: true
     },
 
     generatedAt: new Date().toISOString()
@@ -204,101 +174,101 @@ function buildPayTrackerWebApplicationContext_(event) {
 }
 
 /**
- * Resolves the requested frontend route.
+ * Resolves the requested route.
  *
  * @param {Object=} event Apps Script request event.
  * @return {string} Valid route.
  * @private
  */
-function getPayTrackerRequestedRoute_(event) {
-  const route =
+function resolvePayTrackerRoute_(event) {
+  const requestedRoute =
     event &&
     event.parameter &&
     event.parameter.page
       ? String(event.parameter.page)
           .trim()
           .toLowerCase()
-      : PayTrackerWebConfig.DEFAULT_ROUTE;
+      : PAY_TRACKER_WEB_CONFIG.DEFAULT_ROUTE;
 
   const validRoutes = Object.keys(
-    PayTrackerWebConfig.ROUTES
+    PAY_TRACKER_WEB_CONFIG.ROUTES
   ).map(function(key) {
-    return PayTrackerWebConfig.ROUTES[key];
+    return PAY_TRACKER_WEB_CONFIG.ROUTES[key];
   });
 
-  return validRoutes.indexOf(route) !== -1
-    ? route
-    : PayTrackerWebConfig.DEFAULT_ROUTE;
+  return validRoutes.indexOf(requestedRoute) !== -1
+    ? requestedRoute
+    : PAY_TRACKER_WEB_CONFIG.DEFAULT_ROUTE;
 }
 
 /**
- * Creates the sidebar navigation configuration.
+ * Builds frontend navigation configuration.
  *
- * @return {Array<Object>} Navigation entries.
+ * @return {Array<Object>} Navigation items.
  * @private
  */
-function buildPayTrackerWebNavigation_() {
+function buildPayTrackerNavigation_() {
   return [
     {
-      id: PayTrackerWebConfig.ROUTES.DASHBOARD,
+      id: PAY_TRACKER_WEB_CONFIG.ROUTES.DASHBOARD,
       label: 'Dashboard',
       section: 'main',
-      enabled: true
+      icon: 'dashboard'
     },
     {
-      id: PayTrackerWebConfig.ROUTES.PAY,
+      id: PAY_TRACKER_WEB_CONFIG.ROUTES.PAY,
       label: 'Pay',
       section: 'main',
-      enabled: true
+      icon: 'pay'
     },
     {
-      id: PayTrackerWebConfig.ROUTES.FINANCE,
+      id: PAY_TRACKER_WEB_CONFIG.ROUTES.FINANCE,
       label: 'Finance',
       section: 'main',
-      enabled: true
+      icon: 'finance'
     },
     {
-      id: PayTrackerWebConfig.ROUTES.SAVINGS,
+      id: PAY_TRACKER_WEB_CONFIG.ROUTES.SAVINGS,
       label: 'Savings',
       section: 'main',
-      enabled: true
+      icon: 'savings'
     },
     {
-      id: PayTrackerWebConfig.ROUTES.GOALS,
+      id: PAY_TRACKER_WEB_CONFIG.ROUTES.GOALS,
       label: 'Life Goals',
       section: 'main',
-      enabled: true
+      icon: 'goals'
     },
     {
-      id: PayTrackerWebConfig.ROUTES.REPORTS,
+      id: PAY_TRACKER_WEB_CONFIG.ROUTES.REPORTS,
       label: 'Reports',
-      section: 'analysis',
-      enabled: true
+      section: 'insights',
+      icon: 'reports'
     },
     {
-      id: PayTrackerWebConfig.ROUTES.CALENDAR,
+      id: PAY_TRACKER_WEB_CONFIG.ROUTES.CALENDAR,
       label: 'Calendar',
-      section: 'analysis',
-      enabled: true
+      section: 'insights',
+      icon: 'calendar'
     },
     {
-      id: PayTrackerWebConfig.ROUTES.SETTINGS,
+      id: PAY_TRACKER_WEB_CONFIG.ROUTES.SETTINGS,
       label: 'Settings',
       section: 'system',
-      enabled: true
+      icon: 'settings'
     }
   ];
 }
 
 /**
- * Returns a readable title for a route.
+ * Returns a page title for a route.
  *
  * @param {string} route Route identifier.
  * @return {string} Page title.
  * @private
  */
 function getPayTrackerRouteTitle_(route) {
-  const titles = {
+  const routeTitles = {
     dashboard: 'Dashboard',
     pay: 'Pay',
     finance: 'Finance',
@@ -309,17 +279,17 @@ function getPayTrackerRouteTitle_(route) {
     settings: 'Settings'
   };
 
-  return titles[route] || titles.dashboard;
+  return routeTitles[route] || routeTitles.dashboard;
 }
 
 /**
- * Serializes bootstrap data safely for insertion into HTML.
+ * Safely serializes frontend bootstrap data.
  *
- * @param {Object} bootstrap Bootstrap data.
- * @return {string} Safe JSON.
+ * @param {Object} bootstrap Application state.
+ * @return {string} Safe JSON string.
  * @private
  */
-function serializePayTrackerWebBootstrap_(bootstrap) {
+function serializePayTrackerBootstrap_(bootstrap) {
   return JSON.stringify(bootstrap)
     .replace(/</g, '\\u003c')
     .replace(/>/g, '\\u003e')
@@ -329,20 +299,19 @@ function serializePayTrackerWebBootstrap_(bootstrap) {
 }
 
 /**
- * Builds a standalone startup-error page.
+ * Builds a startup error page.
  *
  * @param {*} error Startup error.
- * @return {GoogleAppsScript.HTML.HtmlOutput} Error page.
+ * @return {GoogleAppsScript.HTML.HtmlOutput} Error output.
  * @private
  */
-function buildPayTrackerWebErrorOutput_(error) {
-  const message =
-    escapePayTrackerWebHtml_(
-      getPayTrackerWebErrorMessage_(
-        error,
-        'An unknown startup error occurred.'
-      )
-    );
+function buildPayTrackerStartupError_(error) {
+  const message = escapePayTrackerWebHtml_(
+    getPayTrackerWebErrorMessage_(
+      error,
+      'An unknown startup error occurred.'
+    )
+  );
 
   const html =
     '<!DOCTYPE html>' +
@@ -384,17 +353,14 @@ function buildPayTrackerWebErrorOutput_(error) {
 }
 
 /**
- * Returns an error message safely.
+ * Returns a readable error message.
  *
  * @param {*} error Error value.
  * @param {string=} fallback Fallback message.
  * @return {string} Error message.
  * @private
  */
-function getPayTrackerWebErrorMessage_(
-  error,
-  fallback
-) {
+function getPayTrackerWebErrorMessage_(error, fallback) {
   if (
     error &&
     typeof error === 'object' &&
@@ -414,10 +380,10 @@ function getPayTrackerWebErrorMessage_(
 }
 
 /**
- * Escapes text for safe HTML output.
+ * Escapes text before inserting it into HTML.
  *
  * @param {*} value Value to escape.
- * @return {string} Escaped text.
+ * @return {string} Escaped value.
  * @private
  */
 function escapePayTrackerWebHtml_(value) {

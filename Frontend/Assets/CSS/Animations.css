@@ -1,0 +1,303 @@
+/*******************************************************
+ * PAY TRACKER V2.6
+ * Frontend/Assets/CSS/Animations.css
+ *
+ * Global animations and transitions.
+ *******************************************************/
+
+/* ============================================
+   Keyframes
+============================================ */
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(18px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fadeInDown {
+  from {
+    opacity: 0;
+    transform: translateY(-18px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slideInLeft {
+  from {
+    opacity: 0;
+    transform: translateX(-28px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes slideInRight {
+  from {
+    opacity: 0;
+    transform: translateX(28px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes scaleIn {
+  from {
+    opacity: 0;
+    transform: scale(.96);
+  }
+
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes pulse {
+
+  0%,
+  100% {
+    transform: scale(1);
+  }
+
+  50% {
+    transform: scale(1.03);
+  }
+
+}
+
+@keyframes shimmer {
+
+  0% {
+    transform: translateX(-100%);
+  }
+
+  100% {
+    transform: translateX(100%);
+  }
+
+}
+
+@keyframes app-spin {
+  from {
+    transform: rotate(0deg);
+  }
+
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes successPop {
+
+  0% {
+    transform: scale(.7);
+    opacity: 0;
+  }
+
+  70% {
+    transform: scale(1.08);
+    opacity: 1;
+  }
+
+  100% {
+    transform: scale(1);
+  }
+
+}
+
+/* ============================================
+   Animation helpers
+============================================ */
+
+.animate-fade {
+  animation: fadeIn .35s ease both;
+}
+
+.animate-fade-up {
+  animation: fadeInUp .45s ease both;
+}
+
+.animate-fade-down {
+  animation: fadeInDown .45s ease both;
+}
+
+.animate-slide-left {
+  animation: slideInLeft .45s ease both;
+}
+
+.animate-slide-right {
+  animation: slideInRight .45s ease both;
+}
+
+.animate-scale {
+  animation: scaleIn .30s ease both;
+}
+
+.animate-pulse {
+  animation: pulse 2s ease-in-out infinite;
+}
+
+.animate-spin {
+  animation: app-spin 1s linear infinite;
+}
+
+/* ============================================
+   Dashboard cards
+============================================ */
+
+.summary-card {
+  animation: fadeInUp .45s ease both;
+}
+
+.summary-card:nth-child(1) {
+  animation-delay: .05s;
+}
+
+.summary-card:nth-child(2) {
+  animation-delay: .10s;
+}
+
+.summary-card:nth-child(3) {
+  animation-delay: .15s;
+}
+
+.summary-card:nth-child(4) {
+  animation-delay: .20s;
+}
+
+/* ============================================
+   Hover animations
+============================================ */
+
+.card,
+.button,
+.summary-card,
+.sidebar__nav-link,
+.profile-button,
+.header-action,
+.theme-toggle,
+.sidebar-toggle {
+  transition:
+      transform var(--transition-fast),
+      box-shadow var(--transition-fast),
+      background var(--transition-fast),
+      border-color var(--transition-fast),
+      color var(--transition-fast);
+}
+
+.card:hover,
+.summary-card:hover {
+  transform: translateY(-3px);
+}
+
+.button:hover {
+  transform: translateY(-2px);
+}
+
+.button:active {
+  transform: translateY(1px);
+}
+
+/* ============================================
+   Loading skeleton
+============================================ */
+
+.skeleton {
+  position: relative;
+  overflow: hidden;
+  background: var(--color-surface-muted);
+}
+
+.skeleton::after {
+  content: "";
+
+  position: absolute;
+  inset: 0;
+
+  background:
+      linear-gradient(
+          90deg,
+          transparent,
+          rgba(255,255,255,.35),
+          transparent
+      );
+
+  animation: shimmer 1.5s infinite;
+}
+
+/* ============================================
+   Toasts
+============================================ */
+
+.toast {
+  animation:
+      slideInRight .35s ease,
+      fadeIn .35s ease;
+}
+
+/* ============================================
+   Modal
+============================================ */
+
+.modal {
+  animation: scaleIn .25s ease;
+}
+
+/* ============================================
+   Dropdown
+============================================ */
+
+.dropdown,
+.profile-menu {
+  transform-origin: top right;
+  animation: scaleIn .18s ease;
+}
+
+/* ============================================
+   Success indicator
+============================================ */
+
+.success-pop {
+  animation: successPop .35s ease;
+}
+
+/* ============================================
+   Reduced motion
+============================================ */
+
+@media (prefers-reduced-motion: reduce) {
+
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+
+}

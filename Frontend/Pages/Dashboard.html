@@ -1,0 +1,929 @@
+<div class="dashboard">
+  <section class="dashboard-hero">
+    <div class="dashboard-hero__copy">
+      <p class="page-header__eyebrow">
+        Financial overview
+      </p>
+
+      <h2 class="page-header__title">
+        Your money at a glance
+      </h2>
+
+      <p class="page-header__description">
+        Review your expected earnings, disposable income, bills, savings and
+        financial progress from one dashboard.
+      </p>
+    </div>
+
+    <div class="dashboard-hero__actions">
+      <button
+        id="dashboard-refresh-button"
+        class="button button--secondary"
+        type="button"
+      >
+        <span
+          class="button__icon"
+          aria-hidden="true"
+        >
+          <svg viewBox="0 0 24 24">
+            <path
+              d="M17.65 6.35A8 8 0 1 0 20 12h-2a6 6 0 1 1-1.76-4.24L13 11h8V3l-3.35 3.35Z"
+              fill="currentColor"
+            />
+          </svg>
+        </span>
+
+        <span>
+          Refresh
+        </span>
+      </button>
+
+      <button
+        id="dashboard-open-pay-button"
+        class="button button--primary"
+        type="button"
+        data-dashboard-route="pay"
+      >
+        View weekly pay
+      </button>
+    </div>
+  </section>
+
+  <section
+    class="dashboard-summary-grid"
+    aria-label="Financial summary"
+  >
+    <article class="summary-card summary-card--income">
+      <div class="summary-card__header">
+        <div>
+          <p class="summary-card__label">
+            Expected weekly pay
+          </p>
+
+          <p class="summary-card__period">
+            Current tracked week
+          </p>
+        </div>
+
+        <div
+          class="summary-card__icon"
+          aria-hidden="true"
+        >
+          <svg viewBox="0 0 24 24">
+            <path
+              d="M4 5h16a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Zm0 3v8h16V8H4Zm8 1a3 3 0 1 1 0 6 3 3 0 0 1 0-6Z"
+              fill="currentColor"
+            />
+          </svg>
+        </div>
+      </div>
+
+      <div
+        id="dashboard-weekly-gross"
+        class="summary-card__value"
+      >
+        £—
+      </div>
+
+      <div class="summary-card__footer">
+        <span
+          id="dashboard-weekly-gross-change"
+          class="summary-card__change"
+        >
+          Waiting for live pay data
+        </span>
+      </div>
+    </article>
+
+    <article class="summary-card summary-card--take-home">
+      <div class="summary-card__header">
+        <div>
+          <p class="summary-card__label">
+            Estimated take-home
+          </p>
+
+          <p class="summary-card__period">
+            After estimated deductions
+          </p>
+        </div>
+
+        <div
+          class="summary-card__icon"
+          aria-hidden="true"
+        >
+          <svg viewBox="0 0 24 24">
+            <path
+              d="M12 2 3 6v6c0 5.55 3.84 9.74 9 10 5.16-.26 9-4.45 9-10V6l-9-4Zm1 15h-2v-1.1a4.5 4.5 0 0 1-2.5-1.15l1.2-1.43c.8.67 1.55.98 2.45.98.73 0 1.17-.29 1.17-.77 0-.44-.28-.67-1.64-1.02-1.65-.42-2.72-.88-2.72-2.53 0-1.37.85-2.31 2.04-2.67V7h2v.99c.89.1 1.63.41 2.3.89l-1.05 1.52c-.73-.5-1.44-.8-2.13-.8-.69 0-1.05.31-1.05.71 0 .52.35.69 1.76 1.05 1.67.43 2.61 1.04 2.61 2.47 0 1.43-.88 2.4-2.44 2.72V17Z"
+              fill="currentColor"
+            />
+          </svg>
+        </div>
+      </div>
+
+      <div
+        id="dashboard-weekly-take-home"
+        class="summary-card__value"
+      >
+        £—
+      </div>
+
+      <div class="summary-card__footer">
+        <span
+          id="dashboard-deduction-rate"
+          class="summary-card__change"
+        >
+          Deduction estimate unavailable
+        </span>
+      </div>
+    </article>
+
+    <article class="summary-card summary-card--disposable">
+      <div class="summary-card__header">
+        <div>
+          <p class="summary-card__label">
+            Disposable income
+          </p>
+
+          <p class="summary-card__period">
+            After bills and weekly spending
+          </p>
+        </div>
+
+        <div
+          class="summary-card__icon"
+          aria-hidden="true"
+        >
+          <svg viewBox="0 0 24 24">
+            <path
+              d="M3 6h18v12H3V6Zm2 2v8h14V8H5Zm7 1a3 3 0 1 1 0 6 3 3 0 0 1 0-6Zm-5 1h2v4H7v-4Zm8 0h2v4h-2v-4Z"
+              fill="currentColor"
+            />
+          </svg>
+        </div>
+      </div>
+
+      <div
+        id="dashboard-disposable-income"
+        class="summary-card__value"
+      >
+        £—
+      </div>
+
+      <div class="summary-card__footer">
+        <span
+          id="dashboard-disposable-status"
+          class="summary-card__change"
+        >
+          Spending information not loaded
+        </span>
+      </div>
+    </article>
+
+    <article class="summary-card summary-card--savings">
+      <div class="summary-card__header">
+        <div>
+          <p class="summary-card__label">
+            Suggested savings
+          </p>
+
+          <p class="summary-card__period">
+            Percentage of disposable income
+          </p>
+        </div>
+
+        <div
+          class="summary-card__icon"
+          aria-hidden="true"
+        >
+          <svg viewBox="0 0 24 24">
+            <path
+              d="M17 4h-1.18A3 3 0 0 0 13 2h-2a3 3 0 0 0-2.82 2H7a5 5 0 0 0-5 5v4a5 5 0 0 0 4 4.9V22h3v-4h6v4h3v-4.1A5 5 0 0 0 22 13V9a5 5 0 0 0-5-5Zm-5 8a3 3 0 1 1 0-6 3 3 0 0 1 0 6Zm7-1h-2V9h2v2Z"
+              fill="currentColor"
+            />
+          </svg>
+        </div>
+      </div>
+
+      <div
+        id="dashboard-suggested-savings"
+        class="summary-card__value"
+      >
+        £—
+      </div>
+
+      <div class="summary-card__footer">
+        <span
+          id="dashboard-savings-rate"
+          class="summary-card__change"
+        >
+          Savings rate not loaded
+        </span>
+      </div>
+    </article>
+  </section>
+
+  <section class="dashboard-primary-grid">
+    <article class="card dashboard-card dashboard-card--earnings">
+      <div class="card__header">
+        <div>
+          <h3 class="card__title">
+            Weekly earnings breakdown
+          </h3>
+
+          <p class="card__subtitle">
+            Expected income by role for the selected week
+          </p>
+        </div>
+
+        <button
+          class="card-link-button"
+          type="button"
+          data-dashboard-route="pay"
+        >
+          View pay
+        </button>
+      </div>
+
+      <div class="card__body">
+        <div
+          id="dashboard-earnings-list"
+          class="earnings-list"
+        >
+          <div
+            class="earnings-row"
+            data-dashboard-employer="nhs"
+          >
+            <div class="earnings-row__identity">
+              <span class="earnings-row__marker earnings-row__marker--nhs"></span>
+
+              <div>
+                <p class="earnings-row__name">
+                  NHS
+                </p>
+
+                <p
+                  id="dashboard-nhs-shifts"
+                  class="earnings-row__meta"
+                >
+                  No shifts loaded
+                </p>
+              </div>
+            </div>
+
+            <div
+              id="dashboard-nhs-total"
+              class="earnings-row__amount"
+            >
+              £—
+            </div>
+          </div>
+
+          <div
+            class="earnings-row"
+            data-dashboard-employer="relief"
+          >
+            <div class="earnings-row__identity">
+              <span class="earnings-row__marker earnings-row__marker--relief"></span>
+
+              <div>
+                <p class="earnings-row__name">
+                  Relief Warden
+                </p>
+
+                <p
+                  id="dashboard-relief-shifts"
+                  class="earnings-row__meta"
+                >
+                  No shifts loaded
+                </p>
+              </div>
+            </div>
+
+            <div
+              id="dashboard-relief-total"
+              class="earnings-row__amount"
+            >
+              £—
+            </div>
+          </div>
+
+          <div
+            class="earnings-row"
+            data-dashboard-employer="security"
+          >
+            <div class="earnings-row__identity">
+              <span class="earnings-row__marker earnings-row__marker--security"></span>
+
+              <div>
+                <p class="earnings-row__name">
+                  Night Security
+                </p>
+
+                <p
+                  id="dashboard-security-shifts"
+                  class="earnings-row__meta"
+                >
+                  No shifts loaded
+                </p>
+              </div>
+            </div>
+
+            <div
+              id="dashboard-security-total"
+              class="earnings-row__amount"
+            >
+              £—
+            </div>
+          </div>
+
+          <div
+            class="earnings-row"
+            data-dashboard-employer="logging"
+          >
+            <div class="earnings-row__identity">
+              <span class="earnings-row__marker earnings-row__marker--logging"></span>
+
+              <div>
+                <p class="earnings-row__name">
+                  Logging and cash work
+                </p>
+
+                <p
+                  id="dashboard-logging-shifts"
+                  class="earnings-row__meta"
+                >
+                  No work loaded
+                </p>
+              </div>
+            </div>
+
+            <div
+              id="dashboard-logging-total"
+              class="earnings-row__amount"
+            >
+              £—
+            </div>
+          </div>
+        </div>
+
+        <div class="earnings-total">
+          <div>
+            <p class="earnings-total__label">
+              Total expected gross
+            </p>
+
+            <p
+              id="dashboard-selected-week"
+              class="earnings-total__period"
+            >
+              Current week
+            </p>
+          </div>
+
+          <div
+            id="dashboard-earnings-total"
+            class="earnings-total__value"
+          >
+            £—
+          </div>
+        </div>
+      </div>
+    </article>
+
+    <article class="card dashboard-card dashboard-card--cash-flow">
+      <div class="card__header">
+        <div>
+          <h3 class="card__title">
+            Weekly cash flow
+          </h3>
+
+          <p class="card__subtitle">
+            How your estimated take-home pay is allocated
+          </p>
+        </div>
+
+        <button
+          class="card-link-button"
+          type="button"
+          data-dashboard-route="finance"
+        >
+          View finance
+        </button>
+      </div>
+
+      <div class="card__body">
+        <div class="cash-flow-chart">
+          <div
+            class="cash-flow-chart__visual"
+            aria-hidden="true"
+          >
+            <div
+              id="dashboard-cash-flow-ring"
+              class="cash-flow-ring"
+            >
+              <div class="cash-flow-ring__centre">
+                <span class="cash-flow-ring__label">
+                  Remaining
+                </span>
+
+                <strong
+                  id="dashboard-cash-flow-remaining"
+                  class="cash-flow-ring__value"
+                >
+                  £—
+                </strong>
+              </div>
+            </div>
+          </div>
+
+          <div class="cash-flow-legend">
+            <div class="cash-flow-legend__item">
+              <span class="cash-flow-legend__marker cash-flow-legend__marker--bills"></span>
+
+              <div>
+                <p class="cash-flow-legend__label">
+                  Bills
+                </p>
+
+                <p
+                  id="dashboard-bills-total"
+                  class="cash-flow-legend__value"
+                >
+                  £—
+                </p>
+              </div>
+            </div>
+
+            <div class="cash-flow-legend__item">
+              <span class="cash-flow-legend__marker cash-flow-legend__marker--spending"></span>
+
+              <div>
+                <p class="cash-flow-legend__label">
+                  Weekly spending
+                </p>
+
+                <p
+                  id="dashboard-spending-total"
+                  class="cash-flow-legend__value"
+                >
+                  £—
+                </p>
+              </div>
+            </div>
+
+            <div class="cash-flow-legend__item">
+              <span class="cash-flow-legend__marker cash-flow-legend__marker--savings"></span>
+
+              <div>
+                <p class="cash-flow-legend__label">
+                  Suggested savings
+                </p>
+
+                <p
+                  id="dashboard-cash-flow-savings"
+                  class="cash-flow-legend__value"
+                >
+                  £—
+                </p>
+              </div>
+            </div>
+
+            <div class="cash-flow-legend__item">
+              <span class="cash-flow-legend__marker cash-flow-legend__marker--remaining"></span>
+
+              <div>
+                <p class="cash-flow-legend__label">
+                  Available after savings
+                </p>
+
+                <p
+                  id="dashboard-available-after-savings"
+                  class="cash-flow-legend__value"
+                >
+                  £—
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div
+          id="dashboard-cash-flow-message"
+          class="dashboard-insight"
+        >
+          <span
+            class="dashboard-insight__icon"
+            aria-hidden="true"
+          >
+            i
+          </span>
+
+          <p>
+            Live cash-flow calculations will appear when the dashboard service
+            is connected to your Pay, Finance and Savings sheets.
+          </p>
+        </div>
+      </div>
+    </article>
+  </section>
+
+  <section class="dashboard-secondary-grid">
+    <article class="card dashboard-card dashboard-card--savings-pots">
+      <div class="card__header">
+        <div>
+          <h3 class="card__title">
+            Savings pots
+          </h3>
+
+          <p class="card__subtitle">
+            Current balances and progress towards your goals
+          </p>
+        </div>
+
+        <button
+          class="card-link-button"
+          type="button"
+          data-dashboard-route="savings"
+        >
+          View savings
+        </button>
+      </div>
+
+      <div class="card__body">
+        <div
+          id="dashboard-savings-pots-list"
+          class="savings-pot-list"
+        >
+          <div class="savings-pot-row">
+            <div class="savings-pot-row__header">
+              <div>
+                <p class="savings-pot-row__name">
+                  Home Mortgage
+                </p>
+
+                <p class="savings-pot-row__meta">
+                  Deposit fund
+                </p>
+              </div>
+
+              <div class="savings-pot-row__amount">
+                <span
+                  id="dashboard-mortgage-pot-balance"
+                  class="savings-pot-row__balance"
+                >
+                  £—
+                </span>
+
+                <span
+                  id="dashboard-mortgage-pot-goal"
+                  class="savings-pot-row__goal"
+                >
+                  of £—
+                </span>
+              </div>
+            </div>
+
+            <div
+              class="progress-bar"
+              role="progressbar"
+              aria-label="Home Mortgage savings progress"
+              aria-valuemin="0"
+              aria-valuemax="100"
+              aria-valuenow="0"
+            >
+              <span
+                id="dashboard-mortgage-pot-progress"
+                class="progress-bar__value"
+                style="width: 0%"
+              ></span>
+            </div>
+
+            <div class="savings-pot-row__footer">
+              <span
+                id="dashboard-mortgage-pot-percent"
+              >
+                0% complete
+              </span>
+
+              <span
+                id="dashboard-mortgage-pot-contribution"
+              >
+                £— per week
+              </span>
+            </div>
+          </div>
+
+          <div class="savings-pot-row">
+            <div class="savings-pot-row__header">
+              <div>
+                <p class="savings-pot-row__name">
+                  Secondary savings pot
+                </p>
+
+                <p class="savings-pot-row__meta">
+                  Flexible savings
+                </p>
+              </div>
+
+              <div class="savings-pot-row__amount">
+                <span
+                  id="dashboard-secondary-pot-balance"
+                  class="savings-pot-row__balance"
+                >
+                  £—
+                </span>
+
+                <span
+                  id="dashboard-secondary-pot-goal"
+                  class="savings-pot-row__goal"
+                >
+                  of £—
+                </span>
+              </div>
+            </div>
+
+            <div
+              class="progress-bar"
+              role="progressbar"
+              aria-label="Secondary savings pot progress"
+              aria-valuemin="0"
+              aria-valuemax="100"
+              aria-valuenow="0"
+            >
+              <span
+                id="dashboard-secondary-pot-progress"
+                class="progress-bar__value"
+                style="width: 0%"
+              ></span>
+            </div>
+
+            <div class="savings-pot-row__footer">
+              <span
+                id="dashboard-secondary-pot-percent"
+              >
+                0% complete
+              </span>
+
+              <span
+                id="dashboard-secondary-pot-contribution"
+              >
+                £— per week
+              </span>
+            </div>
+          </div>
+
+          <div class="savings-pot-row">
+            <div class="savings-pot-row__header">
+              <div>
+                <p class="savings-pot-row__name">
+                  Third savings pot
+                </p>
+
+                <p class="savings-pot-row__meta">
+                  Flexible savings
+                </p>
+              </div>
+
+              <div class="savings-pot-row__amount">
+                <span
+                  id="dashboard-third-pot-balance"
+                  class="savings-pot-row__balance"
+                >
+                  £—
+                </span>
+
+                <span
+                  id="dashboard-third-pot-goal"
+                  class="savings-pot-row__goal"
+                >
+                  of £—
+                </span>
+              </div>
+            </div>
+
+            <div
+              class="progress-bar"
+              role="progressbar"
+              aria-label="Third savings pot progress"
+              aria-valuemin="0"
+              aria-valuemax="100"
+              aria-valuenow="0"
+            >
+              <span
+                id="dashboard-third-pot-progress"
+                class="progress-bar__value"
+                style="width: 0%"
+              ></span>
+            </div>
+
+            <div class="savings-pot-row__footer">
+              <span
+                id="dashboard-third-pot-percent"
+              >
+                0% complete
+              </span>
+
+              <span
+                id="dashboard-third-pot-contribution"
+              >
+                £— per week
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </article>
+
+    <article class="card dashboard-card dashboard-card--commitments">
+      <div class="card__header">
+        <div>
+          <h3 class="card__title">
+            Upcoming commitments
+          </h3>
+
+          <p class="card__subtitle">
+            Bills and debt payments due soon
+          </p>
+        </div>
+
+        <button
+          class="card-link-button"
+          type="button"
+          data-dashboard-route="finance"
+        >
+          Manage
+        </button>
+      </div>
+
+      <div class="card__body">
+        <div
+          id="dashboard-commitments-list"
+          class="commitment-list"
+        >
+          <div class="commitment-empty">
+            <div
+              class="commitment-empty__icon"
+              aria-hidden="true"
+            >
+              <svg viewBox="0 0 24 24">
+                <path
+                  d="M7 2h10v2h3v18H4V4h3V2Zm2 2h6V3H9v1Zm-3 2v14h12V6H6Zm2 3h8v2H8V9Zm0 4h8v2H8v-2Z"
+                  fill="currentColor"
+                />
+              </svg>
+            </div>
+
+            <p class="commitment-empty__title">
+              No commitments loaded
+            </p>
+
+            <p class="commitment-empty__message">
+              Upcoming bills and payments will appear here after the Finance
+              service is connected.
+            </p>
+          </div>
+        </div>
+      </div>
+    </article>
+
+    <article class="card dashboard-card dashboard-card--goals">
+      <div class="card__header">
+        <div>
+          <h3 class="card__title">
+            Life goals
+          </h3>
+
+          <p class="card__subtitle">
+            Your next major financial targets
+          </p>
+        </div>
+
+        <button
+          class="card-link-button"
+          type="button"
+          data-dashboard-route="goals"
+        >
+          View goals
+        </button>
+      </div>
+
+      <div class="card__body">
+        <div
+          id="dashboard-goals-list"
+          class="goal-list"
+        >
+          <div class="goal-card">
+            <div class="goal-card__top">
+              <span
+                class="goal-card__icon"
+                aria-hidden="true"
+              >
+                <svg viewBox="0 0 24 24">
+                  <path
+                    d="m12 3 9 7h-3v10h-5v-6h-2v6H6V10H3l9-7Z"
+                    fill="currentColor"
+                  />
+                </svg>
+              </span>
+
+              <span
+                id="dashboard-primary-goal-status"
+                class="status-badge status-badge--neutral"
+              >
+                Awaiting data
+              </span>
+            </div>
+
+            <p
+              id="dashboard-primary-goal-name"
+              class="goal-card__name"
+            >
+              First home deposit
+            </p>
+
+            <p
+              id="dashboard-primary-goal-forecast"
+              class="goal-card__forecast"
+            >
+              Add a goal and contribution plan to calculate your forecast.
+            </p>
+
+            <div class="goal-card__metrics">
+              <div>
+                <span class="goal-card__metric-label">
+                  Target
+                </span>
+
+                <strong
+                  id="dashboard-primary-goal-target"
+                  class="goal-card__metric-value"
+                >
+                  £—
+                </strong>
+              </div>
+
+              <div>
+                <span class="goal-card__metric-label">
+                  Estimated time
+                </span>
+
+                <strong
+                  id="dashboard-primary-goal-months"
+                  class="goal-card__metric-value"
+                >
+                  —
+                </strong>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </article>
+  </section>
+
+  <section class="card dashboard-card dashboard-card--activity">
+    <div class="card__header">
+      <div>
+        <h3 class="card__title">
+          Recent activity
+        </h3>
+
+        <p class="card__subtitle">
+          Latest pay, finance and savings updates
+        </p>
+      </div>
+    </div>
+
+    <div class="card__body">
+      <div
+        id="dashboard-activity-list"
+        class="activity-list"
+      >
+        <div class="activity-empty">
+          <div
+            class="activity-empty__icon"
+            aria-hidden="true"
+          >
+            <svg viewBox="0 0 24 24">
+              <path
+                d="M13 3a9 9 0 1 0 8 8h-2a7 7 0 1 1-7-7v4l5-5-5-5v5h1Zm-2 4h2v5.17l3.24 3.24-1.42 1.42L11 13V7Z"
+                fill="currentColor"
+              />
+            </svg>
+          </div>
+
+          <div>
+            <p class="activity-empty__title">
+              No recent activity available
+            </p>
+
+            <p class="activity-empty__message">
+              Contributions, payments, undo actions and calendar imports will
+              appear here once live dashboard data is enabled.
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+</div>

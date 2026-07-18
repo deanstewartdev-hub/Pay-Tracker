@@ -1,0 +1,646 @@
+/*******************************************************
+ * PAY TRACKER V2.6
+ * Frontend/Assets/CSS/Utilities.css
+ *
+ * Small reusable utility classes.
+ *******************************************************/
+
+/* =====================================================
+   Display
+   ===================================================== */
+
+.u-hidden {
+  display: none !important;
+}
+
+.u-block {
+  display: block !important;
+}
+
+.u-inline {
+  display: inline !important;
+}
+
+.u-inline-block {
+  display: inline-block !important;
+}
+
+.u-flex {
+  display: flex !important;
+}
+
+.u-inline-flex {
+  display: inline-flex !important;
+}
+
+.u-grid {
+  display: grid !important;
+}
+
+/* =====================================================
+   Flex
+   ===================================================== */
+
+.u-flex-column {
+  flex-direction: column !important;
+}
+
+.u-flex-wrap {
+  flex-wrap: wrap !important;
+}
+
+.u-flex-nowrap {
+  flex-wrap: nowrap !important;
+}
+
+.u-items-start {
+  align-items: flex-start !important;
+}
+
+.u-items-center {
+  align-items: center !important;
+}
+
+.u-items-end {
+  align-items: flex-end !important;
+}
+
+.u-justify-start {
+  justify-content: flex-start !important;
+}
+
+.u-justify-center {
+  justify-content: center !important;
+}
+
+.u-justify-end {
+  justify-content: flex-end !important;
+}
+
+.u-justify-between {
+  justify-content: space-between !important;
+}
+
+.u-flex-1 {
+  flex: 1 1 0% !important;
+}
+
+.u-flex-none {
+  flex: none !important;
+}
+
+.u-shrink-0 {
+  flex-shrink: 0 !important;
+}
+
+.u-grow {
+  flex-grow: 1 !important;
+}
+
+/* =====================================================
+   Grid
+   ===================================================== */
+
+.u-grid-1 {
+  grid-template-columns: 1fr !important;
+}
+
+.u-grid-2 {
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+}
+
+.u-grid-3 {
+  grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+}
+
+.u-grid-4 {
+  grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+}
+
+.u-col-span-full {
+  grid-column: 1 / -1 !important;
+}
+
+/* =====================================================
+   Gap
+   ===================================================== */
+
+.u-gap-0 {
+  gap: var(--space-0) !important;
+}
+
+.u-gap-1 {
+  gap: var(--space-1) !important;
+}
+
+.u-gap-2 {
+  gap: var(--space-2) !important;
+}
+
+.u-gap-3 {
+  gap: var(--space-3) !important;
+}
+
+.u-gap-4 {
+  gap: var(--space-4) !important;
+}
+
+.u-gap-5 {
+  gap: var(--space-5) !important;
+}
+
+.u-gap-6 {
+  gap: var(--space-6) !important;
+}
+
+.u-gap-8 {
+  gap: var(--space-8) !important;
+}
+
+/* =====================================================
+   Width and height
+   ===================================================== */
+
+.u-w-full {
+  width: 100% !important;
+}
+
+.u-w-auto {
+  width: auto !important;
+}
+
+.u-h-full {
+  height: 100% !important;
+}
+
+.u-min-w-0 {
+  min-width: 0 !important;
+}
+
+.u-min-h-0 {
+  min-height: 0 !important;
+}
+
+.u-max-w-full {
+  max-width: 100% !important;
+}
+
+/* =====================================================
+   Margin
+   ===================================================== */
+
+.u-m-0 {
+  margin: 0 !important;
+}
+
+.u-mt-1 {
+  margin-top: var(--space-1) !important;
+}
+
+.u-mt-2 {
+  margin-top: var(--space-2) !important;
+}
+
+.u-mt-3 {
+  margin-top: var(--space-3) !important;
+}
+
+.u-mt-4 {
+  margin-top: var(--space-4) !important;
+}
+
+.u-mt-5 {
+  margin-top: var(--space-5) !important;
+}
+
+.u-mt-6 {
+  margin-top: var(--space-6) !important;
+}
+
+.u-mt-8 {
+  margin-top: var(--space-8) !important;
+}
+
+.u-mb-1 {
+  margin-bottom: var(--space-1) !important;
+}
+
+.u-mb-2 {
+  margin-bottom: var(--space-2) !important;
+}
+
+.u-mb-3 {
+  margin-bottom: var(--space-3) !important;
+}
+
+.u-mb-4 {
+  margin-bottom: var(--space-4) !important;
+}
+
+.u-mb-5 {
+  margin-bottom: var(--space-5) !important;
+}
+
+.u-mb-6 {
+  margin-bottom: var(--space-6) !important;
+}
+
+.u-mb-8 {
+  margin-bottom: var(--space-8) !important;
+}
+
+.u-ml-auto {
+  margin-left: auto !important;
+}
+
+.u-mr-auto {
+  margin-right: auto !important;
+}
+
+.u-mx-auto {
+  margin-right: auto !important;
+  margin-left: auto !important;
+}
+
+/* =====================================================
+   Padding
+   ===================================================== */
+
+.u-p-0 {
+  padding: 0 !important;
+}
+
+.u-p-1 {
+  padding: var(--space-1) !important;
+}
+
+.u-p-2 {
+  padding: var(--space-2) !important;
+}
+
+.u-p-3 {
+  padding: var(--space-3) !important;
+}
+
+.u-p-4 {
+  padding: var(--space-4) !important;
+}
+
+.u-p-5 {
+  padding: var(--space-5) !important;
+}
+
+.u-p-6 {
+  padding: var(--space-6) !important;
+}
+
+.u-p-8 {
+  padding: var(--space-8) !important;
+}
+
+.u-px-2 {
+  padding-right: var(--space-2) !important;
+  padding-left: var(--space-2) !important;
+}
+
+.u-px-3 {
+  padding-right: var(--space-3) !important;
+  padding-left: var(--space-3) !important;
+}
+
+.u-px-4 {
+  padding-right: var(--space-4) !important;
+  padding-left: var(--space-4) !important;
+}
+
+.u-px-6 {
+  padding-right: var(--space-6) !important;
+  padding-left: var(--space-6) !important;
+}
+
+.u-py-2 {
+  padding-top: var(--space-2) !important;
+  padding-bottom: var(--space-2) !important;
+}
+
+.u-py-3 {
+  padding-top: var(--space-3) !important;
+  padding-bottom: var(--space-3) !important;
+}
+
+.u-py-4 {
+  padding-top: var(--space-4) !important;
+  padding-bottom: var(--space-4) !important;
+}
+
+.u-py-6 {
+  padding-top: var(--space-6) !important;
+  padding-bottom: var(--space-6) !important;
+}
+
+/* =====================================================
+   Text
+   ===================================================== */
+
+.u-text-left {
+  text-align: left !important;
+}
+
+.u-text-center {
+  text-align: center !important;
+}
+
+.u-text-right {
+  text-align: right !important;
+}
+
+.u-text-heading {
+  color: var(--color-heading) !important;
+}
+
+.u-text-body {
+  color: var(--color-text) !important;
+}
+
+.u-text-muted {
+  color: var(--color-text-muted) !important;
+}
+
+.u-text-soft {
+  color: var(--color-text-soft) !important;
+}
+
+.u-text-primary {
+  color: var(--color-primary) !important;
+}
+
+.u-text-success {
+  color: var(--color-success) !important;
+}
+
+.u-text-warning {
+  color: var(--color-warning) !important;
+}
+
+.u-text-danger {
+  color: var(--color-danger) !important;
+}
+
+.u-text-xs {
+  font-size: var(--font-size-xs) !important;
+}
+
+.u-text-sm {
+  font-size: var(--font-size-sm) !important;
+}
+
+.u-text-md {
+  font-size: var(--font-size-md) !important;
+}
+
+.u-text-base {
+  font-size: var(--font-size-base) !important;
+}
+
+.u-text-lg {
+  font-size: var(--font-size-lg) !important;
+}
+
+.u-font-regular {
+  font-weight: var(--font-weight-regular) !important;
+}
+
+.u-font-medium {
+  font-weight: var(--font-weight-medium) !important;
+}
+
+.u-font-semibold {
+  font-weight: var(--font-weight-semibold) !important;
+}
+
+.u-font-bold {
+  font-weight: var(--font-weight-bold) !important;
+}
+
+.u-uppercase {
+  text-transform: uppercase !important;
+}
+
+.u-nowrap {
+  white-space: nowrap !important;
+}
+
+.u-truncate {
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+}
+
+.u-break-word {
+  overflow-wrap: break-word !important;
+}
+
+/* =====================================================
+   Borders and radius
+   ===================================================== */
+
+.u-border {
+  border: 1px solid var(--color-border) !important;
+}
+
+.u-border-top {
+  border-top: 1px solid var(--color-border) !important;
+}
+
+.u-border-bottom {
+  border-bottom: 1px solid var(--color-border) !important;
+}
+
+.u-rounded-sm {
+  border-radius: var(--radius-small) !important;
+}
+
+.u-rounded {
+  border-radius: var(--radius-medium) !important;
+}
+
+.u-rounded-lg {
+  border-radius: var(--radius-large) !important;
+}
+
+.u-rounded-full {
+  border-radius: var(--radius-round) !important;
+}
+
+/* =====================================================
+   Backgrounds
+   ===================================================== */
+
+.u-bg-page {
+  background: var(--color-page) !important;
+}
+
+.u-bg-surface {
+  background: var(--color-surface) !important;
+}
+
+.u-bg-soft {
+  background: var(--color-surface-soft) !important;
+}
+
+.u-bg-primary-soft {
+  background: var(--color-primary-soft) !important;
+}
+
+.u-bg-success-soft {
+  background: var(--color-success-soft) !important;
+}
+
+.u-bg-warning-soft {
+  background: var(--color-warning-soft) !important;
+}
+
+.u-bg-danger-soft {
+  background: var(--color-danger-soft) !important;
+}
+
+/* =====================================================
+   Shadows
+   ===================================================== */
+
+.u-shadow-sm {
+  box-shadow: var(--shadow-small) !important;
+}
+
+.u-shadow-md {
+  box-shadow: var(--shadow-medium) !important;
+}
+
+.u-shadow-lg {
+  box-shadow: var(--shadow-large) !important;
+}
+
+/* =====================================================
+   Positioning
+   ===================================================== */
+
+.u-relative {
+  position: relative !important;
+}
+
+.u-absolute {
+  position: absolute !important;
+}
+
+.u-fixed {
+  position: fixed !important;
+}
+
+.u-sticky {
+  position: sticky !important;
+}
+
+.u-inset-0 {
+  inset: 0 !important;
+}
+
+/* =====================================================
+   Overflow
+   ===================================================== */
+
+.u-overflow-hidden {
+  overflow: hidden !important;
+}
+
+.u-overflow-auto {
+  overflow: auto !important;
+}
+
+.u-overflow-x-auto {
+  overflow-x: auto !important;
+}
+
+.u-overflow-y-auto {
+  overflow-y: auto !important;
+}
+
+/* =====================================================
+   Interaction
+   ===================================================== */
+
+.u-pointer {
+  cursor: pointer !important;
+}
+
+.u-pointer-events-none {
+  pointer-events: none !important;
+}
+
+.u-select-none {
+  user-select: none !important;
+}
+
+.u-disabled {
+  cursor: not-allowed !important;
+  opacity: 0.6 !important;
+  pointer-events: none !important;
+}
+
+/* =====================================================
+   Accessibility
+   ===================================================== */
+
+.u-sr-only {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+  clip: rect(0, 0, 0, 0) !important;
+  white-space: nowrap !important;
+  border: 0 !important;
+}
+
+.u-focus-ring:focus-visible {
+  outline: 3px solid
+    color-mix(
+      in srgb,
+      var(--color-primary) 32%,
+      transparent
+    ) !important;
+  outline-offset: 2px !important;
+}
+
+/* =====================================================
+   Responsive visibility
+   ===================================================== */
+
+.u-mobile-only {
+  display: none !important;
+}
+
+@media (max-width: 860px) {
+  .u-desktop-only {
+    display: none !important;
+  }
+
+  .u-mobile-only {
+    display: initial !important;
+  }
+
+  .u-mobile-block {
+    display: block !important;
+  }
+
+  .u-mobile-flex {
+    display: flex !important;
+  }
+
+  .u-mobile-column {
+    flex-direction: column !important;
+  }
+
+  .u-mobile-w-full {
+    width: 100% !important;
+  }
+}

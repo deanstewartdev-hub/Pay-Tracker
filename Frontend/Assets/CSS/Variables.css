@@ -1,0 +1,300 @@
+/*******************************************************
+ * PAY TRACKER V2.6
+ * Frontend/Assets/CSS/Variables.css
+ *
+ * Global design tokens used across the Pay Tracker UI.
+ *******************************************************/
+
+:root {
+  /* ===================================================
+     Typography
+     =================================================== */
+
+  --font-family-base:
+    Inter,
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    Roboto,
+    Helvetica,
+    Arial,
+    sans-serif;
+
+  --font-family-mono:
+    "SFMono-Regular",
+    Consolas,
+    "Liberation Mono",
+    monospace;
+
+  --font-size-2xs: 0.625rem;
+  --font-size-xs: 0.6875rem;
+  --font-size-sm: 0.75rem;
+  --font-size-md: 0.875rem;
+  --font-size-base: 1rem;
+  --font-size-lg: 1.125rem;
+  --font-size-xl: 1.375rem;
+  --font-size-2xl: 1.75rem;
+  --font-size-3xl: 2.25rem;
+
+  --font-weight-regular: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+  --font-weight-heavy: 800;
+
+  --line-height-tight: 1.2;
+  --line-height-normal: 1.5;
+  --line-height-relaxed: 1.7;
+
+  /* ===================================================
+     Core colours
+     =================================================== */
+
+  --color-white: #ffffff;
+  --color-black: #000000;
+
+  --color-primary: #2563eb;
+  --color-primary-hover: #1d4ed8;
+  --color-primary-active: #1e40af;
+  --color-primary-soft: #eff6ff;
+  --color-primary-contrast: #ffffff;
+
+  --color-secondary: #64748b;
+  --color-secondary-hover: #475569;
+  --color-secondary-soft: #f1f5f9;
+
+  --color-success: #15803d;
+  --color-success-hover: #166534;
+  --color-success-soft: #ecfdf3;
+
+  --color-warning: #d97706;
+  --color-warning-hover: #b45309;
+  --color-warning-soft: #fff7ed;
+
+  --color-danger: #dc2626;
+  --color-danger-hover: #b91c1c;
+  --color-danger-soft: #fef2f2;
+
+  --color-info: #0284c7;
+  --color-info-hover: #0369a1;
+  --color-info-soft: #f0f9ff;
+
+  /* ===================================================
+     Surfaces
+     =================================================== */
+
+  --color-page: #f6f8fc;
+  --color-surface: #ffffff;
+  --color-surface-soft: #f8fafc;
+  --color-surface-muted: #eef2f7;
+  --color-surface-elevated: #ffffff;
+
+  /* ===================================================
+     Text
+     =================================================== */
+
+  --color-heading: #0f172a;
+  --color-text: #334155;
+  --color-text-muted: #64748b;
+  --color-text-soft: #94a3b8;
+  --color-text-inverse: #ffffff;
+
+  /* ===================================================
+     Borders
+     =================================================== */
+
+  --color-border: #e2e8f0;
+  --color-border-strong: #cbd5e1;
+  --color-divider: #e8edf4;
+
+  /* ===================================================
+     Navigation
+     =================================================== */
+
+  --color-sidebar: #0f172a;
+  --color-sidebar-soft: #172033;
+  --color-sidebar-hover: #1e293b;
+  --color-sidebar-active: #2563eb;
+  --color-sidebar-text: #cbd5e1;
+  --color-sidebar-text-muted: #94a3b8;
+  --color-sidebar-heading: #ffffff;
+
+  /* ===================================================
+     Month colours
+     =================================================== */
+
+  --month-january: #dbeafe;
+  --month-february: #fce7f3;
+  --month-march: #dcfce7;
+  --month-april: #fef3c7;
+  --month-may: #ede9fe;
+  --month-june: #cffafe;
+  --month-july: #fee2e2;
+  --month-august: #ffedd5;
+  --month-september: #e0e7ff;
+  --month-october: #f3e8ff;
+  --month-november: #ecfccb;
+  --month-december: #e0f2fe;
+
+  /* ===================================================
+     Spacing
+     =================================================== */
+
+  --space-0: 0;
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.25rem;
+  --space-6: 1.5rem;
+  --space-7: 1.75rem;
+  --space-8: 2rem;
+  --space-10: 2.5rem;
+  --space-12: 3rem;
+  --space-16: 4rem;
+
+  /* ===================================================
+     Radius
+     =================================================== */
+
+  --radius-small: 6px;
+  --radius-medium: 10px;
+  --radius-large: 14px;
+  --radius-xlarge: 18px;
+  --radius-round: 999px;
+
+  /* ===================================================
+     Shadows
+     =================================================== */
+
+  --shadow-small:
+    0 1px 2px rgba(15, 23, 42, 0.04),
+    0 2px 8px rgba(15, 23, 42, 0.04);
+
+  --shadow-medium:
+    0 8px 24px rgba(15, 23, 42, 0.08);
+
+  --shadow-large:
+    0 18px 48px rgba(15, 23, 42, 0.14);
+
+  --shadow-sidebar:
+    8px 0 24px rgba(15, 23, 42, 0.12);
+
+  /* ===================================================
+     Layout dimensions
+     =================================================== */
+
+  --sidebar-width: 260px;
+  --sidebar-collapsed-width: 78px;
+  --header-height: 68px;
+  --footer-height: 48px;
+
+  --content-max-width: 1600px;
+  --content-padding-desktop: 28px;
+  --content-padding-tablet: 20px;
+  --content-padding-mobile: 14px;
+
+  /* ===================================================
+     Layers
+     =================================================== */
+
+  --z-base: 1;
+  --z-header: 30;
+  --z-sidebar: 40;
+  --z-dropdown: 60;
+  --z-modal: 80;
+  --z-toast: 100;
+
+  /* ===================================================
+     Transitions
+     =================================================== */
+
+  --transition-fast: 140ms ease;
+  --transition-base: 220ms ease;
+  --transition-slow: 360ms ease;
+
+  /* ===================================================
+     Form controls
+     =================================================== */
+
+  --input-height: 42px;
+  --input-background: #ffffff;
+  --input-border: #cbd5e1;
+  --input-border-focus: #2563eb;
+  --input-placeholder: #94a3b8;
+
+  /* ===================================================
+     Tables
+     =================================================== */
+
+  --table-header-background: #f8fafc;
+  --table-row-hover: #f8fafc;
+  --table-row-selected: #eff6ff;
+}
+
+/* =====================================================
+   Dark-theme token overrides
+   ===================================================== */
+
+[data-theme="dark"] {
+  --color-page: #0b1120;
+  --color-surface: #111827;
+  --color-surface-soft: #172033;
+  --color-surface-muted: #1f2937;
+  --color-surface-elevated: #182235;
+
+  --color-heading: #f8fafc;
+  --color-text: #dbe4ef;
+  --color-text-muted: #94a3b8;
+  --color-text-soft: #64748b;
+  --color-text-inverse: #0f172a;
+
+  --color-border: #273449;
+  --color-border-strong: #3a4a63;
+  --color-divider: #202d42;
+
+  --color-primary: #60a5fa;
+  --color-primary-hover: #93c5fd;
+  --color-primary-active: #3b82f6;
+  --color-primary-soft: rgba(59, 130, 246, 0.15);
+  --color-primary-contrast: #07111f;
+
+  --color-secondary: #94a3b8;
+  --color-secondary-hover: #cbd5e1;
+  --color-secondary-soft: rgba(148, 163, 184, 0.12);
+
+  --color-success: #4ade80;
+  --color-success-hover: #86efac;
+  --color-success-soft: rgba(34, 197, 94, 0.14);
+
+  --color-warning: #fbbf24;
+  --color-warning-hover: #fcd34d;
+  --color-warning-soft: rgba(245, 158, 11, 0.14);
+
+  --color-danger: #f87171;
+  --color-danger-hover: #fca5a5;
+  --color-danger-soft: rgba(239, 68, 68, 0.14);
+
+  --color-info: #38bdf8;
+  --color-info-hover: #7dd3fc;
+  --color-info-soft: rgba(14, 165, 233, 0.14);
+
+  --input-background: #111827;
+  --input-border: #3a4a63;
+  --input-border-focus: #60a5fa;
+  --input-placeholder: #64748b;
+
+  --table-header-background: #172033;
+  --table-row-hover: #182235;
+  --table-row-selected: rgba(59, 130, 246, 0.13);
+
+  --shadow-small:
+    0 1px 2px rgba(0, 0, 0, 0.18),
+    0 4px 12px rgba(0, 0, 0, 0.15);
+
+  --shadow-medium:
+    0 12px 30px rgba(0, 0, 0, 0.28);
+
+  --shadow-large:
+    0 20px 55px rgba(0, 0, 0, 0.38);
+}
