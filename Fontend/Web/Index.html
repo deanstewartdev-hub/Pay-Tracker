@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <base target="_top">
+
+    <meta charset="UTF-8">
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, viewport-fit=cover"
+    >
+    <meta
+      name="description"
+      content="Pay Tracker personal finance and earnings dashboard."
+    >
+    <meta name="theme-color" content="#111827">
+
+    <title><?= app.appName ?></title>
+
+    <?!= includePayTrackerHtml_('Web/Styles'); ?>
+  </head>
+
+  <body>
+    <noscript>
+      <section class="app-noscript">
+        <h1>JavaScript is required</h1>
+        <p>
+          Pay Tracker needs JavaScript enabled in your browser to display the
+          dashboard and communicate with Google Apps Script.
+        </p>
+      </section>
+    </noscript>
+
+    <div
+      id="pay-tracker-app"
+      class="app-shell"
+      data-active-page="<?= app.activePage ?>"
+      data-version="<?= app.version ?>"
+    >
+      <aside
+        id="app-sidebar"
+        class="app-sidebar"
+        aria-label="Primary navigation"
+      >
+        <?!= includePayTrackerHtml_('Web/Components/Sidebar'); ?>
+      </aside>
+
+      <div class="app-main">
+        <header id="app-header" class="app-header">
+          <?!= includePayTrackerHtml_('Web/Components/Header'); ?>
+        </header>
+
+        <main
+          id="app-content"
+          class="app-content"
+          tabindex="-1"
+          aria-labelledby="page-title"
+        >
+          <div
+            id="app-loading-state"
+            class="loading-panel"
+            role="status"
+            aria-live="polite"
+          >
+            <div class="loading-spinner" aria-hidden="true"></div>
+
+            <div>
+              <p class="loading-title">Loading Pay Tracker</p>
+              <p class="loading-message">
+                Preparing your financial dashboard…
+              </p>
+            </div>
+          </div>
+
+          <section
+            id="dashboard-page"
+            class="app-page"
+            data-page="dashboard"
+            aria-label="Dashboard"
+            hidden
+          >
+            <?!= includePayTrackerHtml_('Web/Components/Dashboard'); ?>
+          </section>
+
+          <section
+            id="pay-page"
+            class="app-page"
+            data-page="pay"
+            aria-label="Pay"
+            hidden
+          >
+            <div class="page-placeholder">
+              <div class="page-placeholder-icon" aria-hidden="true">£</div>
+
+              <h2>Pay tracking</h2>
+
+              <p>
+                Weekly earnings, shifts, deductions and PaySheet calculations
+                will appear here.
+              </p>
+
+              <span class="status-badge status-badge-development">
+                In development
+              </span>
+            </div>
+          </section>
+
+          <section
+            id="finance-page"
+            class="app-page"
+            data-page="finance"
+            aria-label="Finance"
+            hidden
+          >
+            <div class="page-placeholder">
+              <div class="page-placeholder-icon" aria-hidden="true">▤</div>
+
+              <h2>Finance</h2>
+
+              <p>
+                Bills, debts, repayments and payment history will appear here.
+              </p>
+
+              <span class="status-badge status-badge-development">
+                In development
+              </span>
+            </div>
+          </section>
+
+          <section
+            id="savings-page"
+            class="app-page"
+            data-page="savings"
+            aria-label="Savings"
+            hidden
+          >
+            <div class="page-placeholder">
+              <div class="page-placeholder-icon" aria-hidden="true">◎</div>
+
+              <h2>Savings</h2>
+
+              <p>
+                Savings pots, contributions, allocations and forecasts will
+                appear here.
+              </p>
+
+              <span class="status-badge status-badge-development">
+                In development
+              </span>
+            </div>
+          </section>
+
+          <section
+            id="goals-page"
+            class="app-page"
+            data-page="goals"
+            aria-label="Life Goals"
+            hidden
+          >
+            <div class="page-placeholder">
+              <div class="page-placeholder-icon" aria-hidden="true">⚑</div>
+
+              <h2>Life goals</h2>
+
+              <p>
+                Long-term goals, linked savings pots and completion forecasts
+                will appear here.
+              </p>
+
+              <span class="status-badge status-badge-development">
+                In development
+              </span>
+            </div>
+          </section>
+
+          <section
+            id="settings-page"
+            class="app-page"
+            data-page="settings"
+            aria-label="Settings"
+            hidden
+          >
+            <div class="page-placeholder">
+              <div class="page-placeholder-icon" aria-hidden="true">⚙</div>
+
+              <h2>Settings</h2>
+
+              <p>
+                Pay Tracker configuration and module preferences will appear
+                here.
+              </p>
+
+              <span class="status-badge status-badge-development">
+                In development
+              </span>
+            </div>
+          </section>
+
+          <section
+            id="app-error-state"
+            class="error-panel"
+            role="alert"
+            aria-live="assertive"
+            hidden
+          >
+            <div class="error-panel-icon" aria-hidden="true">!</div>
+
+            <div>
+              <h2>Pay Tracker could not finish loading</h2>
+
+              <p id="app-error-message">
+                An unexpected error occurred.
+              </p>
+
+              <button
+                id="retry-app-button"
+                class="button button-primary"
+                type="button"
+              >
+                Try again
+              </button>
+            </div>
+          </section>
+        </main>
+
+        <footer class="app-footer">
+          <span>
+            <?= app.appName ?>
+            v<?= app.version ?>
+          </span>
+
+          <span id="app-connection-status" class="connection-status">
+            Connecting…
+          </span>
+        </footer>
+      </div>
+
+      <button
+        id="sidebar-overlay"
+        class="sidebar-overlay"
+        type="button"
+        aria-label="Close navigation"
+        hidden
+      ></button>
+    </div>
+
+    <script>
+      window.PAY_TRACKER_BOOTSTRAP =
+        <?!= JSON.stringify(app).replace(/</g, '\\u003c') ?>;
+    </script>
+
+    <?!= includePayTrackerHtml_('Web/Scripts'); ?>
+  </body>
+</html>

@@ -1,0 +1,1399 @@
+<script>
+  'use strict';
+
+  /**
+   * PAY TRACKER V2.6
+   * Frontend/Web/Scripts.html
+   *
+   * Purpose:
+   * - Start the Pay Tracker frontend
+   * - Manage client-side navigation
+   * - Control responsive sidebar behaviour
+   * - Manage light and dark themes
+   * - Confirm Apps Script backend connectivity
+   * - Handle dashboard actions
+   * - Provide shared loading, error and toast utilities
+   */
+
+  const PayTrackerApp = (() => {
+    const ROUTE_TITLES = Object.freeze({
+      dashboard: 'Dashboard',
+      pay: 'Pay',
+      finance: 'Finance',
+      savings: 'Savings',
+      goals: 'Life Goals',
+      reports: 'Reports',
+      calendar: 'Calendar',
+      settings: 'Settings'
+    });
+
+    const STORAGE_KEYS = Object.freeze({
+      THEME: 'payTracker.theme'
+    });
+
+    const THEMES = Object.freeze({
+      LIGHT: 'light',
+      DARK: 'dark'
+    });
+
+    const CONNECTION_STATES = Object.freeze({
+      CONNECTING: 'connecting',
+      ONLINE: 'online',
+      OFFLINE: 'offline'
+    });
+
+    const state = {
+      bootstrap: null,
+      activeRoute: 'dashboard',
+      theme: THEMES.LIGHT,
+      connection: CONNECTION_STATES.CONNECTING,
+      initialized: false,
+      loading: false
+    };
+
+    const elements = {};
+
+    /**
+     * Starts the frontend application.
+     *
+     * @return {void}
+     */
+    function initialize() {
+      if (state.initialized) {
+        return;
+      }
+
+      try {
+        state.bootstrap = getBootstrapData_();
+        state.activeRoute = normalizeRoute_(
+          state.bootstrap.activeRoute
+        );
+
+        cacheElements_();
+        bindGlobalEvents_();
+        initializeTheme_();
+        initializeNavigation_();
+        initializeProfileMenu_();
+        initializeSearch_();
+        initializeDashboardActions_();
+
+        setConnectionState_(
+          CONNECTION_STATES.CONNECTING,
+          'Connecting to Apps Script'
+        );
+
+        showLoadingState_();
+        checkBackendHealth_();
+
+        state.initialized = true;
+      } catch (error) {
+        console.error(
+          'Pay Tracker frontend initialization failed.',
+          error
+        );
+
+        showApplicationError_(
+          getErrorMessage_(
+            error,
+            'Pay Tracker could not initialize.'
+          )
+        );
+      }
+    }
+
+    /**
+     * Reads bootstrap data provided by Apps Script.
+     *
+     * @return {Object} Bootstrap data.
+     * @private
+     */
+    function getBootstrapData_() {
+      const bootstrap = window.PAY_TRACKER_BOOTSTRAP;
+
+      if (!bootstrap || typeof bootstrap !== 'object') {
+        throw new Error(
+          'The frontend bootstrap configuration is unavailable.'
+        );
+      }
+
+      return bootstrap;
+    }
+
+    /**
+     * Stores references to shared page elements.
+     *
+     * @return {void}
+     * @private
+     */
+    function cacheElements_() {
+      elements.app = document.getElementById('pay-tracker-app');
+      elements.mainContent = document.getElementById(
+        'app-main-content'
+      );
+      elements.loadingState = document.getElementById(
+        'app-loading-state'
+      );
+      elements.errorState = document.getElementById(
+        'app-error-state'
+      );
+      elements.errorMessage = document.getElementById(
+        'app-error-message'
+      );
+      elements.retryButton = document.getElementById(
+        'retry-app-button'
+      );
+
+      elements.sidebar = document.getElementById('app-sidebar');
+      elements.sidebarOverlay = document.getElementById(
+        'sidebar-overlay'
+      );
+      elements.sidebarOpenButton = document.getElementById(
+        'sidebar-open-button'
+      );
+      elements.sidebarCloseButton = document.getElementById(
+        'sidebar-close-button'
+      );
+
+      elements.pageTitle = document.getElementById('page-title');
+
+      elements.refreshButton = document.getElementById(
+        'refresh-app-button'
+      );
+      elements.themeToggleButton = document.getElementById(
+        'theme-toggle-button'
+      );
+      elements.themeLightIcon = document.getElementById(
+        'theme-light-icon'
+      );
+      elements.themeDarkIcon = document.getElementById(
+        'theme-dark-icon'
+      );
+
+      elements.profileButton = document.getElementById(
+        'profile-button'
+      );
+      elements.profileMenu = document.getElementById(
+        'profile-menu'
+      );
+
+      elements.globalSearchInput = document.getElementById(
+        'global-search-input'
+      );
+
+      elements.sidebarConnectionDot = document.getElementById(
+        'sidebar-connection-dot'
+      );
+      elements.sidebarConnectionText = document.getElementById(
+        'sidebar-connection-text'
+      );
+
+      elements.footerConnectionDot = document.getElementById(
+        'footer-connection-dot'
+      );
+      elements.footerConnectionText = document.getElementById(
+        'footer-connection-text'
+      );
+      elements.footerLastUpdated = document.getElementById(
+        'footer-last-updated'
+      );
+
+      elements.toastRegion = document.getElementById(
+        'toast-region'
+      );
+    }
+
+    /**
+     * Registers application-wide event listeners.
+     *
+     * @return {void}
+     * @private
+     */
+    function bindGlobalEvents_() {
+      if (elements.sidebarOpenButton) {
+        elements.sidebarOpenButton.addEventListener(
+          'click',
+          openSidebar_
+        );
+      }
+
+      if (elements.sidebarCloseButton) {
+        elements.sidebarCloseButton.addEventListener(
+          'click',
+          closeSidebar_
+        );
+      }
+
+      if (elements.sidebarOverlay) {
+        elements.sidebarOverlay.addEventListener(
+          'click',
+          closeSidebar_
+        );
+      }
+
+      if (elements.refreshButton) {
+        elements.refreshButton.addEventListener(
+          'click',
+          refreshApplication_
+        );
+      }
+
+      if (elements.retryButton) {
+        elements.retryButton.addEventListener(
+          'click',
+          retryApplication_
+        );
+      }
+
+      if (elements.themeToggleButton) {
+        elements.themeToggleButton.addEventListener(
+          'click',
+          toggleTheme_
+        );
+      }
+
+      document.addEventListener('keydown', handleKeyboardShortcuts_);
+      document.addEventListener('click', handleDocumentClick_);
+      window.addEventListener('popstate', handleBrowserHistory_);
+      window.addEventListener('resize', handleViewportResize_);
+    }
+
+    /**
+     * Initializes sidebar and route navigation.
+     *
+     * @return {void}
+     * @private
+     */
+    function initializeNavigation_() {
+      const routeButtons = document.querySelectorAll(
+        '[data-route]'
+      );
+
+      routeButtons.forEach((button) => {
+        button.addEventListener('click', () => {
+          navigateToRoute_(button.dataset.route);
+        });
+      });
+
+      const routeTargetButtons = document.querySelectorAll(
+        '[data-route-target]'
+      );
+
+      routeTargetButtons.forEach((button) => {
+        button.addEventListener('click', () => {
+          navigateToRoute_(button.dataset.routeTarget);
+        });
+      });
+    }
+
+    /**
+     * Navigates to an application route.
+     *
+     * @param {string} route Requested route.
+     * @param {Object=} options Navigation options.
+     * @return {void}
+     * @private
+     */
+    function navigateToRoute_(route, options) {
+      const settings = Object.assign(
+        {
+          updateHistory: true,
+          focusContent: true
+        },
+        options || {}
+      );
+
+      const normalizedRoute = normalizeRoute_(route);
+
+      state.activeRoute = normalizedRoute;
+
+      showRoute_(normalizedRoute);
+      updateNavigationState_(normalizedRoute);
+      updatePageTitle_(normalizedRoute);
+      updateDocumentTitle_(normalizedRoute);
+
+      if (settings.updateHistory) {
+        updateBrowserHistory_(normalizedRoute);
+      }
+
+      if (settings.focusContent && elements.mainContent) {
+        elements.mainContent.focus({
+          preventScroll: true
+        });
+      }
+
+      closeSidebar_();
+    }
+
+    /**
+     * Displays the selected route page.
+     *
+     * @param {string} route Active route.
+     * @return {void}
+     * @private
+     */
+    function showRoute_(route) {
+      const pages = document.querySelectorAll('.app-page');
+
+      pages.forEach((page) => {
+        const isActive = page.dataset.route === route;
+        page.hidden = !isActive;
+      });
+
+      if (elements.loadingState) {
+        elements.loadingState.hidden = true;
+      }
+
+      if (elements.errorState) {
+        elements.errorState.hidden = true;
+      }
+    }
+
+    /**
+     * Updates active sidebar navigation styles.
+     *
+     * @param {string} route Active route.
+     * @return {void}
+     * @private
+     */
+    function updateNavigationState_(route) {
+      const routeButtons = document.querySelectorAll(
+        '[data-route]'
+      );
+
+      routeButtons.forEach((button) => {
+        const isActive = button.dataset.route === route;
+
+        button.classList.toggle('is-active', isActive);
+        button.setAttribute(
+          'aria-current',
+          isActive ? 'page' : 'false'
+        );
+      });
+
+      if (elements.app) {
+        elements.app.dataset.activeRoute = route;
+      }
+    }
+
+    /**
+     * Updates the visible header title.
+     *
+     * @param {string} route Active route.
+     * @return {void}
+     * @private
+     */
+    function updatePageTitle_(route) {
+      if (!elements.pageTitle) {
+        return;
+      }
+
+      elements.pageTitle.textContent =
+        ROUTE_TITLES[route] || ROUTE_TITLES.dashboard;
+    }
+
+    /**
+     * Updates the browser tab title.
+     *
+     * @param {string} route Active route.
+     * @return {void}
+     * @private
+     */
+    function updateDocumentTitle_(route) {
+      const appName =
+        state.bootstrap.appName || 'Pay Tracker';
+
+      const pageTitle =
+        ROUTE_TITLES[route] || ROUTE_TITLES.dashboard;
+
+      document.title = pageTitle + ' | ' + appName;
+    }
+
+    /**
+     * Writes the route into browser history.
+     *
+     * @param {string} route Route identifier.
+     * @return {void}
+     * @private
+     */
+    function updateBrowserHistory_(route) {
+      const currentUrl = new URL(window.location.href);
+
+      currentUrl.searchParams.set('page', route);
+
+      window.history.pushState(
+        {
+          route: route
+        },
+        '',
+        currentUrl.toString()
+      );
+    }
+
+    /**
+     * Handles browser back and forward navigation.
+     *
+     * @return {void}
+     * @private
+     */
+    function handleBrowserHistory_() {
+      const currentUrl = new URL(window.location.href);
+      const route = currentUrl.searchParams.get('page');
+
+      navigateToRoute_(route, {
+        updateHistory: false,
+        focusContent: false
+      });
+    }
+
+    /**
+     * Returns a supported route.
+     *
+     * @param {*} route Requested route.
+     * @return {string} Valid route.
+     * @private
+     */
+    function normalizeRoute_(route) {
+      const normalizedRoute = String(route || '')
+        .trim()
+        .toLowerCase();
+
+      if (
+        Object.prototype.hasOwnProperty.call(
+          ROUTE_TITLES,
+          normalizedRoute
+        )
+      ) {
+        return normalizedRoute;
+      }
+
+      return 'dashboard';
+    }
+
+    /**
+     * Opens the mobile sidebar.
+     *
+     * @return {void}
+     * @private
+     */
+    function openSidebar_() {
+      if (!elements.app) {
+        return;
+      }
+
+      elements.app.classList.add('is-sidebar-open');
+
+      if (elements.sidebarOverlay) {
+        elements.sidebarOverlay.hidden = false;
+      }
+
+      if (elements.sidebarOpenButton) {
+        elements.sidebarOpenButton.setAttribute(
+          'aria-expanded',
+          'true'
+        );
+      }
+    }
+
+    /**
+     * Closes the mobile sidebar.
+     *
+     * @return {void}
+     * @private
+     */
+    function closeSidebar_() {
+      if (!elements.app) {
+        return;
+      }
+
+      elements.app.classList.remove('is-sidebar-open');
+
+      if (elements.sidebarOverlay) {
+        elements.sidebarOverlay.hidden = true;
+      }
+
+      if (elements.sidebarOpenButton) {
+        elements.sidebarOpenButton.setAttribute(
+          'aria-expanded',
+          'false'
+        );
+      }
+    }
+
+    /**
+     * Automatically closes the mobile sidebar on wider screens.
+     *
+     * @return {void}
+     * @private
+     */
+    function handleViewportResize_() {
+      if (window.innerWidth > 860) {
+        closeSidebar_();
+      }
+    }
+
+    /**
+     * Initializes the saved or preferred theme.
+     *
+     * @return {void}
+     * @private
+     */
+    function initializeTheme_() {
+      const savedTheme = readStoredTheme_();
+      const preferredTheme = getPreferredTheme_();
+
+      setTheme_(savedTheme || preferredTheme);
+    }
+
+    /**
+     * Reads the saved theme from local storage.
+     *
+     * @return {string|null} Saved theme.
+     * @private
+     */
+    function readStoredTheme_() {
+      try {
+        const storedTheme = window.localStorage.getItem(
+          STORAGE_KEYS.THEME
+        );
+
+        if (
+          storedTheme === THEMES.LIGHT ||
+          storedTheme === THEMES.DARK
+        ) {
+          return storedTheme;
+        }
+      } catch (error) {
+        console.warn(
+          'Pay Tracker could not read the saved theme.',
+          error
+        );
+      }
+
+      return null;
+    }
+
+    /**
+     * Determines the browser's preferred colour scheme.
+     *
+     * @return {string} Preferred theme.
+     * @private
+     */
+    function getPreferredTheme_() {
+      if (
+        window.matchMedia &&
+        window.matchMedia(
+          '(prefers-color-scheme: dark)'
+        ).matches
+      ) {
+        return THEMES.DARK;
+      }
+
+      return THEMES.LIGHT;
+    }
+
+    /**
+     * Alternates between light and dark themes.
+     *
+     * @return {void}
+     * @private
+     */
+    function toggleTheme_() {
+      const nextTheme =
+        state.theme === THEMES.DARK
+          ? THEMES.LIGHT
+          : THEMES.DARK;
+
+      setTheme_(nextTheme);
+      saveTheme_(nextTheme);
+
+      showToast_(
+        nextTheme === THEMES.DARK
+          ? 'Dark theme enabled.'
+          : 'Light theme enabled.',
+        'info'
+      );
+    }
+
+    /**
+     * Applies the selected theme.
+     *
+     * @param {string} theme Theme name.
+     * @return {void}
+     * @private
+     */
+    function setTheme_(theme) {
+      const normalizedTheme =
+        theme === THEMES.DARK
+          ? THEMES.DARK
+          : THEMES.LIGHT;
+
+      state.theme = normalizedTheme;
+
+      document.documentElement.dataset.theme =
+        normalizedTheme;
+
+      if (elements.themeLightIcon) {
+        elements.themeLightIcon.hidden =
+          normalizedTheme === THEMES.DARK;
+      }
+
+      if (elements.themeDarkIcon) {
+        elements.themeDarkIcon.hidden =
+          normalizedTheme !== THEMES.DARK;
+      }
+
+      if (elements.themeToggleButton) {
+        const nextThemeLabel =
+          normalizedTheme === THEMES.DARK
+            ? 'Use light theme'
+            : 'Use dark theme';
+
+        elements.themeToggleButton.setAttribute(
+          'aria-label',
+          nextThemeLabel
+        );
+
+        elements.themeToggleButton.setAttribute(
+          'title',
+          nextThemeLabel
+        );
+      }
+    }
+
+    /**
+     * Saves the theme preference.
+     *
+     * @param {string} theme Theme name.
+     * @return {void}
+     * @private
+     */
+    function saveTheme_(theme) {
+      try {
+        window.localStorage.setItem(
+          STORAGE_KEYS.THEME,
+          theme
+        );
+      } catch (error) {
+        console.warn(
+          'Pay Tracker could not save the theme.',
+          error
+        );
+      }
+    }
+
+    /**
+     * Initializes profile menu interactions.
+     *
+     * @return {void}
+     * @private
+     */
+    function initializeProfileMenu_() {
+      if (elements.profileButton) {
+        elements.profileButton.addEventListener(
+          'click',
+          toggleProfileMenu_
+        );
+      }
+
+      const profileActions = document.querySelectorAll(
+        '[data-profile-action]'
+      );
+
+      profileActions.forEach((button) => {
+        button.addEventListener('click', () => {
+          handleProfileAction_(
+            button.dataset.profileAction
+          );
+        });
+      });
+    }
+
+    /**
+     * Opens or closes the profile menu.
+     *
+     * @return {void}
+     * @private
+     */
+    function toggleProfileMenu_() {
+      if (
+        !elements.profileMenu ||
+        !elements.profileButton
+      ) {
+        return;
+      }
+
+      const willOpen = elements.profileMenu.hidden;
+
+      elements.profileMenu.hidden = !willOpen;
+      elements.profileButton.setAttribute(
+        'aria-expanded',
+        String(willOpen)
+      );
+    }
+
+    /**
+     * Closes the profile menu.
+     *
+     * @return {void}
+     * @private
+     */
+    function closeProfileMenu_() {
+      if (elements.profileMenu) {
+        elements.profileMenu.hidden = true;
+      }
+
+      if (elements.profileButton) {
+        elements.profileButton.setAttribute(
+          'aria-expanded',
+          'false'
+        );
+      }
+    }
+
+    /**
+     * Handles profile menu actions.
+     *
+     * @param {string} action Profile action.
+     * @return {void}
+     * @private
+     */
+    function handleProfileAction_(action) {
+      closeProfileMenu_();
+
+      switch (action) {
+        case 'settings':
+          navigateToRoute_('settings');
+          break;
+
+        case 'profile':
+          showToast_(
+            'Profile management will be added in a future release.',
+            'info'
+          );
+          break;
+
+        case 'about':
+          showToast_(
+            'Pay Tracker version ' +
+              String(state.bootstrap.version || '2.6.0'),
+            'info'
+          );
+          break;
+
+        default:
+          break;
+      }
+    }
+
+    /**
+     * Initializes global search behaviour.
+     *
+     * @return {void}
+     * @private
+     */
+    function initializeSearch_() {
+      if (!elements.globalSearchInput) {
+        return;
+      }
+
+      elements.globalSearchInput.addEventListener(
+        'keydown',
+        (event) => {
+          if (event.key !== 'Enter') {
+            return;
+          }
+
+          event.preventDefault();
+
+          const query = elements.globalSearchInput.value.trim();
+
+          if (!query) {
+            return;
+          }
+
+          showToast_(
+            'Search will be connected after the core pages are live.',
+            'info'
+          );
+        }
+      );
+    }
+
+    /**
+     * Handles application keyboard shortcuts.
+     *
+     * @param {KeyboardEvent} event Keyboard event.
+     * @return {void}
+     * @private
+     */
+    function handleKeyboardShortcuts_(event) {
+      const isSearchShortcut =
+        (event.ctrlKey || event.metaKey) &&
+        event.key.toLowerCase() === 'k';
+
+      if (isSearchShortcut) {
+        event.preventDefault();
+
+        if (elements.globalSearchInput) {
+          elements.globalSearchInput.focus();
+          elements.globalSearchInput.select();
+        }
+
+        return;
+      }
+
+      if (event.key === 'Escape') {
+        closeSidebar_();
+        closeProfileMenu_();
+      }
+    }
+
+    /**
+     * Closes transient menus after outside clicks.
+     *
+     * @param {MouseEvent} event Click event.
+     * @return {void}
+     * @private
+     */
+    function handleDocumentClick_(event) {
+      if (
+        elements.profileMenu &&
+        elements.profileButton &&
+        !elements.profileMenu.hidden &&
+        !elements.profileMenu.contains(event.target) &&
+        !elements.profileButton.contains(event.target)
+      ) {
+        closeProfileMenu_();
+      }
+    }
+
+    /**
+     * Initializes dashboard action buttons.
+     *
+     * @return {void}
+     * @private
+     */
+    function initializeDashboardActions_() {
+      const dashboardActionButtons = document.querySelectorAll(
+        '[data-dashboard-action]'
+      );
+
+      dashboardActionButtons.forEach((button) => {
+        button.addEventListener('click', () => {
+          handleDashboardAction_(
+            button.dataset.dashboardAction
+          );
+        });
+      });
+
+      const calendarSyncButton = document.getElementById(
+        'dashboard-sync-calendar-button'
+      );
+
+      if (calendarSyncButton) {
+        calendarSyncButton.addEventListener(
+          'click',
+          requestCalendarSync_
+        );
+      }
+
+      const generateSavingsButton = document.getElementById(
+        'dashboard-generate-savings-button'
+      );
+
+      if (generateSavingsButton) {
+        generateSavingsButton.addEventListener(
+          'click',
+          requestSavingsGeneration_
+        );
+      }
+    }
+
+    /**
+     * Handles dashboard shortcut actions.
+     *
+     * @param {string} action Dashboard action.
+     * @return {void}
+     * @private
+     */
+    function handleDashboardAction_(action) {
+      switch (action) {
+        case 'refresh':
+          refreshApplication_();
+          break;
+
+        case 'calendar-sync':
+          requestCalendarSync_();
+          break;
+
+        case 'open-finance':
+          navigateToRoute_('finance');
+          break;
+
+        case 'open-savings':
+          navigateToRoute_('savings');
+          break;
+
+        default:
+          showToast_(
+            'This dashboard action is not available yet.',
+            'info'
+          );
+      }
+    }
+
+    /**
+     * Runs a frontend refresh and backend health check.
+     *
+     * @return {void}
+     * @private
+     */
+    function refreshApplication_() {
+      if (state.loading) {
+        return;
+      }
+
+      state.loading = true;
+      setRefreshButtonBusy_(true);
+
+      setConnectionState_(
+        CONNECTION_STATES.CONNECTING,
+        'Refreshing Pay Tracker'
+      );
+
+      callServerFunction_(
+        'getPayTrackerWebHealth',
+        [],
+        (response) => {
+          state.loading = false;
+          setRefreshButtonBusy_(false);
+
+          handleHealthSuccess_(response);
+
+          showToast_(
+            'Pay Tracker refreshed successfully.',
+            'success'
+          );
+        },
+        (error) => {
+          state.loading = false;
+          setRefreshButtonBusy_(false);
+
+          handleHealthFailure_(error);
+
+          showToast_(
+            'Pay Tracker could not refresh.',
+            'danger'
+          );
+        }
+      );
+    }
+
+    /**
+     * Updates the refresh button busy state.
+     *
+     * @param {boolean} isBusy Busy state.
+     * @return {void}
+     * @private
+     */
+    function setRefreshButtonBusy_(isBusy) {
+      if (!elements.refreshButton) {
+        return;
+      }
+
+      elements.refreshButton.disabled = isBusy;
+      elements.refreshButton.setAttribute(
+        'aria-busy',
+        String(isBusy)
+      );
+    }
+
+    /**
+     * Starts a calendar sync when a compatible backend method exists.
+     *
+     * @return {void}
+     * @private
+     */
+    function requestCalendarSync_() {
+      showToast_(
+        'Calendar sync will be connected to the existing Calendar service next.',
+        'info'
+      );
+    }
+
+    /**
+     * Starts weekly savings generation when its backend service is ready.
+     *
+     * @return {void}
+     * @private
+     */
+    function requestSavingsGeneration_() {
+      showToast_(
+        'Weekly savings generation will be connected after the savings engine upgrade.',
+        'info'
+      );
+    }
+
+    /**
+     * Checks Apps Script backend availability.
+     *
+     * @return {void}
+     * @private
+     */
+    function checkBackendHealth_() {
+      callServerFunction_(
+        'getPayTrackerWebHealth',
+        [],
+        handleHealthSuccess_,
+        handleHealthFailure_
+      );
+    }
+
+    /**
+     * Handles a successful backend health response.
+     *
+     * @param {Object} response Health response.
+     * @return {void}
+     * @private
+     */
+    function handleHealthSuccess_(response) {
+      if (!response || response.success !== true) {
+        handleHealthFailure_(
+          new Error(
+            'The backend returned an invalid health response.'
+          )
+        );
+
+        return;
+      }
+
+      setConnectionState_(
+        CONNECTION_STATES.ONLINE,
+        'Apps Script online'
+      );
+
+      updateLastUpdated_(response.checkedAt);
+
+      navigateToRoute_(state.activeRoute, {
+        updateHistory: false,
+        focusContent: false
+      });
+    }
+
+    /**
+     * Handles a failed backend health response.
+     *
+     * @param {*} error Health error.
+     * @return {void}
+     * @private
+     */
+    function handleHealthFailure_(error) {
+      const message = getErrorMessage_(
+        error,
+        'The Apps Script backend could not be reached.'
+      );
+
+      setConnectionState_(
+        CONNECTION_STATES.OFFLINE,
+        'Apps Script unavailable'
+      );
+
+      showApplicationError_(message);
+    }
+
+    /**
+     * Updates connection indicators throughout the interface.
+     *
+     * @param {string} connectionState Connection state.
+     * @param {string} message Display message.
+     * @return {void}
+     * @private
+     */
+    function setConnectionState_(connectionState, message) {
+      state.connection = connectionState;
+
+      const dots = [
+        elements.sidebarConnectionDot,
+        elements.footerConnectionDot
+      ];
+
+      dots.forEach((dot) => {
+        if (!dot) {
+          return;
+        }
+
+        dot.classList.remove('is-online', 'is-offline');
+
+        if (connectionState === CONNECTION_STATES.ONLINE) {
+          dot.classList.add('is-online');
+        }
+
+        if (connectionState === CONNECTION_STATES.OFFLINE) {
+          dot.classList.add('is-offline');
+        }
+      });
+
+      if (elements.sidebarConnectionText) {
+        elements.sidebarConnectionText.textContent = message;
+      }
+
+      if (elements.footerConnectionText) {
+        elements.footerConnectionText.textContent = message;
+      }
+    }
+
+    /**
+     * Updates the footer refresh timestamp.
+     *
+     * @param {string=} timestamp ISO timestamp.
+     * @return {void}
+     * @private
+     */
+    function updateLastUpdated_(timestamp) {
+      if (!elements.footerLastUpdated) {
+        return;
+      }
+
+      const parsedDate = timestamp
+        ? new Date(timestamp)
+        : new Date();
+
+      const validDate = Number.isNaN(parsedDate.getTime())
+        ? new Date()
+        : parsedDate;
+
+      elements.footerLastUpdated.textContent =
+        'Last updated: ' +
+        validDate.toLocaleTimeString([], {
+          hour: '2-digit',
+          minute: '2-digit'
+        });
+    }
+
+    /**
+     * Shows the startup loading state.
+     *
+     * @return {void}
+     * @private
+     */
+    function showLoadingState_() {
+      const pages = document.querySelectorAll('.app-page');
+
+      pages.forEach((page) => {
+        page.hidden = true;
+      });
+
+      if (elements.errorState) {
+        elements.errorState.hidden = true;
+      }
+
+      if (elements.loadingState) {
+        elements.loadingState.hidden = false;
+      }
+    }
+
+    /**
+     * Shows the application error state.
+     *
+     * @param {string} message Error message.
+     * @return {void}
+     * @private
+     */
+    function showApplicationError_(message) {
+      const pages = document.querySelectorAll('.app-page');
+
+      pages.forEach((page) => {
+        page.hidden = true;
+      });
+
+      if (elements.loadingState) {
+        elements.loadingState.hidden = true;
+      }
+
+      if (elements.errorMessage) {
+        elements.errorMessage.textContent = message;
+      }
+
+      if (elements.errorState) {
+        elements.errorState.hidden = false;
+      }
+    }
+
+    /**
+     * Retries frontend startup.
+     *
+     * @return {void}
+     * @private
+     */
+    function retryApplication_() {
+      showLoadingState_();
+
+      setConnectionState_(
+        CONNECTION_STATES.CONNECTING,
+        'Retrying connection'
+      );
+
+      checkBackendHealth_();
+    }
+
+    /**
+     * Displays a temporary toast notification.
+     *
+     * @param {string} message Notification text.
+     * @param {string=} type Notification type.
+     * @return {void}
+     * @private
+     */
+    function showToast_(message, type) {
+      if (!elements.toastRegion || !message) {
+        return;
+      }
+
+      const normalizedType = String(type || 'info')
+        .trim()
+        .toLowerCase();
+
+      const toast = document.createElement('div');
+
+      toast.className =
+        'toast toast--' + normalizedType;
+
+      toast.setAttribute('role', 'status');
+      toast.textContent = String(message);
+
+      elements.toastRegion.appendChild(toast);
+
+      window.setTimeout(() => {
+        toast.classList.add('is-leaving');
+
+        window.setTimeout(() => {
+          toast.remove();
+        }, 180);
+      }, 3600);
+    }
+
+    /**
+     * Calls an Apps Script server function by name.
+     *
+     * @param {string} functionName Server function name.
+     * @param {Array<*>} parameters Function arguments.
+     * @param {Function} successHandler Success callback.
+     * @param {Function} failureHandler Failure callback.
+     * @return {void}
+     * @private
+     */
+    function callServerFunction_(
+      functionName,
+      parameters,
+      successHandler,
+      failureHandler
+    ) {
+      if (
+        !window.google ||
+        !google.script ||
+        !google.script.run
+      ) {
+        failureHandler(
+          new Error(
+            'google.script.run is unavailable. Open the deployed Apps Script web application.'
+          )
+        );
+
+        return;
+      }
+
+      let runner = google.script.run
+        .withSuccessHandler(successHandler)
+        .withFailureHandler(failureHandler);
+
+      const serverFunction = runner[functionName];
+
+      if (typeof serverFunction !== 'function') {
+        failureHandler(
+          new Error(
+            'The backend function "' +
+              functionName +
+              '" is unavailable.'
+          )
+        );
+
+        return;
+      }
+
+      serverFunction.apply(runner, parameters || []);
+    }
+
+    /**
+     * Returns a readable error message.
+     *
+     * @param {*} error Error value.
+     * @param {string} fallback Fallback message.
+     * @return {string} Readable message.
+     * @private
+     */
+    function getErrorMessage_(error, fallback) {
+      if (
+        error &&
+        typeof error === 'object' &&
+        error.message
+      ) {
+        return String(error.message);
+      }
+
+      if (typeof error === 'string' && error.trim()) {
+        return error.trim();
+      }
+
+      return fallback;
+    }
+
+    return Object.freeze({
+      initialize: initialize,
+      navigate: navigateToRoute_,
+      refresh: refreshApplication_,
+      showToast: showToast_
+    });
+  })();
+
+  if (document.readyState === 'loading') {
+    document.addEventListener(
+      'DOMContentLoaded',
+      PayTrackerApp.initialize
+    );
+  } else {
+    PayTrackerApp.initialize();
+  }
+</script>
+
+<style>
+  .toast--success {
+    border-left: 4px solid var(--color-success);
+  }
+
+  .toast--danger {
+    border-left: 4px solid var(--color-danger);
+  }
+
+  .toast--info {
+    border-left: 4px solid var(--color-info);
+  }
+
+  .toast--warning {
+    border-left: 4px solid var(--color-warning);
+  }
+
+  .toast.is-leaving {
+    opacity: 0;
+    transform: translateY(8px);
+    transition:
+      opacity 180ms ease,
+      transform 180ms ease;
+  }
+
+  .icon-button:disabled,
+  .button:disabled {
+    cursor: not-allowed;
+    opacity: 0.58;
+    transform: none;
+  }
+</style>
