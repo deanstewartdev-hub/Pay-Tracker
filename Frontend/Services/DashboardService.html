@@ -136,6 +136,16 @@ const PayTrackerDashboardService = Object.freeze({
     PayTrackerDashboardService.state.loading = true;
     PayTrackerDashboardService.setLoadingState(true);
 
+    PayTrackerDashboardService.setText(
+    'dashboard-weekly-gross-change',
+    'Loading live dashboard data...'
+    );
+
+    PayTrackerDashboardService.setText(
+    'dashboard-cash-flow-message',
+    'Connecting to Pay Tracker services...'
+    );
+
     try {
       const response =
         await PayTrackerAppController
@@ -969,54 +979,64 @@ const PayTrackerDashboardService = Object.freeze({
    * @param {Object} goal Life Goal.
    * @return {string} Forecast.
    */
-  buildGoalForecast: function(goal) {
-    const current =
-      PayTrackerDashboardService.toNumber(
-        goal.current
-      );
-
-    const target =
-      PayTrackerDashboardService.toNumber(
-        goal.target
-      );
-
-    const months =
-      PayTrackerDashboardService.toNumber(
-        goal.monthsRemaining
-      );
-
-    if (target > 0 && current >= target) {
-      return (
-        'Goal completed with ' +
-        PayTrackerDashboardService
-          .formatMoney(current) +
-        ' saved.'
-      );
-    }
-
-    if (months > 0) {
-      return (
-        PayTrackerDashboardService
-          .formatMoney(current) +
-        ' saved so far. Estimated completion in ' +
-        months +
-        (
-          months === 1
-            ? ' month.'
-            : ' months.'
-        )
-      );
-    }
-
-    return (
-      PayTrackerDashboardService
-        .formatMoney(current) +
-      ' saved towards a target of ' +
-      PayTrackerDashboardService
-        .formatMoney(target) +
-      '.'
+  /**
+ * Builds the Life Goal forecast text.
+ *
+ * @param {Object} goal Life Goal.
+ * @return {string} Forecast.
+ */
+buildGoalForecast: function(goal) {
+  const current =
+    PayTrackerDashboardService.toNumber(
+      goal.current
     );
-  },
+
+  const target =
+    PayTrackerDashboardService.toNumber(
+      goal.target
+    );
+
+  const months =
+    PayTrackerDashboardService.toNumber(
+      goal.monthsRemaining
+    );
+
+  if (target > 0 && current >= target) {
+    return (
+      'Goal completed with ' +
+      PayTrackerDashboardService.formatMoney(
+        current
+      ) +
+      ' saved.'
+    );
+  }
+
+  if (months > 0) {
+    return (
+      PayTrackerDashboardService.formatMoney(
+        current
+      ) +
+      ' saved so far. Estimated completion in ' +
+      months +
+      (
+        months === 1
+          ? ' month.'
+          : ' months.'
+      )
+    );
+  }
+
+  return (
+    PayTrackerDashboardService.formatMoney(
+      current
+    ) +
+    ' saved towards a target of ' +
+    PayTrackerDashboardService.formatMoney(
+      target
+    ) +
+    '.'
+  );
+},
 
   /**
    * Renders recent dashboard activity.
@@ -1255,9 +1275,58 @@ const PayTrackerDashboardService = Object.freeze({
   }
 });
 
-document.addEventListener(
-  'DOMContentLoaded',
-  function() {
-    PayTrackerDashboardService.initialize();
+/**
+ * Makes the dashboard service visible for diagnostics
+ * and starts it whether the document is still loading
+ * or has already finished loading.
+ */
+(function startPayTrackerDashboardService(
+  windowObject,
+  documentObject
+) {
+  windowObject.PayTrackerDashboardService =
+    PayTrackerDashboardService;
+
+  function startDashboard() {
+    windowObject.setTimeout(function() {
+      PayTrackerDashboardService
+        .initialize()
+        .catch(function(error) {
+          console.error(
+            'Dashboard service initialization failed.',
+            error
+          );
+
+          PayTrackerDashboardService.renderError(
+            error
+          );
+
+          if (
+            typeof PayTrackerAppController !==
+            'undefined'
+          ) {
+            PayTrackerAppController.showToast(
+              PayTrackerAppController
+                .getErrorMessage(error),
+              'error',
+              8000
+            );
+          }
+        });
+    }, 0);
   }
-);
+
+  if (
+    documentObject.readyState === 'loading'
+  ) {
+    documentObject.addEventListener(
+      'DOMContentLoaded',
+      startDashboard,
+      {
+        once: true
+      }
+    );
+  } else {
+    startDashboard();
+  }
+})(window, document);
