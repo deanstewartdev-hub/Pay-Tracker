@@ -1,0 +1,495 @@
+/*******************************************************
+ * PAY TRACKER V2.6
+ * Frontend/Assets/CSS/DashboardPolish.html
+ *
+ * Phase 1 — Dashboard Polish
+ *
+ * Feature 1:
+ * - Reduce unused vertical space
+ * - Improve dashboard information density
+ * - Keep the dashboard comfortable and readable
+ * - Preserve the existing responsive layout
+ *******************************************************/
+
+/* =====================================================
+   Dashboard page spacing
+   ===================================================== */
+
+.dashboard {
+  gap: 18px;
+}
+
+.dashboard-hero {
+  gap: 20px;
+}
+
+.dashboard-hero__actions {
+  gap: 8px;
+}
+
+.dashboard-hero .page-header__eyebrow {
+  margin-bottom: 4px;
+}
+
+.dashboard-hero .page-header__title {
+  font-size: clamp(25px, 2.8vw, 34px);
+}
+
+.dashboard-hero .page-header__description {
+  max-width: 700px;
+  margin-top: 7px;
+  line-height: 1.55;
+}
+
+/* =====================================================
+   Summary cards
+   ===================================================== */
+
+.dashboard-summary-grid {
+  gap: 13px;
+}
+
+.summary-card {
+  padding: 15px 16px;
+  border-radius: 14px;
+}
+
+.summary-card__header {
+  gap: 10px;
+}
+
+.summary-card__icon {
+  width: 34px;
+  height: 34px;
+  padding: 8px;
+  border-radius: 10px;
+}
+
+.summary-card__value {
+  margin-top: 15px;
+  font-size: clamp(24px, 2.2vw, 31px);
+}
+
+.summary-card__footer {
+  min-height: 16px;
+  margin-top: 8px;
+}
+
+.summary-card__change {
+  font-size: 10.5px;
+}
+
+/* =====================================================
+   Main dashboard grids
+   ===================================================== */
+
+.dashboard-primary-grid {
+  gap: 15px;
+}
+
+.dashboard-secondary-grid {
+  gap: 15px;
+}
+
+.dashboard-card .card__header {
+  min-height: 58px;
+  padding: 13px 17px;
+}
+
+.dashboard-card .card__body {
+  padding: 16px 17px;
+}
+
+.dashboard-card .card__title {
+  font-size: 14px;
+}
+
+.dashboard-card .card__subtitle {
+  margin-top: 2px;
+  font-size: 11px;
+}
+
+/* =====================================================
+   Weekly earnings breakdown
+   ===================================================== */
+
+.earnings-row {
+  min-height: 53px;
+  gap: 14px;
+  padding: 8px 2px;
+}
+
+.earnings-row__marker {
+  width: 8px;
+  height: 31px;
+  margin-right: 11px;
+}
+
+.earnings-row__name {
+  font-size: 12.5px;
+}
+
+.earnings-row__meta {
+  margin-top: 2px;
+  font-size: 10.5px;
+}
+
+.earnings-row__amount {
+  font-size: 14px;
+}
+
+.earnings-total {
+  margin-top: 12px;
+  padding: 13px 14px;
+}
+
+.earnings-total__label {
+  font-size: 12px;
+}
+
+.earnings-total__period {
+  margin-top: 2px;
+  font-size: 10px;
+}
+
+.earnings-total__value {
+  font-size: 17px;
+}
+
+/* =====================================================
+   Weekly cash-flow card
+   ===================================================== */
+
+.cash-flow-chart {
+  gap: 18px;
+}
+
+.cash-flow-chart__visual {
+  min-width: 155px;
+}
+
+.cash-flow-ring {
+  width: 145px;
+  height: 145px;
+}
+
+.cash-flow-ring__centre {
+  width: 86px;
+  height: 86px;
+}
+
+.cash-flow-ring__label {
+  font-size: 9px;
+}
+
+.cash-flow-ring__value {
+  margin-top: 3px;
+  font-size: 16px;
+}
+
+.cash-flow-legend {
+  gap: 9px;
+}
+
+.cash-flow-legend__item {
+  min-height: 30px;
+}
+
+.cash-flow-legend__marker {
+  width: 9px;
+  height: 9px;
+}
+
+.cash-flow-legend__label {
+  font-size: 10.5px;
+}
+
+.cash-flow-legend__value {
+  font-size: 11.5px;
+}
+
+.dashboard-insight {
+  gap: 9px;
+  margin-top: 14px;
+  padding: 10px 12px;
+}
+
+.dashboard-insight__icon {
+  width: 20px;
+  height: 20px;
+  font-size: 11px;
+}
+
+.dashboard-insight p {
+  font-size: 10.5px;
+  line-height: 1.45;
+}
+
+/* =====================================================
+   Savings pots
+   ===================================================== */
+
+.savings-pot-list {
+  gap: 13px;
+}
+
+.savings-pot-row {
+  padding-bottom: 13px;
+}
+
+.savings-pot-row__header {
+  gap: 12px;
+}
+
+.savings-pot-row__name {
+  font-size: 12.5px;
+}
+
+.savings-pot-row__meta {
+  margin-top: 2px;
+  font-size: 10px;
+}
+
+.savings-pot-row__balance {
+  font-size: 13px;
+}
+
+.savings-pot-row__goal {
+  margin-top: 1px;
+  font-size: 9.5px;
+}
+
+.progress-bar {
+  height: 7px;
+  margin-top: 9px;
+}
+
+.savings-pot-row__footer {
+  margin-top: 6px;
+  font-size: 9.5px;
+}
+
+/* =====================================================
+   Commitments
+   ===================================================== */
+
+.commitment-list {
+  gap: 9px;
+}
+
+.commitment-row {
+  gap: 10px;
+  padding: 10px 0;
+}
+
+.commitment-row__icon {
+  width: 34px;
+  height: 34px;
+}
+
+.commitment-row__name {
+  font-size: 12px;
+}
+
+.commitment-row__meta {
+  margin-top: 2px;
+  font-size: 10px;
+}
+
+.commitment-row__amount {
+  font-size: 12.5px;
+}
+
+.commitment-empty {
+  min-height: 175px;
+  padding: 18px;
+}
+
+.commitment-empty__icon {
+  width: 38px;
+  height: 38px;
+}
+
+.commitment-empty__title {
+  margin-top: 10px;
+  font-size: 12.5px;
+}
+
+.commitment-empty__message {
+  margin-top: 5px;
+  font-size: 10.5px;
+  line-height: 1.5;
+}
+
+/* =====================================================
+   Life goals
+   ===================================================== */
+
+.goal-list {
+  gap: 11px;
+}
+
+.goal-card {
+  padding: 13px;
+}
+
+.goal-card__top {
+  gap: 10px;
+}
+
+.goal-card__icon {
+  width: 32px;
+  height: 32px;
+  padding: 7px;
+}
+
+.goal-card__name {
+  margin-top: 10px;
+  font-size: 13px;
+}
+
+.goal-card__forecast {
+  margin-top: 4px;
+  font-size: 10.5px;
+  line-height: 1.45;
+}
+
+.goal-card__metrics {
+  gap: 10px;
+  margin-top: 11px;
+  padding-top: 10px;
+}
+
+.goal-card__metric-label {
+  font-size: 9px;
+}
+
+.goal-card__metric-value {
+  margin-top: 2px;
+  font-size: 11.5px;
+}
+
+/* =====================================================
+   Large desktop optimisation
+   ===================================================== */
+
+@media (min-width: 1280px) {
+  .dashboard-primary-grid {
+    grid-template-columns:
+      minmax(0, 1.45fr)
+      minmax(340px, 0.95fr);
+  }
+
+  .dashboard-secondary-grid {
+    grid-template-columns:
+      minmax(0, 1.3fr)
+      minmax(270px, 0.82fr)
+      minmax(270px, 0.82fr);
+  }
+}
+
+/* =====================================================
+   Medium desktop and tablet
+   ===================================================== */
+
+@media (max-width: 1180px) {
+  .dashboard-summary-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .dashboard-secondary-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .dashboard-card--savings-pots {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 920px) {
+  .dashboard-primary-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .dashboard-secondary-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .dashboard-card--savings-pots {
+    grid-column: auto;
+  }
+
+  .cash-flow-chart {
+    justify-content: flex-start;
+  }
+}
+
+/* =====================================================
+   Mobile layout
+   ===================================================== */
+
+@media (max-width: 680px) {
+  .dashboard {
+    gap: 15px;
+  }
+
+  .dashboard-hero {
+    align-items: stretch;
+  }
+
+  .dashboard-hero__actions {
+    width: 100%;
+  }
+
+  .dashboard-hero__actions .button {
+    flex: 1 1 0;
+  }
+
+  .dashboard-summary-grid {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+
+  .summary-card {
+    padding: 14px;
+  }
+
+  .summary-card__value {
+    margin-top: 13px;
+  }
+
+  .dashboard-card .card__header {
+    padding: 12px 14px;
+  }
+
+  .dashboard-card .card__body {
+    padding: 14px;
+  }
+
+  .cash-flow-chart {
+    flex-direction: column;
+    align-items: center;
+  }
+
+  .cash-flow-chart__visual {
+    min-width: 0;
+  }
+
+  .cash-flow-legend {
+    width: 100%;
+  }
+}
+
+/* =====================================================
+   Reduced motion
+   ===================================================== */
+
+@media (prefers-reduced-motion: reduce) {
+  .summary-card {
+    transition: none;
+  }
+
+  .summary-card:hover {
+    transform: none;
+  }
+}
