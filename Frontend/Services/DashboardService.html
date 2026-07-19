@@ -1,0 +1,1263 @@
+/*******************************************************
+ * PAY TRACKER V2.6
+ * Frontend/Services/DashboardService.html
+ *
+ * Purpose:
+ * - Request live dashboard data from Apps Script
+ * - Populate dashboard summary cards
+ * - Populate earnings, cash flow, savings and goals
+ * - Handle dashboard refresh and route buttons
+ *
+ * Included inside a script tag by:
+ * Frontend/UI/Scripts.html
+ *******************************************************/
+
+const PayTrackerDashboardService = Object.freeze({
+  state: {
+    initialized: false,
+    loading: false,
+    loaded: false,
+    data: null
+  },
+
+  /**
+   * Starts the dashboard service.
+   *
+   * @return {Promise<void>}
+   */
+  initialize: async function() {
+    if (PayTrackerDashboardService.state.initialized) {
+      return;
+    }
+
+    PayTrackerDashboardService.state.initialized = true;
+
+    PayTrackerDashboardService.registerEvents();
+
+    await PayTrackerDashboardService.load();
+  },
+
+  /**
+   * Registers dashboard event handlers.
+   */
+  registerEvents: function() {
+    document.addEventListener(
+      'click',
+      PayTrackerDashboardService.handleDocumentClick
+    );
+
+    document.addEventListener(
+      'paytracker:routechange',
+      function(event) {
+        const route =
+          event &&
+          event.detail
+            ? event.detail.route
+            : '';
+
+        if (
+          route === 'dashboard' &&
+          !PayTrackerDashboardService.state.loaded &&
+          !PayTrackerDashboardService.state.loading
+        ) {
+          PayTrackerDashboardService.load();
+        }
+      }
+    );
+  },
+
+  /**
+   * Handles dashboard click actions.
+   *
+   * @param {MouseEvent} event Browser click event.
+   */
+  handleDocumentClick: function(event) {
+    const refreshButton =
+      event.target.closest(
+        '#dashboard-refresh-button'
+      );
+
+    if (refreshButton) {
+      PayTrackerDashboardService.load({
+        force: true
+      });
+
+      return;
+    }
+
+    const routeButton =
+      event.target.closest(
+        '[data-dashboard-route]'
+      );
+
+    if (routeButton) {
+      event.preventDefault();
+
+      const route =
+        routeButton.dataset.dashboardRoute;
+
+      if (
+        window.PayTrackerAppController ||
+        typeof PayTrackerAppController !==
+          'undefined'
+      ) {
+        PayTrackerAppController.navigate(route);
+      }
+    }
+  },
+
+  /**
+   * Loads live dashboard data.
+   *
+   * @param {Object=} options Load options.
+   * @return {Promise<void>}
+   */
+  load: async function(options) {
+    const config = Object.assign(
+      {
+        force: false
+      },
+      options || {}
+    );
+
+    if (
+      PayTrackerDashboardService.state.loading
+    ) {
+      return;
+    }
+
+    if (
+      PayTrackerDashboardService.state.loaded &&
+      !config.force
+    ) {
+      return;
+    }
+
+    PayTrackerDashboardService.state.loading = true;
+    PayTrackerDashboardService.setLoadingState(true);
+
+    try {
+      const response =
+        await PayTrackerAppController
+          .runServerFunction(
+            'getPayTrackerWebDashboardData'
+          );
+
+      if (
+        !response ||
+        response.success !== true
+      ) {
+        throw new Error(
+          response && response.error
+            ? response.error
+            : 'Dashboard data could not be loaded.'
+        );
+      }
+
+      PayTrackerDashboardService.state.data =
+        response;
+
+      PayTrackerDashboardService.state.loaded =
+        true;
+
+      PayTrackerDashboardService.render(response);
+
+      PayTrackerAppController.updateFooterStatus({
+        generatedAt: response.generatedAt
+      });
+
+      if (config.force) {
+        PayTrackerAppController.showToast(
+          'Dashboard refreshed.',
+          'success'
+        );
+      }
+    } catch (error) {
+      console.error(
+        'Dashboard data request failed.',
+        error
+      );
+
+      PayTrackerDashboardService
+        .renderError(error);
+
+      PayTrackerAppController.showToast(
+        PayTrackerAppController
+          .getErrorMessage(error),
+        'error'
+      );
+    } finally {
+      PayTrackerDashboardService.state.loading =
+        false;
+
+      PayTrackerDashboardService
+        .setLoadingState(false);
+    }
+  },
+
+  /**
+   * Renders all dashboard sections.
+   *
+   * @param {Object} data Dashboard response.
+   */
+  render: function(data) {
+    const pay = data.pay || {};
+    const cashFlow = data.cashFlow || {};
+    const savingsPots =
+      Array.isArray(data.savingsPots)
+        ? data.savingsPots
+        : [];
+
+    const commitments =
+      Array.isArray(data.commitments)
+        ? data.commitments
+        : [];
+
+    const lifeGoals =
+      Array.isArray(data.lifeGoals)
+        ? data.lifeGoals
+        : [];
+
+    const activity =
+      Array.isArray(data.activity)
+        ? data.activity
+        : [];
+
+    PayTrackerDashboardService.renderSummary(
+      pay,
+      cashFlow
+    );
+
+    PayTrackerDashboardService.renderEarnings(
+      pay
+    );
+
+    PayTrackerDashboardService.renderCashFlow(
+      cashFlow,
+      data.messages || {}
+    );
+
+    PayTrackerDashboardService.renderSavingsPots(
+      savingsPots
+    );
+
+    PayTrackerDashboardService.renderCommitments(
+      commitments
+    );
+
+    PayTrackerDashboardService.renderLifeGoals(
+      lifeGoals
+    );
+
+    PayTrackerDashboardService.renderActivity(
+      activity
+    );
+  },
+
+  /**
+   * Renders dashboard summary cards.
+   *
+   * @param {Object} pay Pay figures.
+   * @param {Object} cashFlow Cash-flow figures.
+   */
+  renderSummary: function(pay, cashFlow) {
+    PayTrackerDashboardService.setText(
+      'dashboard-weekly-gross',
+      PayTrackerDashboardService.formatMoney(
+        pay.gross
+      )
+    );
+
+    PayTrackerDashboardService.setText(
+      'dashboard-weekly-take-home',
+      PayTrackerDashboardService.formatMoney(
+        pay.takeHome
+      )
+    );
+
+    PayTrackerDashboardService.setText(
+      'dashboard-disposable-income',
+      PayTrackerDashboardService.formatMoney(
+        cashFlow.disposableIncome
+      )
+    );
+
+    PayTrackerDashboardService.setText(
+      'dashboard-suggested-savings',
+      PayTrackerDashboardService.formatMoney(
+        cashFlow.suggestedSavings
+      )
+    );
+
+    PayTrackerDashboardService.setText(
+      'dashboard-weekly-gross-change',
+      pay.hasData
+        ? pay.weekLabel || 'Latest populated week'
+        : pay.message || 'Waiting for live pay data'
+    );
+
+    const deductionRate =
+      PayTrackerDashboardService.toNumber(
+        pay.deductionRate
+      );
+
+    PayTrackerDashboardService.setText(
+      'dashboard-deduction-rate',
+      pay.hasData
+        ? PayTrackerDashboardService
+            .formatPercent(deductionRate) +
+          ' estimated deductions'
+        : 'Deduction estimate unavailable'
+    );
+
+    const disposableIncome =
+      PayTrackerDashboardService.toNumber(
+        cashFlow.disposableIncome
+      );
+
+    PayTrackerDashboardService.setText(
+      'dashboard-disposable-status',
+      cashFlow.hasData
+        ? (
+            disposableIncome >= 0
+              ? 'Available after bills and spending'
+              : 'Outgoing costs exceed take-home'
+          )
+        : 'Spending information not loaded'
+    );
+
+    const disposableStatus =
+      document.getElementById(
+        'dashboard-disposable-status'
+      );
+
+    if (disposableStatus) {
+      disposableStatus.classList.toggle(
+        'is-positive',
+        cashFlow.hasData &&
+        disposableIncome >= 0
+      );
+
+      disposableStatus.classList.toggle(
+        'is-negative',
+        cashFlow.hasData &&
+        disposableIncome < 0
+      );
+    }
+
+    const savingsRate =
+      PayTrackerDashboardService.toNumber(
+        cashFlow.savingsRate
+      );
+
+    PayTrackerDashboardService.setText(
+      'dashboard-savings-rate',
+      cashFlow.hasData
+        ? PayTrackerDashboardService
+            .formatPercent(savingsRate) +
+          ' of disposable income'
+        : 'Savings rate not loaded'
+    );
+  },
+
+  /**
+   * Renders weekly employer earnings.
+   *
+   * @param {Object} pay Pay data.
+   */
+  renderEarnings: function(pay) {
+    const employers = pay.employers || {};
+
+    [
+      'nhs',
+      'relief',
+      'security',
+      'logging'
+    ].forEach(function(key) {
+      const employer =
+        employers[key] || {
+          shifts: 0,
+          total: 0
+        };
+
+      const shiftCount =
+        PayTrackerDashboardService.toNumber(
+          employer.shifts
+        );
+
+      PayTrackerDashboardService.setText(
+        'dashboard-' + key + '-shifts',
+        shiftCount > 0
+          ? (
+              shiftCount +
+              (
+                shiftCount === 1
+                  ? ' shift loaded'
+                  : ' shifts loaded'
+              )
+            )
+          : (
+              key === 'logging'
+                ? 'No work loaded'
+                : 'No shifts loaded'
+            )
+      );
+
+      PayTrackerDashboardService.setText(
+        'dashboard-' + key + '-total',
+        PayTrackerDashboardService.formatMoney(
+          employer.total
+        )
+      );
+    });
+
+    PayTrackerDashboardService.setText(
+      'dashboard-selected-week',
+      pay.weekLabel || 'Current week'
+    );
+
+    PayTrackerDashboardService.setText(
+      'dashboard-earnings-total',
+      PayTrackerDashboardService.formatMoney(
+        pay.gross
+      )
+    );
+  },
+
+  /**
+   * Renders cash-flow figures and ring.
+   *
+   * @param {Object} cashFlow Cash-flow figures.
+   * @param {Object} messages Dashboard messages.
+   */
+  renderCashFlow: function(
+    cashFlow,
+    messages
+  ) {
+    PayTrackerDashboardService.setText(
+      'dashboard-cash-flow-remaining',
+      PayTrackerDashboardService.formatMoney(
+        cashFlow.availableAfterSavings
+      )
+    );
+
+    PayTrackerDashboardService.setText(
+      'dashboard-bills-total',
+      PayTrackerDashboardService.formatMoney(
+        cashFlow.bills
+      )
+    );
+
+    PayTrackerDashboardService.setText(
+      'dashboard-spending-total',
+      PayTrackerDashboardService.formatMoney(
+        cashFlow.weeklySpending
+      )
+    );
+
+    PayTrackerDashboardService.setText(
+      'dashboard-cash-flow-savings',
+      PayTrackerDashboardService.formatMoney(
+        cashFlow.suggestedSavings
+      )
+    );
+
+    PayTrackerDashboardService.setText(
+      'dashboard-available-after-savings',
+      PayTrackerDashboardService.formatMoney(
+        cashFlow.availableAfterSavings
+      )
+    );
+
+    PayTrackerDashboardService.setText(
+      'dashboard-cash-flow-message',
+      messages.cashFlow ||
+      (
+        cashFlow.hasData
+          ? 'Weekly cash flow calculated successfully.'
+          : 'Waiting for live cash-flow data.'
+      )
+    );
+
+    PayTrackerDashboardService.renderCashFlowRing(
+      cashFlow
+    );
+  },
+
+  /**
+   * Updates the conic-gradient cash-flow ring.
+   *
+   * @param {Object} cashFlow Cash-flow figures.
+   */
+  renderCashFlowRing: function(cashFlow) {
+    const ring =
+      document.getElementById(
+        'dashboard-cash-flow-ring'
+      );
+
+    if (!ring) {
+      return;
+    }
+
+    const bills = Math.max(
+      PayTrackerDashboardService.toNumber(
+        cashFlow.bills
+      ),
+      0
+    );
+
+    const spending = Math.max(
+      PayTrackerDashboardService.toNumber(
+        cashFlow.weeklySpending
+      ),
+      0
+    );
+
+    const savings = Math.max(
+      PayTrackerDashboardService.toNumber(
+        cashFlow.suggestedSavings
+      ),
+      0
+    );
+
+    const remaining = Math.max(
+      PayTrackerDashboardService.toNumber(
+        cashFlow.availableAfterSavings
+      ),
+      0
+    );
+
+    const total =
+      bills +
+      spending +
+      savings +
+      remaining;
+
+    if (total <= 0) {
+      ring.style.background =
+        'conic-gradient(var(--color-border) 0deg 360deg)';
+
+      return;
+    }
+
+    const billsEnd =
+      bills / total * 360;
+
+    const spendingEnd =
+      billsEnd +
+      spending / total * 360;
+
+    const savingsEnd =
+      spendingEnd +
+      savings / total * 360;
+
+    ring.style.background =
+      'conic-gradient(' +
+      'var(--color-danger) 0deg ' +
+      billsEnd +
+      'deg,' +
+      'var(--color-warning) ' +
+      billsEnd +
+      'deg ' +
+      spendingEnd +
+      'deg,' +
+      'var(--color-primary) ' +
+      spendingEnd +
+      'deg ' +
+      savingsEnd +
+      'deg,' +
+      'var(--color-success) ' +
+      savingsEnd +
+      'deg 360deg)';
+  },
+
+  /**
+   * Renders up to three savings pots.
+   *
+   * @param {Object[]} pots Savings pots.
+   */
+  renderSavingsPots: function(pots) {
+    const slots = [
+      {
+        prefix: 'dashboard-mortgage-pot',
+        fallbackName: 'Home Mortgage',
+        fallbackMeta: 'Deposit fund'
+      },
+      {
+        prefix: 'dashboard-secondary-pot',
+        fallbackName: 'Secondary savings pot',
+        fallbackMeta: 'Flexible savings'
+      },
+      {
+        prefix: 'dashboard-third-pot',
+        fallbackName: 'Third savings pot',
+        fallbackMeta: 'Flexible savings'
+      }
+    ];
+
+    const rows = document.querySelectorAll(
+      '#dashboard-savings-pots-list .savings-pot-row'
+    );
+
+    slots.forEach(function(slot, index) {
+      const pot = pots[index] || null;
+      const row = rows[index] || null;
+
+      if (row) {
+        const name =
+          row.querySelector(
+            '.savings-pot-row__name'
+          );
+
+        const meta =
+          row.querySelector(
+            '.savings-pot-row__meta'
+          );
+
+        if (name) {
+          name.textContent = pot
+            ? pot.name
+            : slot.fallbackName;
+        }
+
+        if (meta) {
+          meta.textContent = pot
+            ? (
+                pot.provider ||
+                pot.accountType ||
+                slot.fallbackMeta
+              )
+            : slot.fallbackMeta;
+        }
+
+        row.classList.toggle(
+          'is-empty',
+          !pot
+        );
+      }
+
+      const progress = pot
+        ? PayTrackerDashboardService
+            .normalizeProgress(pot.progress)
+        : 0;
+
+      const percent =
+        Math.round(progress * 100);
+
+      PayTrackerDashboardService.setText(
+        slot.prefix + '-balance',
+        pot
+          ? PayTrackerDashboardService
+              .formatMoney(pot.balance)
+          : '£—'
+      );
+
+      PayTrackerDashboardService.setText(
+        slot.prefix + '-goal',
+        pot && PayTrackerDashboardService
+          .toNumber(pot.goal) > 0
+          ? (
+              'of ' +
+              PayTrackerDashboardService
+                .formatMoney(pot.goal)
+            )
+          : 'of £—'
+      );
+
+      PayTrackerDashboardService.setText(
+        slot.prefix + '-percent',
+        percent + '% complete'
+      );
+
+      PayTrackerDashboardService.setText(
+        slot.prefix + '-contribution',
+        pot
+          ? (
+              PayTrackerDashboardService
+                .formatMoney(
+                  pot.contribution
+                ) +
+              ' per week'
+            )
+          : '£— per week'
+      );
+
+      const progressElement =
+        document.getElementById(
+          slot.prefix + '-progress'
+        );
+
+      if (progressElement) {
+        progressElement.style.width =
+          percent + '%';
+
+        const progressBar =
+          progressElement.parentElement;
+
+        if (progressBar) {
+          progressBar.setAttribute(
+            'aria-valuenow',
+            String(percent)
+          );
+        }
+      }
+    });
+  },
+
+  /**
+   * Renders upcoming commitments.
+   *
+   * @param {Object[]} commitments Commitments.
+   */
+  renderCommitments: function(commitments) {
+    const container =
+      document.getElementById(
+        'dashboard-commitments-list'
+      );
+
+    if (!container) {
+      return;
+    }
+
+    container.replaceChildren();
+
+    if (!commitments.length) {
+      container.appendChild(
+        PayTrackerDashboardService
+          .createEmptyCommitment()
+      );
+
+      return;
+    }
+
+    commitments.forEach(function(commitment) {
+      const item =
+        document.createElement('div');
+
+      item.className = 'commitment-item';
+
+      const icon =
+        document.createElement('div');
+
+      icon.className =
+        'commitment-item__icon';
+
+      icon.textContent =
+        commitment.type === 'danger'
+          ? '!'
+          : (
+              commitment.type === 'warning'
+                ? '£'
+                : 'i'
+            );
+
+      const copy =
+        document.createElement('div');
+
+      copy.className =
+        'commitment-item__copy';
+
+      const name =
+        document.createElement('p');
+
+      name.className =
+        'commitment-item__name';
+
+      name.textContent =
+        commitment.name ||
+        'Upcoming commitment';
+
+      const detail =
+        document.createElement('p');
+
+      detail.className =
+        'commitment-item__date';
+
+      detail.textContent =
+        commitment.detail || '';
+
+      copy.append(name, detail);
+
+      item.append(icon, copy);
+
+      if (
+        commitment.amount !== null &&
+        commitment.amount !== undefined
+      ) {
+        const amount =
+          document.createElement('div');
+
+        amount.className =
+          'commitment-item__amount';
+
+        amount.textContent =
+          PayTrackerDashboardService
+            .formatMoney(
+              commitment.amount
+            );
+
+        item.appendChild(amount);
+      }
+
+      container.appendChild(item);
+    });
+  },
+
+  /**
+   * Creates the empty commitment state.
+   *
+   * @return {HTMLElement} Empty state.
+   */
+  createEmptyCommitment: function() {
+    const empty =
+      document.createElement('div');
+
+    empty.className = 'commitment-empty';
+
+    const icon =
+      document.createElement('div');
+
+    icon.className =
+      'commitment-empty__icon';
+
+    icon.textContent = '✓';
+
+    const title =
+      document.createElement('p');
+
+    title.className =
+      'commitment-empty__title';
+
+    title.textContent =
+      'No upcoming commitments';
+
+    const message =
+      document.createElement('p');
+
+    message.className =
+      'commitment-empty__message';
+
+    message.textContent =
+      'There are no urgent bills, debts or savings contributions to show.';
+
+    empty.append(icon, title, message);
+
+    return empty;
+  },
+
+  /**
+   * Renders the primary Life Goal.
+   *
+   * @param {Object[]} goals Life Goals.
+   */
+  renderLifeGoals: function(goals) {
+    const goal = goals[0] || null;
+
+    const status =
+      document.getElementById(
+        'dashboard-primary-goal-status'
+      );
+
+    if (!goal) {
+      PayTrackerDashboardService.setText(
+        'dashboard-primary-goal-name',
+        'First home deposit'
+      );
+
+      PayTrackerDashboardService.setText(
+        'dashboard-primary-goal-forecast',
+        'Add a goal and contribution plan to calculate your forecast.'
+      );
+
+      PayTrackerDashboardService.setText(
+        'dashboard-primary-goal-target',
+        '£—'
+      );
+
+      PayTrackerDashboardService.setText(
+        'dashboard-primary-goal-months',
+        '—'
+      );
+
+      if (status) {
+        status.textContent = 'Awaiting data';
+        status.className =
+          'status-badge status-badge--neutral';
+      }
+
+      return;
+    }
+
+    PayTrackerDashboardService.setText(
+      'dashboard-primary-goal-name',
+      goal.name || 'Life goal'
+    );
+
+    PayTrackerDashboardService.setText(
+      'dashboard-primary-goal-target',
+      PayTrackerDashboardService.formatMoney(
+        goal.target
+      )
+    );
+
+    const months =
+      PayTrackerDashboardService.toNumber(
+        goal.monthsRemaining
+      );
+
+    PayTrackerDashboardService.setText(
+      'dashboard-primary-goal-months',
+      months > 0
+        ? (
+            months +
+            (
+              months === 1
+                ? ' month'
+                : ' months'
+            )
+          )
+        : (
+            PayTrackerDashboardService
+              .toNumber(goal.progress) >= 1
+              ? 'Complete'
+              : 'Not forecast'
+          )
+    );
+
+    PayTrackerDashboardService.setText(
+      'dashboard-primary-goal-forecast',
+      PayTrackerDashboardService
+        .buildGoalForecast(goal)
+    );
+
+    if (status) {
+      const normalizedStatus =
+        String(
+          goal.targetStatus || ''
+        ).toLowerCase();
+
+      status.textContent =
+        goal.targetStatus ||
+        (
+          PayTrackerDashboardService
+            .toNumber(goal.progress) >= 1
+            ? 'Complete'
+            : 'In progress'
+        );
+
+      status.className =
+        'status-badge ' +
+        (
+          normalizedStatus.indexOf(
+            'complete'
+          ) !== -1
+            ? 'status-badge--success'
+            : (
+                normalizedStatus.indexOf(
+                  'overdue'
+                ) !== -1
+                  ? 'status-badge--danger'
+                  : 'status-badge--warning'
+              )
+        );
+    }
+  },
+
+  /**
+   * Builds the Life Goal forecast text.
+   *
+   * @param {Object} goal Life Goal.
+   * @return {string} Forecast.
+   */
+  buildGoalForecast: function(goal) {
+    const current =
+      PayTrackerDashboardService.toNumber(
+        goal.current
+      );
+
+    const target =
+      PayTrackerDashboardService.toNumber(
+        goal.target
+      );
+
+    const months =
+      PayTrackerDashboardService.toNumber(
+        goal.monthsRemaining
+      );
+
+    if (target > 0 && current >= target) {
+      return (
+        'Goal completed with ' +
+        PayTrackerDashboardService
+          .formatMoney(current) +
+        ' saved.'
+      );
+    }
+
+    if (months > 0) {
+      return (
+        PayTrackerDashboardService
+          .formatMoney(current) +
+        ' saved so far. Estimated completion in ' +
+        months +
+        (
+          months === 1
+            ? ' month.'
+            : ' months.'
+        )
+      );
+    }
+
+    return (
+      PayTrackerDashboardService
+        .formatMoney(current) +
+      ' saved towards a target of ' +
+      PayTrackerDashboardService
+        .formatMoney(target) +
+      '.'
+    );
+  },
+
+  /**
+   * Renders recent dashboard activity.
+   *
+   * @param {Object[]} activity Activity rows.
+   */
+  renderActivity: function(activity) {
+    const container =
+      document.getElementById(
+        'dashboard-activity-list'
+      );
+
+    if (!container || !activity.length) {
+      return;
+    }
+
+    container.replaceChildren();
+
+    activity.forEach(function(entry) {
+      const item =
+        document.createElement('div');
+
+      item.className = 'activity-item';
+
+      const icon =
+        document.createElement('div');
+
+      icon.className =
+        'activity-item__icon';
+
+      icon.textContent =
+        entry.icon || '£';
+
+      const copy =
+        document.createElement('div');
+
+      copy.className =
+        'activity-item__copy';
+
+      const title =
+        document.createElement('p');
+
+      title.className =
+        'activity-item__title';
+
+      title.textContent =
+        entry.title || 'Pay Tracker update';
+
+      const meta =
+        document.createElement('p');
+
+      meta.className =
+        'activity-item__meta';
+
+      meta.textContent =
+        entry.meta || '';
+
+      copy.append(title, meta);
+
+      item.append(icon, copy);
+
+      if (
+        entry.amount !== null &&
+        entry.amount !== undefined
+      ) {
+        const amount =
+          document.createElement('div');
+
+        amount.className =
+          'activity-item__amount';
+
+        amount.textContent =
+          PayTrackerDashboardService
+            .formatMoney(entry.amount);
+
+        item.appendChild(amount);
+      }
+
+      container.appendChild(item);
+    });
+  },
+
+  /**
+   * Renders a recoverable dashboard error.
+   *
+   * @param {*} error Error value.
+   */
+  renderError: function(error) {
+    const message =
+      PayTrackerAppController
+        .getErrorMessage(error);
+
+    PayTrackerDashboardService.setText(
+      'dashboard-weekly-gross-change',
+      message
+    );
+
+    PayTrackerDashboardService.setText(
+      'dashboard-cash-flow-message',
+      message
+    );
+  },
+
+  /**
+   * Sets loading state on dashboard controls.
+   *
+   * @param {boolean} loading Loading state.
+   */
+  setLoadingState: function(loading) {
+    const refreshButton =
+      document.getElementById(
+        'dashboard-refresh-button'
+      );
+
+    if (refreshButton) {
+      refreshButton.disabled =
+        Boolean(loading);
+
+      refreshButton.classList.toggle(
+        'is-loading',
+        Boolean(loading)
+      );
+    }
+
+    const dashboard =
+      document.querySelector(
+        '#page-dashboard .dashboard'
+      );
+
+    if (dashboard) {
+      dashboard.classList.toggle(
+        'is-loading',
+        Boolean(loading)
+      );
+
+      dashboard.setAttribute(
+        'aria-busy',
+        String(Boolean(loading))
+      );
+    }
+  },
+
+  /**
+   * Sets element text by ID.
+   *
+   * @param {string} id Element ID.
+   * @param {*} value Text value.
+   */
+  setText: function(id, value) {
+    const element =
+      document.getElementById(id);
+
+    if (element) {
+      element.textContent =
+        value == null
+          ? ''
+          : String(value);
+    }
+  },
+
+  /**
+   * Formats money in GBP.
+   *
+   * @param {*} value Amount.
+   * @return {string} Formatted amount.
+   */
+  formatMoney: function(value) {
+    const number =
+      PayTrackerDashboardService
+        .toNumber(value);
+
+    return new Intl.NumberFormat(
+      'en-GB',
+      {
+        style: 'currency',
+        currency: 'GBP',
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2
+      }
+    ).format(number);
+  },
+
+  /**
+   * Formats a decimal percentage.
+   *
+   * @param {*} value Decimal value.
+   * @return {string} Formatted percentage.
+   */
+  formatPercent: function(value) {
+    return new Intl.NumberFormat(
+      'en-GB',
+      {
+        style: 'percent',
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 1
+      }
+    ).format(
+      PayTrackerDashboardService
+        .toNumber(value)
+    );
+  },
+
+  /**
+   * Normalizes progress to a zero-to-one decimal.
+   *
+   * @param {*} value Progress value.
+   * @return {number} Normalized progress.
+   */
+  normalizeProgress: function(value) {
+    const progress =
+      PayTrackerDashboardService
+        .toNumber(value);
+
+    if (progress > 1 && progress <= 100) {
+      return progress / 100;
+    }
+
+    return Math.min(
+      Math.max(progress, 0),
+      1
+    );
+  },
+
+  /**
+   * Safely converts a value to a number.
+   *
+   * @param {*} value Value.
+   * @return {number} Number.
+   */
+  toNumber: function(value) {
+    const number = Number(value);
+
+    return Number.isFinite(number)
+      ? number
+      : 0;
+  }
+});
+
+document.addEventListener(
+  'DOMContentLoaded',
+  function() {
+    PayTrackerDashboardService.initialize();
+  }
+);

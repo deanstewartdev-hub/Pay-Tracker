@@ -1,13 +1,9 @@
-/*******************************************************
- * PAY TRACKER V2.6
- * Frontend/App/AppRoutes.js
+/*
+ * This file contains browser-side JavaScript.
  *
- * Purpose:
- * - Define the supported frontend routes
- * - Resolve route titles and metadata
- * - Provide shared route validation
- * - Keep navigation configuration in one place
- *******************************************************/
+ * It is included inside a script tag by
+ * Frontend/UI/Scripts.html.
+ */
 
 const PayTrackerAppRoutes = Object.freeze({
   DEFAULT_ROUTE: 'dashboard',
@@ -16,6 +12,7 @@ const PayTrackerAppRoutes = Object.freeze({
     dashboard: Object.freeze({
       id: 'dashboard',
       title: 'Dashboard',
+      description: 'Overview of income, spending, savings and goals.',
       pageElementId: 'page-dashboard',
       section: 'main',
       icon: 'dashboard',
@@ -25,6 +22,7 @@ const PayTrackerAppRoutes = Object.freeze({
     pay: Object.freeze({
       id: 'pay',
       title: 'Pay',
+      description: 'Review earnings, shifts and estimated take-home pay.',
       pageElementId: 'page-pay',
       section: 'main',
       icon: 'pay',
@@ -34,6 +32,7 @@ const PayTrackerAppRoutes = Object.freeze({
     finance: Object.freeze({
       id: 'finance',
       title: 'Finance',
+      description: 'Manage bills, debts, payments and commitments.',
       pageElementId: 'page-finance',
       section: 'main',
       icon: 'finance',
@@ -43,6 +42,7 @@ const PayTrackerAppRoutes = Object.freeze({
     savings: Object.freeze({
       id: 'savings',
       title: 'Savings',
+      description: 'Track savings pots and disposable-income allocations.',
       pageElementId: 'page-savings',
       section: 'main',
       icon: 'savings',
@@ -52,6 +52,7 @@ const PayTrackerAppRoutes = Object.freeze({
     goals: Object.freeze({
       id: 'goals',
       title: 'Life Goals',
+      description: 'Track financial goals and estimated completion dates.',
       pageElementId: 'page-goals',
       section: 'main',
       icon: 'goals',
@@ -61,6 +62,7 @@ const PayTrackerAppRoutes = Object.freeze({
     reports: Object.freeze({
       id: 'reports',
       title: 'Reports',
+      description: 'Review financial trends and historical performance.',
       pageElementId: 'page-reports',
       section: 'insights',
       icon: 'reports',
@@ -70,6 +72,7 @@ const PayTrackerAppRoutes = Object.freeze({
     calendar: Object.freeze({
       id: 'calendar',
       title: 'Calendar',
+      description: 'Review scheduled work, payments and financial events.',
       pageElementId: 'page-calendar',
       section: 'insights',
       icon: 'calendar',
@@ -79,6 +82,7 @@ const PayTrackerAppRoutes = Object.freeze({
     settings: Object.freeze({
       id: 'settings',
       title: 'Settings',
+      description: 'Configure Pay Tracker behaviour and preferences.',
       pageElementId: 'page-settings',
       section: 'system',
       icon: 'settings',
@@ -87,7 +91,7 @@ const PayTrackerAppRoutes = Object.freeze({
   }),
 
   /**
-   * Returns a valid route ID.
+   * Normalizes a requested route.
    *
    * @param {*} route Requested route.
    * @return {string} Valid route ID.
@@ -121,9 +125,9 @@ const PayTrackerAppRoutes = Object.freeze({
   },
 
   /**
-   * Returns all enabled routes.
+   * Returns all enabled route configurations.
    *
-   * @return {Array<Object>} Enabled route configurations.
+   * @return {Array<Object>} Enabled routes.
    */
   getAll: function() {
     return Object.keys(PayTrackerAppRoutes.ROUTES)
@@ -136,9 +140,9 @@ const PayTrackerAppRoutes = Object.freeze({
   },
 
   /**
-   * Returns routes for a navigation section.
+   * Returns routes belonging to a navigation section.
    *
-   * @param {string} section Navigation section.
+   * @param {*} section Navigation section.
    * @return {Array<Object>} Matching routes.
    */
   getBySection: function(section) {
@@ -153,7 +157,7 @@ const PayTrackerAppRoutes = Object.freeze({
   },
 
   /**
-   * Returns the browser page title.
+   * Returns the browser document title.
    *
    * @param {*} route Requested route.
    * @param {string=} appName Application name.
@@ -161,17 +165,23 @@ const PayTrackerAppRoutes = Object.freeze({
    */
   getDocumentTitle: function(route, appName) {
     const routeConfig = PayTrackerAppRoutes.get(route);
-    const normalizedAppName =
-      String(appName || 'Pay Tracker').trim();
 
-    return routeConfig.title + ' | ' + normalizedAppName;
+    const normalizedAppName =
+      String(appName || 'Pay Tracker').trim() ||
+      'Pay Tracker';
+
+    return (
+      routeConfig.title +
+      ' | ' +
+      normalizedAppName
+    );
   },
 
   /**
    * Returns whether a route exists and is enabled.
    *
    * @param {*} route Requested route.
-   * @return {boolean} True when valid.
+   * @return {boolean} Whether the route is valid.
    */
   isValid: function(route) {
     const normalizedRoute = String(route || '')
@@ -181,6 +191,53 @@ const PayTrackerAppRoutes = Object.freeze({
     const routeConfig =
       PayTrackerAppRoutes.ROUTES[normalizedRoute];
 
-    return Boolean(routeConfig && routeConfig.enabled);
+    return Boolean(
+      routeConfig &&
+      routeConfig.enabled
+    );
+  },
+
+  /**
+   * Returns the page element ID for a route.
+   *
+   * @param {*} route Requested route.
+   * @return {string} Page element ID.
+   */
+  getPageElementId: function(route) {
+    return PayTrackerAppRoutes.get(route).pageElementId;
+  },
+
+  /**
+   * Reads a route from a URL.
+   *
+   * Supports:
+   * - ?page=dashboard
+   * - #dashboard
+   *
+   * @param {Location=} locationObject Browser location.
+   * @return {string} Valid route ID.
+   */
+  resolveFromLocation: function(locationObject) {
+    const currentLocation =
+      locationObject || window.location;
+
+    const queryParameters =
+      new URLSearchParams(currentLocation.search || '');
+
+    const queryRoute = queryParameters.get('page');
+
+    if (queryRoute) {
+      return PayTrackerAppRoutes.normalize(queryRoute);
+    }
+
+    const hashRoute = String(
+      currentLocation.hash || ''
+    ).replace(/^#/, '');
+
+    if (hashRoute) {
+      return PayTrackerAppRoutes.normalize(hashRoute);
+    }
+
+    return PayTrackerAppRoutes.DEFAULT_ROUTE;
   }
 });

@@ -32,400 +32,408 @@
       id="app-shell"
       class="app-shell"
     >
-      <aside
-        id="app-sidebar"
-        class="app-sidebar"
-        aria-label="Primary navigation"
-      >
-        <?!= includePayTrackerHtml('Frontend/Layout/Navigation'); ?>
-      </aside>
+      <div class="app-layout">
+        <aside
+          id="app-sidebar"
+          class="sidebar"
+          aria-label="Primary navigation"
+        >
+          <?!= includePayTrackerHtml('Frontend/Layout/Navigation'); ?>
+        </aside>
 
-      <div
-        id="sidebar-overlay"
-        class="sidebar-overlay"
-        hidden
-      ></div>
+        <div
+          id="sidebar-overlay"
+          class="sidebar-overlay"
+          aria-hidden="true"
+        ></div>
 
-      <div class="app-workspace">
         <header
           id="app-header"
-          class="app-header"
+          class="header"
         >
           <?!= includePayTrackerHtml('Frontend/Layout/Header'); ?>
         </header>
 
         <main
-          id="app-main"
-          class="app-main"
+          id="app-main-content"
+          class="main-content"
           tabindex="-1"
         >
-          <section
-            id="app-loading-state"
-            class="app-state"
-            aria-live="polite"
-          >
-            <div
-              class="loading-spinner"
+          <div class="main-content__inner">
+            <section
+              id="page-dashboard"
+              class="page-view"
+              data-page="dashboard"
+              aria-hidden="false"
+            >
+              <?!= includePayTrackerHtml('Frontend/Pages/Dashboard'); ?>
+            </section>
+
+            <section
+              id="page-pay"
+              class="page-view placeholder-page"
+              data-page="pay"
               aria-hidden="true"
-            ></div>
+              hidden
+            >
+              <div class="page-header">
+                <p class="page-header__eyebrow">
+                  Earnings
+                </p>
 
-            <h2 class="app-state__title">
-              Loading Pay Tracker
-            </h2>
+                <h2 class="page-header__title">
+                  Pay
+                </h2>
 
-            <p class="app-state__message">
-              Connecting to your Pay Tracker services and preparing your
-              personal finance workspace.
-            </p>
-          </section>
+                <p class="page-header__description">
+                  Review your NHS, Relief Warden, Night Security and Logging
+                  earnings across each tracked week.
+                </p>
+              </div>
 
-          <section
-            id="app-error-state"
-            class="app-state"
-            aria-live="assertive"
-            hidden
-          >
-            <div
-              class="app-state__icon"
+              <div class="card">
+                <div class="empty-state">
+                  <div
+                    class="empty-state__icon"
+                    aria-hidden="true"
+                  >
+                    £
+                  </div>
+
+                  <h3 class="empty-state__title">
+                    Pay workspace coming next
+                  </h3>
+
+                  <p class="empty-state__message">
+                    Your existing Pay sheet data and weekly earnings services
+                    will be connected here without changing the current backend.
+                  </p>
+                </div>
+              </div>
+            </section>
+
+            <section
+              id="page-finance"
+              class="page-view placeholder-page"
+              data-page="finance"
               aria-hidden="true"
+              hidden
             >
-              !
-            </div>
+              <div class="page-header">
+                <p class="page-header__eyebrow">
+                  Bills and debts
+                </p>
 
-            <h2 class="app-state__title">
-              Pay Tracker could not start
-            </h2>
+                <h2 class="page-header__title">
+                  Finance
+                </h2>
 
-            <p
-              id="app-error-message"
-              class="app-state__message"
+                <p class="page-header__description">
+                  Manage bills, recurring commitments, loans, debts and payment
+                  history from one workspace.
+                </p>
+              </div>
+
+              <div class="card">
+                <div class="empty-state">
+                  <div
+                    class="empty-state__icon"
+                    aria-hidden="true"
+                  >
+                    £
+                  </div>
+
+                  <h3 class="empty-state__title">
+                    Finance workspace ready for integration
+                  </h3>
+
+                  <p class="empty-state__message">
+                    The Finance Dashboard, Bills, Debts and Finance Payments
+                    services will be connected during the finance integration
+                    stage.
+                  </p>
+                </div>
+              </div>
+            </section>
+
+            <section
+              id="page-savings"
+              class="page-view placeholder-page"
+              data-page="savings"
+              aria-hidden="true"
+              hidden
             >
-              An unexpected error prevented the application from loading.
-            </p>
+              <div class="page-header">
+                <p class="page-header__eyebrow">
+                  Savings allocation
+                </p>
 
-            <button
-              id="app-retry-button"
-              class="button button--primary"
-              type="button"
+                <h2 class="page-header__title">
+                  Savings
+                </h2>
+
+                <p class="page-header__description">
+                  Track savings pots, contribution schedules, allocation
+                  percentages, interest and goal forecasts.
+                </p>
+              </div>
+
+              <div class="card">
+                <div class="empty-state">
+                  <div
+                    class="empty-state__icon"
+                    aria-hidden="true"
+                  >
+                    %
+                  </div>
+
+                  <h3 class="empty-state__title">
+                    Savings dashboard coming soon
+                  </h3>
+
+                  <p class="empty-state__message">
+                    This page will calculate disposable income from your weekly
+                    pay, spending and bills before allocating your selected
+                    percentage across savings pots.
+                  </p>
+                </div>
+              </div>
+            </section>
+
+            <section
+              id="page-goals"
+              class="page-view placeholder-page"
+              data-page="goals"
+              aria-hidden="true"
+              hidden
             >
-              Try again
-            </button>
-          </section>
+              <div class="page-header">
+                <p class="page-header__eyebrow">
+                  Future planning
+                </p>
 
-          <section
-            id="dashboard-page"
-            class="app-page"
-            data-app-page="dashboard"
-            hidden
-          >
-            <?!= includePayTrackerHtml('Frontend/Pages/Dashboard'); ?>
-          </section>
+                <h2 class="page-header__title">
+                  Life Goals
+                </h2>
 
-          <section
-            id="pay-page"
-            class="app-page placeholder-page"
-            data-app-page="pay"
-            hidden
-          >
-            <div class="page-header">
-              <p class="page-header__eyebrow">
-                Earnings
-              </p>
-
-              <h2 class="page-header__title">
-                Pay
-              </h2>
-
-              <p class="page-header__description">
-                Review your NHS, Relief Warden, Night Security and Logging
-                earnings across each tracked week.
-              </p>
-            </div>
-
-            <div class="card">
-              <div class="empty-state">
-                <div
-                  class="empty-state__icon"
-                  aria-hidden="true"
-                >
-                  £
-                </div>
-
-                <h3 class="empty-state__title">
-                  Pay workspace coming next
-                </h3>
-
-                <p class="empty-state__message">
-                  Your existing Pay sheet data and weekly earnings services
-                  will be connected here without changing the current backend.
+                <p class="page-header__description">
+                  Plan major financial goals and estimate how long each goal
+                  should take based on your savings rate.
                 </p>
               </div>
-            </div>
-          </section>
 
-          <section
-            id="finance-page"
-            class="app-page placeholder-page"
-            data-app-page="finance"
-            hidden
-          >
-            <div class="page-header">
-              <p class="page-header__eyebrow">
-                Bills and debts
-              </p>
+              <div class="card">
+                <div class="empty-state">
+                  <div
+                    class="empty-state__icon"
+                    aria-hidden="true"
+                  >
+                    ✓
+                  </div>
 
-              <h2 class="page-header__title">
-                Finance
-              </h2>
+                  <h3 class="empty-state__title">
+                    Life-goal planning coming soon
+                  </h3>
 
-              <p class="page-header__description">
-                Manage bills, recurring commitments, loans, debts and payment
-                history from one workspace.
-              </p>
-            </div>
-
-            <div class="card">
-              <div class="empty-state">
-                <div
-                  class="empty-state__icon"
-                  aria-hidden="true"
-                >
-                  £
+                  <p class="empty-state__message">
+                    Your existing Life Goals and months-to-goal forecasting
+                    services will be presented here.
+                  </p>
                 </div>
+              </div>
+            </section>
 
-                <h3 class="empty-state__title">
-                  Finance workspace ready for integration
-                </h3>
+            <section
+              id="page-reports"
+              class="page-view placeholder-page"
+              data-page="reports"
+              aria-hidden="true"
+              hidden
+            >
+              <div class="page-header">
+                <p class="page-header__eyebrow">
+                  Financial insights
+                </p>
 
-                <p class="empty-state__message">
-                  The Finance Dashboard, Bills, Debts and Finance Payments
-                  services will be connected during the finance integration
-                  stage.
+                <h2 class="page-header__title">
+                  Reports
+                </h2>
+
+                <p class="page-header__description">
+                  Compare earnings, deductions, spending, savings and progress
+                  across weeks and months.
                 </p>
               </div>
-            </div>
-          </section>
 
-          <section
-            id="savings-page"
-            class="app-page placeholder-page"
-            data-app-page="savings"
-            hidden
-          >
-            <div class="page-header">
-              <p class="page-header__eyebrow">
-                Savings allocation
-              </p>
+              <div class="card">
+                <div class="empty-state">
+                  <div
+                    class="empty-state__icon"
+                    aria-hidden="true"
+                  >
+                    ↗
+                  </div>
 
-              <h2 class="page-header__title">
-                Savings
-              </h2>
+                  <h3 class="empty-state__title">
+                    Reports will be added after live data integration
+                  </h3>
 
-              <p class="page-header__description">
-                Track savings pots, contribution schedules, allocation
-                percentages, interest and goal forecasts.
-              </p>
-            </div>
-
-            <div class="card">
-              <div class="empty-state">
-                <div
-                  class="empty-state__icon"
-                  aria-hidden="true"
-                >
-                  %
+                  <p class="empty-state__message">
+                    Charts and comparisons will use your existing Pay Tracker
+                    records rather than creating a second source of truth.
+                  </p>
                 </div>
+              </div>
+            </section>
 
-                <h3 class="empty-state__title">
-                  Savings dashboard coming soon
-                </h3>
+            <section
+              id="page-calendar"
+              class="page-view placeholder-page"
+              data-page="calendar"
+              aria-hidden="true"
+              hidden
+            >
+              <div class="page-header">
+                <p class="page-header__eyebrow">
+                  Shift synchronisation
+                </p>
 
-                <p class="empty-state__message">
-                  This page will calculate disposable income from your weekly
-                  pay, spending and bills before allocating your selected
-                  percentage across savings pots.
+                <h2 class="page-header__title">
+                  Calendar
+                </h2>
+
+                <p class="page-header__description">
+                  Review Google Calendar shift imports and the earnings detected
+                  from your NHS, council and security work.
                 </p>
               </div>
-            </div>
-          </section>
 
-          <section
-            id="goals-page"
-            class="app-page placeholder-page"
-            data-app-page="goals"
-            hidden
-          >
-            <div class="page-header">
-              <p class="page-header__eyebrow">
-                Future planning
-              </p>
+              <div class="card">
+                <div class="empty-state">
+                  <div
+                    class="empty-state__icon"
+                    aria-hidden="true"
+                  >
+                    31
+                  </div>
 
-              <h2 class="page-header__title">
-                Life Goals
-              </h2>
+                  <h3 class="empty-state__title">
+                    Calendar workspace coming soon
+                  </h3>
 
-              <p class="page-header__description">
-                Plan major financial goals and estimate how long each goal
-                should take based on your savings rate.
-              </p>
-            </div>
-
-            <div class="card">
-              <div class="empty-state">
-                <div
-                  class="empty-state__icon"
-                  aria-hidden="true"
-                >
-                  ✓
+                  <p class="empty-state__message">
+                    Your existing Calendar sync will remain responsible for
+                    importing shifts into the Pay sheet.
+                  </p>
                 </div>
+              </div>
+            </section>
 
-                <h3 class="empty-state__title">
-                  Life-goal planning coming soon
-                </h3>
+            <section
+              id="page-settings"
+              class="page-view placeholder-page"
+              data-page="settings"
+              aria-hidden="true"
+              hidden
+            >
+              <div class="page-header">
+                <p class="page-header__eyebrow">
+                  Application configuration
+                </p>
 
-                <p class="empty-state__message">
-                  Your existing Life Goals and months-to-goal forecasting
-                  services will be presented here.
+                <h2 class="page-header__title">
+                  Settings
+                </h2>
+
+                <p class="page-header__description">
+                  Configure Pay Tracker preferences, savings behaviour, display
+                  options and integration settings.
                 </p>
               </div>
-            </div>
-          </section>
 
-          <section
-            id="reports-page"
-            class="app-page placeholder-page"
-            data-app-page="reports"
-            hidden
-          >
-            <div class="page-header">
-              <p class="page-header__eyebrow">
-                Financial insights
-              </p>
+              <div class="card">
+                <div class="empty-state">
+                  <div
+                    class="empty-state__icon"
+                    aria-hidden="true"
+                  >
+                    ⚙
+                  </div>
 
-              <h2 class="page-header__title">
-                Reports
-              </h2>
+                  <h3 class="empty-state__title">
+                    Settings workspace coming soon
+                  </h3>
 
-              <p class="page-header__description">
-                Compare earnings, deductions, spending, savings and progress
-                across weeks and months.
-              </p>
-            </div>
-
-            <div class="card">
-              <div class="empty-state">
-                <div
-                  class="empty-state__icon"
-                  aria-hidden="true"
-                >
-                  ↗
+                  <p class="empty-state__message">
+                    Existing spreadsheet settings will be exposed here in a
+                    controlled interface without removing direct sheet access.
+                  </p>
                 </div>
-
-                <h3 class="empty-state__title">
-                  Reports will be added after live data integration
-                </h3>
-
-                <p class="empty-state__message">
-                  Charts and comparisons will use your existing Pay Tracker
-                  records rather than creating a second source of truth.
-                </p>
               </div>
-            </div>
-          </section>
-
-          <section
-            id="calendar-page"
-            class="app-page placeholder-page"
-            data-app-page="calendar"
-            hidden
-          >
-            <div class="page-header">
-              <p class="page-header__eyebrow">
-                Shift synchronisation
-              </p>
-
-              <h2 class="page-header__title">
-                Calendar
-              </h2>
-
-              <p class="page-header__description">
-                Review Google Calendar shift imports and the earnings detected
-                from your NHS, council and security work.
-              </p>
-            </div>
-
-            <div class="card">
-              <div class="empty-state">
-                <div
-                  class="empty-state__icon"
-                  aria-hidden="true"
-                >
-                  31
-                </div>
-
-                <h3 class="empty-state__title">
-                  Calendar workspace coming soon
-                </h3>
-
-                <p class="empty-state__message">
-                  Your existing Calendar sync will remain responsible for
-                  importing shifts into the Pay sheet.
-                </p>
-              </div>
-            </div>
-          </section>
-
-          <section
-            id="settings-page"
-            class="app-page placeholder-page"
-            data-app-page="settings"
-            hidden
-          >
-            <div class="page-header">
-              <p class="page-header__eyebrow">
-                Application configuration
-              </p>
-
-              <h2 class="page-header__title">
-                Settings
-              </h2>
-
-              <p class="page-header__description">
-                Configure Pay Tracker preferences, savings behaviour, display
-                options and integration settings.
-              </p>
-            </div>
-
-            <div class="card">
-              <div class="empty-state">
-                <div
-                  class="empty-state__icon"
-                  aria-hidden="true"
-                >
-                  ⚙
-                </div>
-
-                <h3 class="empty-state__title">
-                  Settings workspace coming soon
-                </h3>
-
-                <p class="empty-state__message">
-                  Existing spreadsheet settings will be exposed here in a
-                  controlled interface without removing direct sheet access.
-                </p>
-              </div>
-            </div>
-          </section>
+            </section>
+          </div>
         </main>
 
         <footer
           id="app-footer"
-          class="app-footer"
+          class="footer"
         >
           <?!= includePayTrackerHtml('Frontend/Layout/Footer'); ?>
         </footer>
       </div>
     </div>
+
+    <section
+      id="app-loading"
+      class="app-loading"
+      aria-live="polite"
+    >
+      <div class="app-loading__content">
+        <div
+          class="app-loading__spinner"
+          aria-hidden="true"
+        ></div>
+
+        <p class="app-loading__label">
+          Loading Pay Tracker
+        </p>
+      </div>
+    </section>
+
+    <section
+      id="app-error"
+      class="app-loading"
+      aria-live="assertive"
+      hidden
+    >
+      <div class="app-loading__content">
+        <div
+          class="empty-state__icon"
+          aria-hidden="true"
+        >
+          !
+        </div>
+
+        <h2 class="empty-state__title">
+          Pay Tracker could not start
+        </h2>
+
+        <p
+          class="empty-state__message"
+          data-error-message
+        >
+          An unexpected error prevented the application from loading.
+        </p>
+
+        <button
+          id="retry-app-button"
+          class="button button--primary"
+          type="button"
+        >
+          Try again
+        </button>
+      </div>
+    </section>
 
     <div
       id="toast-region"
@@ -437,14 +445,6 @@
     <script>
       window.PAY_TRACKER_BOOTSTRAP =
         <?!= bootstrapJson ?>;
-    </script>
-
-    <script>
-      <?!= includePayTrackerHtml('Frontend/App/AppRoutes'); ?>
-    </script>
-
-    <script>
-      <?!= includePayTrackerHtml('Frontend/App/AppController'); ?>
     </script>
 
     <?!= includePayTrackerHtml('Frontend/UI/Scripts'); ?>

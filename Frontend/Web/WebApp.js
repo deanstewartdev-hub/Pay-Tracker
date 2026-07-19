@@ -7,11 +7,6 @@
  * - Resolve frontend routes
  * - Build the application bootstrap payload
  * - Render the main frontend template
- *
- * Architecture:
- * - Only Index.html is evaluated as an Apps Script template
- * - Included partials contain no server-side variables
- * - Frontend state is injected through a bootstrap JSON object
  *******************************************************/
 
 const PAY_TRACKER_WEB_CONFIG = Object.freeze({
@@ -47,6 +42,14 @@ function doGet(event) {
       PAY_TRACKER_WEB_CONFIG.ENTRY_TEMPLATE
     );
 
+    /*
+     * These values are available to Index.html through
+     * Apps Script template expressions.
+     */
+    template.appName = applicationState.appName;
+    template.version = applicationState.version;
+    template.pageTitle = applicationState.pageTitle;
+    template.activeRoute = applicationState.activeRoute;
     template.bootstrapJson =
       serializePayTrackerBootstrap_(applicationState);
 
@@ -54,8 +57,8 @@ function doGet(event) {
       .evaluate()
       .setTitle(
         applicationState.pageTitle +
-          ' | ' +
-          applicationState.appName
+        ' | ' +
+        applicationState.appName
       )
       .addMetaTag(
         'viewport',
@@ -75,19 +78,29 @@ function doGet(event) {
 }
 
 /**
- * Includes a frontend HTML partial without evaluating it
- * as a separate template.
+ * Includes a frontend HTML partial.
  *
- * This is intentionally equivalent to the proven
- * Project Savannah pattern.
- *
- * Included partials must not depend on template variables.
+ * Included files must be Apps Script HTML files.
+ * Do not include the .html extension in fileName.
  *
  * @param {string} fileName Apps Script HTML filename.
  * @return {string} Raw HTML content.
  */
+/**
+ * Includes and evaluates a frontend HTML partial.
+ *
+ * This supports nested Apps Script template expressions,
+ * allowing Styles.html and Scripts.html to include their
+ * own CSS and JavaScript partials.
+ *
+ * Do not include the .html extension in fileName.
+ *
+ * @param {string} fileName Apps Script HTML filename.
+ * @return {string} Evaluated HTML content.
+ */
 function includePayTrackerHtml(fileName) {
-  const normalizedFileName = String(fileName || '').trim();
+  const normalizedFileName =
+    String(fileName || '').trim();
 
   if (!normalizedFileName) {
     throw new Error(
@@ -97,14 +110,15 @@ function includePayTrackerHtml(fileName) {
 
   try {
     return HtmlService
-      .createHtmlOutputFromFile(normalizedFileName)
+      .createTemplateFromFile(normalizedFileName)
+      .evaluate()
       .getContent();
   } catch (error) {
     throw new Error(
       'Could not include frontend file "' +
-        normalizedFileName +
-        '". ' +
-        getPayTrackerWebErrorMessage_(error)
+      normalizedFileName +
+      '". ' +
+      getPayTrackerWebErrorMessage_(error)
     );
   }
 }
@@ -142,15 +156,13 @@ function getPayTrackerWebBootstrap() {
  * @private
  */
 function buildPayTrackerApplicationState_(event) {
-  const activeRoute =
-    resolvePayTrackerRoute_(event);
+  const activeRoute = resolvePayTrackerRoute_(event);
 
   return {
     appName: PAY_TRACKER_WEB_CONFIG.APP_NAME,
     version: PAY_TRACKER_WEB_CONFIG.VERSION,
     activeRoute: activeRoute,
     pageTitle: getPayTrackerRouteTitle_(activeRoute),
-
     navigation: buildPayTrackerNavigation_(),
 
     environment: {
@@ -283,7 +295,8 @@ function getPayTrackerRouteTitle_(route) {
 }
 
 /**
- * Safely serializes frontend bootstrap data.
+ * Safely serializes frontend bootstrap data for insertion
+ * inside a script element.
  *
  * @param {Object} bootstrap Application state.
  * @return {string} Safe JSON string.
@@ -313,36 +326,43 @@ function buildPayTrackerStartupError_(error) {
     )
   );
 
-  const html =
-    '<!DOCTYPE html>' +
-    '<html lang="en">' +
-    '<head>' +
-    '<base target="_top">' +
-    '<meta charset="UTF-8">' +
-    '<meta name="viewport" content="width=device-width, initial-scale=1">' +
-    '<title>Pay Tracker | Startup Error</title>' +
-    '<style>' +
-    'html,body{margin:0;min-height:100%;font-family:Arial,sans-serif;}' +
-    'body{min-height:100vh;display:grid;place-items:center;padding:24px;' +
-    'box-sizing:border-box;background:#0f172a;color:#f8fafc;}' +
-    '.error-card{width:min(620px,100%);padding:28px;border:1px solid #334155;' +
-    'border-radius:16px;background:#111827;box-shadow:0 20px 50px rgba(0,0,0,.3);}' +
-    'h1{margin:0 0 12px;font-size:24px;}' +
-    'p{margin:0 0 18px;color:#cbd5e1;}' +
-    'code{display:block;padding:14px;border-radius:10px;background:#020617;' +
-    'color:#f8fafc;white-space:pre-wrap;overflow-wrap:anywhere;}' +
-    '</style>' +
-    '</head>' +
-    '<body>' +
-    '<main class="error-card">' +
-    '<h1>Pay Tracker could not start</h1>' +
-    '<p>The web application encountered an error before the dashboard loaded.</p>' +
-    '<code>' +
-    message +
-    '</code>' +
-    '</main>' +
-    '</body>' +
-    '</html>';
+  const html = [
+    '<!DOCTYPE html>',
+    '<html lang="en">',
+    '<head>',
+    '<meta charset="UTF-8">',
+    '<meta name="viewport" ',
+    'content="width=device-width, initial-scale=1">',
+    '<title>Pay Tracker | Startup Error</title>',
+    '<style>',
+    'html,body{margin:0;min-height:100%;}',
+    'body{display:grid;place-items:center;',
+    'padding:24px;background:#f6f8fc;',
+    'color:#334155;font-family:Arial,sans-serif;}',
+    '.error-card{width:min(620px,100%);',
+    'padding:30px;border:1px solid #e2e8f0;',
+    'border-radius:16px;background:#fff;',
+    'box-shadow:0 16px 40px rgba(15,23,42,.10);}',
+    'h1{margin:0;color:#0f172a;font-size:24px;}',
+    'p{margin:12px 0 0;line-height:1.6;}',
+    'code{display:block;margin-top:18px;',
+    'padding:14px;border-radius:10px;',
+    'background:#f1f5f9;color:#b91c1c;',
+    'white-space:pre-wrap;overflow-wrap:anywhere;}',
+    '</style>',
+    '</head>',
+    '<body>',
+    '<main class="error-card">',
+    '<h1>Pay Tracker could not start</h1>',
+    '<p>The web application encountered an error ',
+    'before the dashboard loaded.</p>',
+    '<code>',
+    message,
+    '</code>',
+    '</main>',
+    '</body>',
+    '</html>'
+  ].join('');
 
   return HtmlService
     .createHtmlOutput(html)
@@ -392,5 +412,5 @@ function escapePayTrackerWebHtml_(value) {
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#039;');
+    .replace(/'/g, '&#39;');
 }

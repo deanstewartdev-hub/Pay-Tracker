@@ -1,0 +1,1242 @@
+/*******************************************************
+ * PAY TRACKER V2.6
+ * Frontend/App/AppController.html
+ *
+ * Purpose:
+ * - Start the browser application
+ * - Handle page routing and navigation
+ * - Manage sidebar, theme and profile controls
+ * - Communicate with Google Apps Script
+ * - Display loading, error and toast states
+ *
+ * Included inside a script tag by:
+ * Frontend/UI/Scripts.html
+ *******************************************************/
+
+const PayTrackerAppController = Object.freeze({
+  state: {
+    initialized: false,
+    activeRoute: 'dashboard',
+    bootstrap: null,
+    sidebarCollapsed: false,
+    mobileMenuOpen: false,
+    theme: 'light',
+    profileMenuOpen: false
+  },
+
+  selectors: Object.freeze({
+    body: 'body',
+    appShell: '#app-shell',
+    mainContent: '#app-main-content',
+    pageView: '[data-page]',
+    navigationLink: '[data-route]',
+    sidebarToggle: '#sidebar-toggle',
+    mobileMenuToggle: '#mobile-menu-toggle',
+    sidebarOverlay: '#sidebar-overlay',
+    themeToggle: '#theme-toggle',
+    profileButton: '#profile-button',
+    profileMenu: '#profile-menu',
+    loadingScreen: '#app-loading',
+    errorScreen: '#app-error',
+    retryButton: '#retry-app-button',
+    pageTitle: '#header-page-title',
+    pageSubtitle: '#header-page-subtitle',
+    toastRegion: '#toast-region'
+  }),
+
+  storageKeys: Object.freeze({
+    theme: 'payTracker.theme',
+    sidebarCollapsed: 'payTracker.sidebarCollapsed'
+  }),
+
+  /**
+   * Starts the Pay Tracker frontend.
+   *
+   * @return {Promise<void>}
+   */
+  initialize: async function() {
+    if (PayTrackerAppController.state.initialized) {
+      return;
+    }
+
+    try {
+      PayTrackerAppController.showLoading();
+
+      PayTrackerAppController.loadPreferences();
+      PayTrackerAppController.cacheInitialBootstrap();
+      PayTrackerAppController.registerEvents();
+
+      const startingRoute =
+        PayTrackerAppController.resolveStartingRoute();
+
+      PayTrackerAppController.navigate(startingRoute, {
+        updateHistory: false,
+        closeMobileMenu: false
+      });
+
+      await PayTrackerAppController.refreshBootstrap();
+
+      PayTrackerAppController.updateFooterStatus(
+      PayTrackerAppController.state.bootstrap
+      );
+
+      PayTrackerAppController.state.initialized = true;
+      PayTrackerAppController.hideError();
+      PayTrackerAppController.hideLoading();
+
+      document.documentElement.classList.add(
+        'app-is-ready'
+      );
+    } catch (error) {
+      console.error(
+        'Pay Tracker failed to initialize.',
+        error
+      );
+
+      PayTrackerAppController.showStartupError(error);
+      PayTrackerAppController.hideLoading();
+    }
+  },
+
+  /**
+   * Loads bootstrap data inserted by Index.html.
+   */
+  cacheInitialBootstrap: function() {
+    const bootstrap =
+      window.PAY_TRACKER_BOOTSTRAP || {};
+
+    PayTrackerAppController.state.bootstrap = bootstrap;
+
+    if (bootstrap.activeRoute) {
+      PayTrackerAppController.state.activeRoute =
+        PayTrackerAppRoutes.normalize(
+          bootstrap.activeRoute
+        );
+    }
+  },
+
+  /**
+   * Refreshes bootstrap information from Apps Script.
+   *
+   * @return {Promise<Object>}
+   */
+  refreshBootstrap: async function() {
+    if (!PayTrackerAppController.isAppsScriptAvailable()) {
+      return (
+        PayTrackerAppController.state.bootstrap || {}
+      );
+    }
+
+    const bootstrap =
+      await PayTrackerAppController.runServerFunction(
+        'getPayTrackerWebBootstrap'
+      );
+
+    PayTrackerAppController.state.bootstrap =
+      bootstrap || {};
+
+    window.PAY_TRACKER_BOOTSTRAP =
+      PayTrackerAppController.state.bootstrap;
+
+    return PayTrackerAppController.state.bootstrap;
+  },
+
+  /**
+   * Registers all browser event handlers.
+   */
+  registerEvents: function() {
+    document.addEventListener(
+      'click',
+      PayTrackerAppController.handleDocumentClick
+    );
+
+    window.addEventListener(
+      'popstate',
+      PayTrackerAppController.handlePopState
+    );
+
+    window.addEventListener(
+      'hashchange',
+      PayTrackerAppController.handleHashChange
+    );
+
+    window.addEventListener(
+      'keydown',
+      PayTrackerAppController.handleKeyDown
+    );
+
+    window.addEventListener(
+      'resize',
+      PayTrackerAppController.handleResize
+    );
+
+    const retryButton =
+      PayTrackerAppController.query(
+        PayTrackerAppController.selectors.retryButton
+      );
+
+    if (retryButton) {
+      retryButton.addEventListener(
+        'click',
+        function() {
+          PayTrackerAppController.hideError();
+          PayTrackerAppController.initialize();
+        }
+      );
+    }
+  },
+
+  /**
+   * Handles delegated click events.
+   *
+   * @param {MouseEvent} event Browser click event.
+   */
+  handleDocumentClick: function(event) {
+    const refreshButton =
+      event.target.closest('#refresh-app-button');
+
+    if (refreshButton) {
+      PayTrackerAppController.refreshApplication();
+      return;
+    }
+    const routeLink =
+      event.target.closest('[data-route]');
+
+    if (routeLink) {
+      event.preventDefault();
+
+      PayTrackerAppController.navigate(
+        routeLink.dataset.route
+      );
+
+      return;
+    }
+
+    const sidebarToggle =
+      event.target.closest(
+        PayTrackerAppController.selectors.sidebarToggle
+      );
+
+    if (sidebarToggle) {
+      PayTrackerAppController.toggleSidebar();
+      return;
+    }
+
+    const mobileMenuToggle =
+      event.target.closest(
+        PayTrackerAppController.selectors.mobileMenuToggle
+      );
+
+    if (mobileMenuToggle) {
+      PayTrackerAppController.toggleMobileMenu();
+      return;
+    }
+
+    const sidebarOverlay =
+      event.target.closest(
+        PayTrackerAppController.selectors.sidebarOverlay
+      );
+
+    if (sidebarOverlay) {
+      PayTrackerAppController.closeMobileMenu();
+      return;
+    }
+
+    const themeToggle =
+      event.target.closest(
+        PayTrackerAppController.selectors.themeToggle
+      );
+
+    if (themeToggle) {
+      PayTrackerAppController.toggleTheme();
+      return;
+    }
+
+    const profileButton =
+      event.target.closest(
+        PayTrackerAppController.selectors.profileButton
+      );
+
+    if (profileButton) {
+      PayTrackerAppController.toggleProfileMenu();
+      return;
+    }
+
+    const profileMenu =
+      event.target.closest(
+        PayTrackerAppController.selectors.profileMenu
+      );
+
+    if (
+      PayTrackerAppController.state.profileMenuOpen &&
+      !profileMenu
+    ) {
+      PayTrackerAppController.closeProfileMenu();
+    }
+  },
+
+  /**
+   * Handles browser back and forward navigation.
+   */
+  handlePopState: function() {
+    PayTrackerAppController.navigate(
+      PayTrackerAppRoutes.resolveFromLocation(
+        window.location
+      ),
+      {
+        updateHistory: false
+      }
+    );
+  },
+
+  /**
+   * Handles URL hash navigation.
+   */
+  handleHashChange: function() {
+    const route =
+      PayTrackerAppRoutes.resolveFromLocation(
+        window.location
+      );
+
+    if (
+      route !==
+      PayTrackerAppController.state.activeRoute
+    ) {
+      PayTrackerAppController.navigate(route, {
+        updateHistory: false
+      });
+    }
+  },
+
+  /**
+   * Handles keyboard controls.
+   *
+   * @param {KeyboardEvent} event Browser keyboard event.
+   */
+  handleKeyDown: function(event) {
+    if (event.key === 'Escape') {
+      PayTrackerAppController.closeMobileMenu();
+      PayTrackerAppController.closeProfileMenu();
+    }
+  },
+
+  /**
+   * Handles responsive layout changes.
+   */
+  handleResize: function() {
+    if (window.innerWidth > 860) {
+      PayTrackerAppController.closeMobileMenu();
+    }
+  },
+
+  /**
+   * Resolves the route used at application startup.
+   *
+   * @return {string} Route ID.
+   */
+  resolveStartingRoute: function() {
+    const browserRoute =
+      PayTrackerAppRoutes.resolveFromLocation(
+        window.location
+      );
+
+    if (
+      browserRoute !==
+      PayTrackerAppRoutes.DEFAULT_ROUTE
+    ) {
+      return browserRoute;
+    }
+
+    const bootstrap =
+      PayTrackerAppController.state.bootstrap;
+
+    return PayTrackerAppRoutes.normalize(
+      bootstrap && bootstrap.activeRoute
+        ? bootstrap.activeRoute
+        : PayTrackerAppRoutes.DEFAULT_ROUTE
+    );
+  },
+
+  /**
+   * Navigates to an application route.
+   *
+   * @param {*} route Requested route.
+   * @param {Object=} options Navigation options.
+   */
+  navigate: function(route, options) {
+    const config = Object.assign(
+      {
+        updateHistory: true,
+        closeMobileMenu: true,
+        focusMain: true
+      },
+      options || {}
+    );
+
+    const normalizedRoute =
+      PayTrackerAppRoutes.normalize(route);
+
+    const routeConfig =
+      PayTrackerAppRoutes.get(normalizedRoute);
+
+    PayTrackerAppController.hideAllPages();
+    PayTrackerAppController.showPage(
+      routeConfig.pageElementId
+    );
+
+    PayTrackerAppController.updateNavigationState(
+      normalizedRoute
+    );
+
+    PayTrackerAppController.updateHeader(routeConfig);
+
+    PayTrackerAppController.state.activeRoute =
+      normalizedRoute;
+
+    document.title =
+      PayTrackerAppRoutes.getDocumentTitle(
+        normalizedRoute,
+        PayTrackerAppController.getAppName()
+      );
+
+    document.body.dataset.activeRoute =
+      normalizedRoute;
+
+    if (config.updateHistory) {
+      PayTrackerAppController.updateBrowserHistory(
+        normalizedRoute
+      );
+    }
+
+    if (config.closeMobileMenu) {
+      PayTrackerAppController.closeMobileMenu();
+    }
+
+    if (config.focusMain) {
+      PayTrackerAppController.focusMainContent();
+    }
+
+    document.dispatchEvent(
+      new CustomEvent('paytracker:routechange', {
+        detail: {
+          route: normalizedRoute,
+          config: routeConfig
+        }
+      })
+    );
+  },
+
+  /**
+   * Hides all application pages.
+   */
+  hideAllPages: function() {
+    const pages =
+      document.querySelectorAll(
+        PayTrackerAppController.selectors.pageView
+      );
+
+    pages.forEach(function(page) {
+      page.hidden = true;
+      page.classList.remove('is-active');
+      page.setAttribute('aria-hidden', 'true');
+    });
+  },
+
+  /**
+   * Displays a page by element ID.
+   *
+   * @param {string} pageElementId Page element ID.
+   */
+  showPage: function(pageElementId) {
+    const page = document.getElementById(
+      pageElementId
+    );
+
+    if (!page) {
+      throw new Error(
+        'The page element "' +
+        pageElementId +
+        '" could not be found.'
+      );
+    }
+
+    page.hidden = false;
+    page.classList.add('is-active');
+    page.setAttribute('aria-hidden', 'false');
+  },
+
+  /**
+   * Updates active navigation styling.
+   *
+   * @param {string} activeRoute Active route.
+   */
+  updateNavigationState: function(activeRoute) {
+    const links =
+      document.querySelectorAll(
+        PayTrackerAppController.selectors.navigationLink
+      );
+
+    links.forEach(function(link) {
+      const isActive =
+        link.dataset.route === activeRoute;
+
+      link.classList.toggle(
+        'is-active',
+        isActive
+      );
+
+      if (isActive) {
+        link.setAttribute(
+          'aria-current',
+          'page'
+        );
+      } else {
+        link.removeAttribute('aria-current');
+      }
+    });
+  },
+
+  /**
+   * Updates the header title and subtitle.
+   *
+   * @param {Object} routeConfig Route configuration.
+   */
+  updateHeader: function(routeConfig) {
+    const title =
+      PayTrackerAppController.query(
+        PayTrackerAppController.selectors.pageTitle
+      );
+
+    const subtitle =
+      PayTrackerAppController.query(
+        PayTrackerAppController.selectors.pageSubtitle
+      );
+
+    if (title) {
+      title.textContent = routeConfig.title;
+    }
+
+    if (subtitle) {
+      subtitle.textContent =
+        routeConfig.description || '';
+    }
+  },
+
+  /**
+   * Updates the browser URL.
+   *
+   * @param {string} route Route ID.
+   */
+  updateBrowserHistory: function(route) {
+    const url = new URL(window.location.href);
+
+    url.searchParams.set('page', route);
+    url.hash = '';
+
+    window.history.pushState(
+      { route: route },
+      '',
+      url.toString()
+    );
+  },
+
+  /**
+   * Focuses the main content container.
+   */
+  focusMainContent: function() {
+    const mainContent =
+      PayTrackerAppController.query(
+        PayTrackerAppController.selectors.mainContent
+      );
+
+    if (!mainContent) {
+      return;
+    }
+
+    if (!mainContent.hasAttribute('tabindex')) {
+      mainContent.setAttribute('tabindex', '-1');
+    }
+
+    window.requestAnimationFrame(function() {
+      mainContent.focus({
+        preventScroll: true
+      });
+    });
+  },
+
+  /**
+   * Loads saved browser preferences.
+   */
+  loadPreferences: function() {
+    const savedTheme =
+      localStorage.getItem(
+        PayTrackerAppController.storageKeys.theme
+      );
+
+    const preferredTheme =
+      savedTheme ||
+      (
+        window.matchMedia &&
+        window.matchMedia(
+          '(prefers-color-scheme: dark)'
+        ).matches
+          ? 'dark'
+          : 'light'
+      );
+
+    PayTrackerAppController.setTheme(
+      preferredTheme,
+      false
+    );
+
+    const savedSidebarState =
+      localStorage.getItem(
+        PayTrackerAppController
+          .storageKeys
+          .sidebarCollapsed
+      );
+
+    PayTrackerAppController.setSidebarCollapsed(
+      savedSidebarState === 'true',
+      false
+    );
+  },
+
+  /**
+   * Toggles the desktop sidebar.
+   */
+  toggleSidebar: function() {
+    PayTrackerAppController.setSidebarCollapsed(
+      !PayTrackerAppController
+        .state
+        .sidebarCollapsed
+    );
+  },
+
+  /**
+   * Sets the desktop sidebar state.
+   *
+   * @param {boolean} collapsed Collapsed state.
+   * @param {boolean=} persist Whether to persist.
+   */
+  setSidebarCollapsed: function(
+    collapsed,
+    persist
+  ) {
+    const isCollapsed = Boolean(collapsed);
+
+    PayTrackerAppController
+      .state
+      .sidebarCollapsed = isCollapsed;
+
+    document.body.classList.toggle(
+      'is-sidebar-collapsed',
+      isCollapsed
+    );
+
+    const button =
+      PayTrackerAppController.query(
+        PayTrackerAppController.selectors.sidebarToggle
+      );
+
+    if (button) {
+      button.setAttribute(
+        'aria-expanded',
+        String(!isCollapsed)
+      );
+    }
+
+    if (persist !== false) {
+      localStorage.setItem(
+        PayTrackerAppController
+          .storageKeys
+          .sidebarCollapsed,
+        String(isCollapsed)
+      );
+    }
+  },
+
+  /**
+   * Toggles the mobile sidebar.
+   */
+  toggleMobileMenu: function() {
+    if (
+      PayTrackerAppController.state.mobileMenuOpen
+    ) {
+      PayTrackerAppController.closeMobileMenu();
+    } else {
+      PayTrackerAppController.openMobileMenu();
+    }
+  },
+
+  /**
+   * Opens the mobile sidebar.
+   */
+  openMobileMenu: function() {
+    PayTrackerAppController
+      .state
+      .mobileMenuOpen = true;
+
+    document.body.classList.add(
+      'is-mobile-menu-open'
+    );
+
+    const button =
+      PayTrackerAppController.query(
+        PayTrackerAppController
+          .selectors
+          .mobileMenuToggle
+      );
+
+    if (button) {
+      button.setAttribute(
+        'aria-expanded',
+        'true'
+      );
+    }
+  },
+
+  /**
+   * Closes the mobile sidebar.
+   */
+  closeMobileMenu: function() {
+    PayTrackerAppController
+      .state
+      .mobileMenuOpen = false;
+
+    document.body.classList.remove(
+      'is-mobile-menu-open'
+    );
+
+    const button =
+      PayTrackerAppController.query(
+        PayTrackerAppController
+          .selectors
+          .mobileMenuToggle
+      );
+
+    if (button) {
+      button.setAttribute(
+        'aria-expanded',
+        'false'
+      );
+    }
+  },
+
+  /**
+   * Toggles the current colour theme.
+   */
+  toggleTheme: function() {
+    PayTrackerAppController.setTheme(
+      PayTrackerAppController.state.theme ===
+        'dark'
+        ? 'light'
+        : 'dark'
+    );
+  },
+
+  /**
+   * Sets the current colour theme.
+   *
+   * @param {*} theme Theme name.
+   * @param {boolean=} persist Whether to persist.
+   */
+  setTheme: function(theme, persist) {
+    const normalizedTheme =
+      String(theme || '').toLowerCase() ===
+      'dark'
+        ? 'dark'
+        : 'light';
+
+    PayTrackerAppController.state.theme =
+      normalizedTheme;
+
+    document.documentElement.setAttribute(
+      'data-theme',
+      normalizedTheme
+    );
+
+    const toggle =
+      PayTrackerAppController.query(
+        PayTrackerAppController.selectors.themeToggle
+      );
+
+    if (toggle) {
+      toggle.setAttribute(
+        'aria-label',
+        normalizedTheme === 'dark'
+          ? 'Switch to light theme'
+          : 'Switch to dark theme'
+      );
+
+      toggle.setAttribute(
+        'title',
+        normalizedTheme === 'dark'
+          ? 'Switch to light theme'
+          : 'Switch to dark theme'
+      );
+    }
+
+    if (persist !== false) {
+      localStorage.setItem(
+        PayTrackerAppController.storageKeys.theme,
+        normalizedTheme
+      );
+    }
+  },
+
+  /**
+   * Toggles the profile dropdown.
+   */
+  toggleProfileMenu: function() {
+    if (
+      PayTrackerAppController.state.profileMenuOpen
+    ) {
+      PayTrackerAppController.closeProfileMenu();
+    } else {
+      PayTrackerAppController.openProfileMenu();
+    }
+  },
+
+  /**
+   * Opens the profile dropdown.
+   */
+  openProfileMenu: function() {
+    const menu =
+      PayTrackerAppController.query(
+        PayTrackerAppController.selectors.profileMenu
+      );
+
+    const button =
+      PayTrackerAppController.query(
+        PayTrackerAppController.selectors.profileButton
+      );
+
+    if (!menu) {
+      return;
+    }
+
+    menu.hidden = false;
+
+    PayTrackerAppController
+      .state
+      .profileMenuOpen = true;
+
+    if (button) {
+      button.setAttribute(
+        'aria-expanded',
+        'true'
+      );
+    }
+  },
+
+  /**
+   * Closes the profile dropdown.
+   */
+  closeProfileMenu: function() {
+    const menu =
+      PayTrackerAppController.query(
+        PayTrackerAppController.selectors.profileMenu
+      );
+
+    const button =
+      PayTrackerAppController.query(
+        PayTrackerAppController.selectors.profileButton
+      );
+
+    if (menu) {
+      menu.hidden = true;
+    }
+
+    PayTrackerAppController
+      .state
+      .profileMenuOpen = false;
+
+    if (button) {
+      button.setAttribute(
+        'aria-expanded',
+        'false'
+      );
+    }
+  },
+
+  /**
+ * Refreshes the frontend bootstrap state.
+ *
+ * @return {Promise<void>}
+ */
+refreshApplication: async function() {
+  try {
+    const refreshButton =
+      document.getElementById(
+        'refresh-app-button'
+      );
+
+    if (refreshButton) {
+      refreshButton.disabled = true;
+      refreshButton.classList.add(
+        'is-loading'
+      );
+    }
+
+    PayTrackerAppController.showToast(
+      'Refreshing Pay Tracker...',
+      'info',
+      1800
+    );
+
+    const bootstrap =
+      await PayTrackerAppController.refreshBootstrap();
+
+    const activeRoute =
+      PayTrackerAppRoutes.normalize(
+        PayTrackerAppController
+          .state
+          .activeRoute
+      );
+
+    PayTrackerAppController.navigate(
+      activeRoute,
+      {
+        updateHistory: false,
+        closeMobileMenu: false,
+        focusMain: false
+      }
+    );
+
+    PayTrackerAppController.updateFooterStatus(
+      bootstrap
+    );
+
+    PayTrackerAppController.showToast(
+      'Pay Tracker refreshed.',
+      'success'
+    );
+  } catch (error) {
+    console.error(
+      'Pay Tracker refresh failed.',
+      error
+    );
+
+    PayTrackerAppController.showToast(
+      PayTrackerAppController.getErrorMessage(
+        error
+      ),
+      'error'
+    );
+  } finally {
+    const refreshButton =
+      document.getElementById(
+        'refresh-app-button'
+      );
+
+    if (refreshButton) {
+      refreshButton.disabled = false;
+      refreshButton.classList.remove(
+        'is-loading'
+      );
+    }
+  }
+},
+
+/**
+ * Updates the footer connection status.
+ *
+ * @param {Object=} bootstrap Application bootstrap.
+ */
+updateFooterStatus: function(bootstrap) {
+  const statusText =
+    document.getElementById(
+      'footer-status-text'
+    );
+
+  const generatedAt =
+    document.getElementById(
+      'footer-generated-at'
+    );
+
+  if (statusText) {
+    statusText.textContent =
+      PayTrackerAppController
+        .isAppsScriptAvailable()
+        ? 'Connected'
+        : 'Browser preview';
+  }
+
+  if (generatedAt) {
+    const timestamp =
+      bootstrap &&
+      bootstrap.generatedAt
+        ? new Date(bootstrap.generatedAt)
+        : new Date();
+
+    generatedAt.textContent =
+      'Updated ' +
+      timestamp.toLocaleTimeString(
+        undefined,
+        {
+          hour: '2-digit',
+          minute: '2-digit'
+        }
+      );
+  }
+},
+
+  /**
+   * Displays the loading screen.
+   */
+  showLoading: function() {
+    const loading =
+      PayTrackerAppController.query(
+        PayTrackerAppController.selectors.loadingScreen
+      );
+
+    if (loading) {
+      loading.classList.remove('is-hidden');
+      loading.hidden = false;
+    }
+  },
+
+  /**
+   * Hides the loading screen.
+   */
+  hideLoading: function() {
+    const loading =
+      PayTrackerAppController.query(
+        PayTrackerAppController.selectors.loadingScreen
+      );
+
+    if (!loading) {
+      return;
+    }
+
+    loading.classList.add('is-hidden');
+
+    window.setTimeout(function() {
+      loading.hidden = true;
+    }, 250);
+  },
+
+  /**
+   * Displays a startup error.
+   *
+   * @param {*} error Error value.
+   */
+  showStartupError: function(error) {
+    const errorScreen =
+      PayTrackerAppController.query(
+        PayTrackerAppController.selectors.errorScreen
+      );
+
+    if (!errorScreen) {
+      PayTrackerAppController.showToast(
+        PayTrackerAppController.getErrorMessage(
+          error
+        ),
+        'error'
+      );
+
+      return;
+    }
+
+    const message =
+      errorScreen.querySelector(
+        '[data-error-message]'
+      );
+
+    if (message) {
+      message.textContent =
+        PayTrackerAppController.getErrorMessage(
+          error
+        );
+    }
+
+    errorScreen.hidden = false;
+  },
+
+  /**
+   * Hides the startup error.
+   */
+  hideError: function() {
+    const errorScreen =
+      PayTrackerAppController.query(
+        PayTrackerAppController.selectors.errorScreen
+      );
+
+    if (errorScreen) {
+      errorScreen.hidden = true;
+    }
+  },
+
+  /**
+   * Shows a toast notification.
+   *
+   * @param {*} message Notification message.
+   * @param {string=} type Toast type.
+   * @param {number=} duration Duration in milliseconds.
+   */
+  showToast: function(message, type, duration) {
+    const region =
+      PayTrackerAppController.query(
+        PayTrackerAppController.selectors.toastRegion
+      );
+
+    if (!region) {
+      return;
+    }
+
+    const toast = document.createElement('div');
+
+    const normalizedType =
+      ['success', 'warning', 'danger', 'error']
+        .indexOf(type) !== -1
+        ? type
+        : 'info';
+
+    toast.className =
+      'toast toast--' + normalizedType;
+
+    toast.setAttribute('role', 'status');
+    toast.textContent = String(message || '');
+
+    region.appendChild(toast);
+
+    window.setTimeout(function() {
+      toast.remove();
+    }, Number(duration) || 4000);
+  },
+
+  /**
+   * Calls an Apps Script server function.
+   *
+   * @param {string} functionName Server function name.
+   * @param {...*} args Function arguments.
+   * @return {Promise<*>} Server response.
+   */
+  runServerFunction: function(functionName) {
+    const args =
+      Array.prototype.slice.call(
+        arguments,
+        1
+      );
+
+    return new Promise(function(resolve, reject) {
+      if (
+        !PayTrackerAppController
+          .isAppsScriptAvailable()
+      ) {
+        reject(
+          new Error(
+            'google.script.run is unavailable. ' +
+            'Open the deployed Apps Script web application.'
+          )
+        );
+
+        return;
+      }
+
+      let runner = google.script.run
+        .withSuccessHandler(resolve)
+        .withFailureHandler(function(error) {
+          reject(
+            new Error(
+              PayTrackerAppController.getErrorMessage(
+                error
+              )
+            )
+          );
+        });
+
+      const serverFunction =
+        runner[functionName];
+
+      if (
+        typeof serverFunction !== 'function'
+      ) {
+        reject(
+          new Error(
+            'Server function "' +
+            functionName +
+            '" is unavailable.'
+          )
+        );
+
+        return;
+      }
+
+      serverFunction.apply(runner, args);
+    });
+  },
+
+  /**
+   * Returns whether Apps Script browser APIs exist.
+   *
+   * @return {boolean} Availability.
+   */
+  isAppsScriptAvailable: function() {
+    return Boolean(
+      window.google &&
+      google.script &&
+      google.script.run
+    );
+  },
+
+  /**
+   * Returns the configured application name.
+   *
+   * @return {string} Application name.
+   */
+  getAppName: function() {
+    const bootstrap =
+      PayTrackerAppController.state.bootstrap;
+
+    return (
+      bootstrap &&
+      bootstrap.appName
+        ? String(bootstrap.appName)
+        : 'Pay Tracker'
+    );
+  },
+
+  /**
+   * Returns a readable error message.
+   *
+   * @param {*} error Error value.
+   * @return {string} Error message.
+   */
+  getErrorMessage: function(error) {
+    if (
+      error &&
+      typeof error === 'object' &&
+      error.message
+    ) {
+      return String(error.message);
+    }
+
+    if (
+      typeof error === 'string' &&
+      error.trim()
+    ) {
+      return error.trim();
+    }
+
+    return 'An unexpected error occurred.';
+  },
+
+  /**
+   * Queries the document.
+   *
+   * @param {string} selector CSS selector.
+   * @return {Element|null} Matching element.
+   */
+  query: function(selector) {
+    return document.querySelector(selector);
+  }
+});
+
+document.addEventListener(
+  'DOMContentLoaded',
+  function() {
+    PayTrackerAppController.initialize();
+  }
+);
