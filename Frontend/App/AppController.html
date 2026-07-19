@@ -9,13 +9,14 @@
  * - Communicate with Google Apps Script
  * - Display loading, error and toast states
  *
- * Included inside a script tag by:
- * Frontend/UI/Scripts.html
+ * This browser-side JavaScript is included inside a
+ * script element by Frontend/Index.html.
  *******************************************************/
 
 const PayTrackerAppController = Object.freeze({
   state: {
     initialized: false,
+    initializing: false,
     activeRoute: 'dashboard',
     bootstrap: null,
     sidebarCollapsed: false,
@@ -55,12 +56,18 @@ const PayTrackerAppController = Object.freeze({
    * @return {Promise<void>}
    */
   initialize: async function() {
-    if (PayTrackerAppController.state.initialized) {
+    if (
+      PayTrackerAppController.state.initialized ||
+      PayTrackerAppController.state.initializing
+    ) {
       return;
     }
 
+    PayTrackerAppController.state.initializing = true;
+
     try {
       PayTrackerAppController.showLoading();
+      PayTrackerAppController.hideError();
 
       PayTrackerAppController.loadPreferences();
       PayTrackerAppController.cacheInitialBootstrap();
@@ -69,32 +76,40 @@ const PayTrackerAppController = Object.freeze({
       const startingRoute =
         PayTrackerAppController.resolveStartingRoute();
 
-      PayTrackerAppController.navigate(startingRoute, {
-        updateHistory: false,
-        closeMobileMenu: false
-      });
+      PayTrackerAppController.navigate(
+        startingRoute,
+        {
+          updateHistory: false,
+          closeMobileMenu: false,
+          focusMain: false
+        }
+      );
 
       await PayTrackerAppController.refreshBootstrap();
 
       PayTrackerAppController.updateFooterStatus(
-      PayTrackerAppController.state.bootstrap
+        PayTrackerAppController.state.bootstrap
       );
 
       PayTrackerAppController.state.initialized = true;
-      PayTrackerAppController.hideError();
-      PayTrackerAppController.hideLoading();
 
       document.documentElement.classList.add(
         'app-is-ready'
       );
+
+      PayTrackerAppController.hideLoading();
     } catch (error) {
       console.error(
         'Pay Tracker failed to initialize.',
         error
       );
 
+      PayTrackerAppController.state.initialized = false;
+
       PayTrackerAppController.showStartupError(error);
       PayTrackerAppController.hideLoading();
+    } finally {
+      PayTrackerAppController.state.initializing = false;
     }
   },
 
@@ -142,9 +157,19 @@ const PayTrackerAppController = Object.freeze({
   },
 
   /**
-   * Registers all browser event handlers.
+   * Registers browser event handlers once.
    */
   registerEvents: function() {
+    if (
+      document.documentElement.dataset
+        .payTrackerEventsRegistered === 'true'
+    ) {
+      return;
+    }
+
+    document.documentElement.dataset
+      .payTrackerEventsRegistered = 'true';
+
     document.addEventListener(
       'click',
       PayTrackerAppController.handleDocumentClick
@@ -179,6 +204,9 @@ const PayTrackerAppController = Object.freeze({
       retryButton.addEventListener(
         'click',
         function() {
+          PayTrackerAppController.state.initialized =
+            false;
+
           PayTrackerAppController.hideError();
           PayTrackerAppController.initialize();
         }
@@ -192,15 +220,27 @@ const PayTrackerAppController = Object.freeze({
    * @param {MouseEvent} event Browser click event.
    */
   handleDocumentClick: function(event) {
+    const clickedElement =
+      event.target instanceof Element
+        ? event.target
+        : null;
+
+    if (!clickedElement) {
+      return;
+    }
+
     const refreshButton =
-      event.target.closest('#refresh-app-button');
+      clickedElement.closest(
+        '#refresh-app-button'
+      );
 
     if (refreshButton) {
       PayTrackerAppController.refreshApplication();
       return;
     }
+
     const routeLink =
-      event.target.closest('[data-route]');
+      clickedElement.closest('[data-route]');
 
     if (routeLink) {
       event.preventDefault();
@@ -213,7 +253,7 @@ const PayTrackerAppController = Object.freeze({
     }
 
     const sidebarToggle =
-      event.target.closest(
+      clickedElement.closest(
         PayTrackerAppController.selectors.sidebarToggle
       );
 
@@ -223,8 +263,10 @@ const PayTrackerAppController = Object.freeze({
     }
 
     const mobileMenuToggle =
-      event.target.closest(
-        PayTrackerAppController.selectors.mobileMenuToggle
+      clickedElement.closest(
+        PayTrackerAppController
+          .selectors
+          .mobileMenuToggle
       );
 
     if (mobileMenuToggle) {
@@ -233,8 +275,10 @@ const PayTrackerAppController = Object.freeze({
     }
 
     const sidebarOverlay =
-      event.target.closest(
-        PayTrackerAppController.selectors.sidebarOverlay
+      clickedElement.closest(
+        PayTrackerAppController
+          .selectors
+          .sidebarOverlay
       );
 
     if (sidebarOverlay) {
@@ -243,7 +287,7 @@ const PayTrackerAppController = Object.freeze({
     }
 
     const themeToggle =
-      event.target.closest(
+      clickedElement.closest(
         PayTrackerAppController.selectors.themeToggle
       );
 
@@ -253,7 +297,7 @@ const PayTrackerAppController = Object.freeze({
     }
 
     const profileButton =
-      event.target.closest(
+      clickedElement.closest(
         PayTrackerAppController.selectors.profileButton
       );
 
@@ -263,7 +307,7 @@ const PayTrackerAppController = Object.freeze({
     }
 
     const profileMenu =
-      event.target.closest(
+      clickedElement.closest(
         PayTrackerAppController.selectors.profileMenu
       );
 
@@ -302,9 +346,12 @@ const PayTrackerAppController = Object.freeze({
       route !==
       PayTrackerAppController.state.activeRoute
     ) {
-      PayTrackerAppController.navigate(route, {
-        updateHistory: false
-      });
+      PayTrackerAppController.navigate(
+        route,
+        {
+          updateHistory: false
+        }
+      );
     }
   },
 
@@ -330,7 +377,7 @@ const PayTrackerAppController = Object.freeze({
   },
 
   /**
-   * Resolves the route used at application startup.
+   * Resolves the route used at startup.
    *
    * @return {string} Route ID.
    */
@@ -380,6 +427,7 @@ const PayTrackerAppController = Object.freeze({
       PayTrackerAppRoutes.get(normalizedRoute);
 
     PayTrackerAppController.hideAllPages();
+
     PayTrackerAppController.showPage(
       routeConfig.pageElementId
     );
@@ -388,7 +436,9 @@ const PayTrackerAppController = Object.freeze({
       normalizedRoute
     );
 
-    PayTrackerAppController.updateHeader(routeConfig);
+    PayTrackerAppController.updateHeader(
+      routeConfig
+    );
 
     PayTrackerAppController.state.activeRoute =
       normalizedRoute;
@@ -417,17 +467,20 @@ const PayTrackerAppController = Object.freeze({
     }
 
     document.dispatchEvent(
-      new CustomEvent('paytracker:routechange', {
-        detail: {
-          route: normalizedRoute,
-          config: routeConfig
+      new CustomEvent(
+        'paytracker:routechange',
+        {
+          detail: {
+            route: normalizedRoute,
+            config: routeConfig
+          }
         }
-      })
+      )
     );
   },
 
   /**
-   * Hides all application pages.
+   * Hides every application page.
    */
   hideAllPages: function() {
     const pages =
@@ -448,9 +501,8 @@ const PayTrackerAppController = Object.freeze({
    * @param {string} pageElementId Page element ID.
    */
   showPage: function(pageElementId) {
-    const page = document.getElementById(
-      pageElementId
-    );
+    const page =
+      document.getElementById(pageElementId);
 
     if (!page) {
       throw new Error(
@@ -473,7 +525,9 @@ const PayTrackerAppController = Object.freeze({
   updateNavigationState: function(activeRoute) {
     const links =
       document.querySelectorAll(
-        PayTrackerAppController.selectors.navigationLink
+        PayTrackerAppController
+          .selectors
+          .navigationLink
       );
 
     links.forEach(function(link) {
@@ -509,7 +563,9 @@ const PayTrackerAppController = Object.freeze({
 
     const subtitle =
       PayTrackerAppController.query(
-        PayTrackerAppController.selectors.pageSubtitle
+        PayTrackerAppController
+          .selectors
+          .pageSubtitle
       );
 
     if (title) {
@@ -534,7 +590,9 @@ const PayTrackerAppController = Object.freeze({
     url.hash = '';
 
     window.history.pushState(
-      { route: route },
+      {
+        route: route
+      },
       '',
       url.toString()
     );
@@ -546,7 +604,9 @@ const PayTrackerAppController = Object.freeze({
   focusMainContent: function() {
     const mainContent =
       PayTrackerAppController.query(
-        PayTrackerAppController.selectors.mainContent
+        PayTrackerAppController
+          .selectors
+          .mainContent
       );
 
     if (!mainContent) {
@@ -554,18 +614,25 @@ const PayTrackerAppController = Object.freeze({
     }
 
     if (!mainContent.hasAttribute('tabindex')) {
-      mainContent.setAttribute('tabindex', '-1');
+      mainContent.setAttribute(
+        'tabindex',
+        '-1'
+      );
     }
 
     window.requestAnimationFrame(function() {
-      mainContent.focus({
-        preventScroll: true
-      });
+      try {
+        mainContent.focus({
+          preventScroll: true
+        });
+      } catch (error) {
+        mainContent.focus();
+      }
     });
   },
 
   /**
-   * Loads saved browser preferences.
+   * Loads browser preferences.
    */
   loadPreferences: function() {
     const savedTheme =
@@ -573,13 +640,16 @@ const PayTrackerAppController = Object.freeze({
         PayTrackerAppController.storageKeys.theme
       );
 
+    const prefersDark =
+      window.matchMedia &&
+      window.matchMedia(
+        '(prefers-color-scheme: dark)'
+      ).matches;
+
     const preferredTheme =
       savedTheme ||
       (
-        window.matchMedia &&
-        window.matchMedia(
-          '(prefers-color-scheme: dark)'
-        ).matches
+        prefersDark
           ? 'dark'
           : 'light'
       );
@@ -623,7 +693,8 @@ const PayTrackerAppController = Object.freeze({
     collapsed,
     persist
   ) {
-    const isCollapsed = Boolean(collapsed);
+    const isCollapsed =
+      Boolean(collapsed);
 
     PayTrackerAppController
       .state
@@ -636,7 +707,9 @@ const PayTrackerAppController = Object.freeze({
 
     const button =
       PayTrackerAppController.query(
-        PayTrackerAppController.selectors.sidebarToggle
+        PayTrackerAppController
+          .selectors
+          .sidebarToggle
       );
 
     if (button) {
@@ -758,22 +831,25 @@ const PayTrackerAppController = Object.freeze({
 
     const toggle =
       PayTrackerAppController.query(
-        PayTrackerAppController.selectors.themeToggle
+        PayTrackerAppController
+          .selectors
+          .themeToggle
       );
 
     if (toggle) {
-      toggle.setAttribute(
-        'aria-label',
+      const label =
         normalizedTheme === 'dark'
           ? 'Switch to light theme'
-          : 'Switch to dark theme'
+          : 'Switch to dark theme';
+
+      toggle.setAttribute(
+        'aria-label',
+        label
       );
 
       toggle.setAttribute(
         'title',
-        normalizedTheme === 'dark'
-          ? 'Switch to light theme'
-          : 'Switch to dark theme'
+        label
       );
     }
 
@@ -804,12 +880,16 @@ const PayTrackerAppController = Object.freeze({
   openProfileMenu: function() {
     const menu =
       PayTrackerAppController.query(
-        PayTrackerAppController.selectors.profileMenu
+        PayTrackerAppController
+          .selectors
+          .profileMenu
       );
 
     const button =
       PayTrackerAppController.query(
-        PayTrackerAppController.selectors.profileButton
+        PayTrackerAppController
+          .selectors
+          .profileButton
       );
 
     if (!menu) {
@@ -836,12 +916,16 @@ const PayTrackerAppController = Object.freeze({
   closeProfileMenu: function() {
     const menu =
       PayTrackerAppController.query(
-        PayTrackerAppController.selectors.profileMenu
+        PayTrackerAppController
+          .selectors
+          .profileMenu
       );
 
     const button =
       PayTrackerAppController.query(
-        PayTrackerAppController.selectors.profileButton
+        PayTrackerAppController
+          .selectors
+          .profileButton
       );
 
     if (menu) {
@@ -861,126 +945,137 @@ const PayTrackerAppController = Object.freeze({
   },
 
   /**
- * Refreshes the frontend bootstrap state.
- *
- * @return {Promise<void>}
- */
-refreshApplication: async function() {
-  try {
+   * Refreshes the frontend bootstrap and dashboard.
+   *
+   * @return {Promise<void>}
+   */
+  refreshApplication: async function() {
     const refreshButton =
       document.getElementById(
         'refresh-app-button'
       );
 
-    if (refreshButton) {
-      refreshButton.disabled = true;
-      refreshButton.classList.add(
-        'is-loading'
-      );
-    }
-
-    PayTrackerAppController.showToast(
-      'Refreshing Pay Tracker...',
-      'info',
-      1800
-    );
-
-    const bootstrap =
-      await PayTrackerAppController.refreshBootstrap();
-
-    const activeRoute =
-      PayTrackerAppRoutes.normalize(
-        PayTrackerAppController
-          .state
-          .activeRoute
-      );
-
-    PayTrackerAppController.navigate(
-      activeRoute,
-      {
-        updateHistory: false,
-        closeMobileMenu: false,
-        focusMain: false
+    try {
+      if (refreshButton) {
+        refreshButton.disabled = true;
+        refreshButton.classList.add(
+          'is-loading'
+        );
       }
-    );
 
-    PayTrackerAppController.updateFooterStatus(
-      bootstrap
-    );
-
-    PayTrackerAppController.showToast(
-      'Pay Tracker refreshed.',
-      'success'
-    );
-  } catch (error) {
-    console.error(
-      'Pay Tracker refresh failed.',
-      error
-    );
-
-    PayTrackerAppController.showToast(
-      PayTrackerAppController.getErrorMessage(
-        error
-      ),
-      'error'
-    );
-  } finally {
-    const refreshButton =
-      document.getElementById(
-        'refresh-app-button'
+      PayTrackerAppController.showToast(
+        'Refreshing Pay Tracker...',
+        'info',
+        1800
       );
 
-    if (refreshButton) {
-      refreshButton.disabled = false;
-      refreshButton.classList.remove(
-        'is-loading'
-      );
-    }
-  }
-},
+      const bootstrap =
+        await PayTrackerAppController.refreshBootstrap();
 
-/**
- * Updates the footer connection status.
- *
- * @param {Object=} bootstrap Application bootstrap.
- */
-updateFooterStatus: function(bootstrap) {
-  const statusText =
-    document.getElementById(
-      'footer-status-text'
-    );
+      const activeRoute =
+        PayTrackerAppRoutes.normalize(
+          PayTrackerAppController
+            .state
+            .activeRoute
+        );
 
-  const generatedAt =
-    document.getElementById(
-      'footer-generated-at'
-    );
-
-  if (statusText) {
-    statusText.textContent =
-      PayTrackerAppController
-        .isAppsScriptAvailable()
-        ? 'Connected'
-        : 'Browser preview';
-  }
-
-  if (generatedAt) {
-    const timestamp =
-      bootstrap &&
-      bootstrap.generatedAt
-        ? new Date(bootstrap.generatedAt)
-        : new Date();
-
-    generatedAt.textContent =
-      'Updated ' +
-      timestamp.toLocaleTimeString(
-        undefined,
+      PayTrackerAppController.navigate(
+        activeRoute,
         {
-          hour: '2-digit',
-          minute: '2-digit'
+          updateHistory: false,
+          closeMobileMenu: false,
+          focusMain: false
         }
       );
-  }
-},
+
+      PayTrackerAppController.updateFooterStatus(
+        bootstrap
+      );
+
+      if (
+        window.PayTrackerDashboardService &&
+        typeof window
+          .PayTrackerDashboardService
+          .load === 'function'
+      ) {
+        await window.PayTrackerDashboardService.load({
+          force: true
+        });
+      } else {
+        PayTrackerAppController.showToast(
+          'Pay Tracker refreshed.',
+          'success'
+        );
+      }
+    } catch (error) {
+      console.error(
+        'Pay Tracker refresh failed.',
+        error
+      );
+
+      PayTrackerAppController.showToast(
+        PayTrackerAppController.getErrorMessage(
+          error
+        ),
+        'error'
+      );
+    } finally {
+      if (refreshButton) {
+        refreshButton.disabled = false;
+        refreshButton.classList.remove(
+          'is-loading'
+        );
+      }
+    }
+  },
+
+  /**
+   * Updates footer connection status.
+   *
+   * @param {Object=} bootstrap Application bootstrap.
+   */
+  updateFooterStatus: function(bootstrap) {
+    const statusText =
+      document.getElementById(
+        'footer-status-text'
+      );
+
+    const generatedAt =
+      document.getElementById(
+        'footer-generated-at'
+      );
+
+    if (statusText) {
+      statusText.textContent =
+        PayTrackerAppController
+          .isAppsScriptAvailable()
+          ? 'Connected'
+          : 'Browser preview';
+    }
+
+    if (generatedAt) {
+      const timestamp =
+        bootstrap &&
+        bootstrap.generatedAt
+          ? new Date(bootstrap.generatedAt)
+          : new Date();
+
+      const validTimestamp =
+        Number.isNaN(timestamp.getTime())
+          ? new Date()
+          : timestamp;
+
+      generatedAt.textContent =
+        'Updated ' +
+        validTimestamp.toLocaleTimeString(
+          undefined,
+          {
+            hour: '2-digit',
+            minute: '2-digit'
+          }
+        );
+    }
+  },
 
   /**
    * Displays the loading screen.
@@ -988,7 +1083,9 @@ updateFooterStatus: function(bootstrap) {
   showLoading: function() {
     const loading =
       PayTrackerAppController.query(
-        PayTrackerAppController.selectors.loadingScreen
+        PayTrackerAppController
+          .selectors
+          .loadingScreen
       );
 
     if (loading) {
@@ -1003,7 +1100,9 @@ updateFooterStatus: function(bootstrap) {
   hideLoading: function() {
     const loading =
       PayTrackerAppController.query(
-        PayTrackerAppController.selectors.loadingScreen
+        PayTrackerAppController
+          .selectors
+          .loadingScreen
       );
 
     if (!loading) {
@@ -1025,7 +1124,9 @@ updateFooterStatus: function(bootstrap) {
   showStartupError: function(error) {
     const errorScreen =
       PayTrackerAppController.query(
-        PayTrackerAppController.selectors.errorScreen
+        PayTrackerAppController
+          .selectors
+          .errorScreen
       );
 
     if (!errorScreen) {
@@ -1060,7 +1161,9 @@ updateFooterStatus: function(bootstrap) {
   hideError: function() {
     const errorScreen =
       PayTrackerAppController.query(
-        PayTrackerAppController.selectors.errorScreen
+        PayTrackerAppController
+          .selectors
+          .errorScreen
       );
 
     if (errorScreen) {
@@ -1078,26 +1181,43 @@ updateFooterStatus: function(bootstrap) {
   showToast: function(message, type, duration) {
     const region =
       PayTrackerAppController.query(
-        PayTrackerAppController.selectors.toastRegion
+        PayTrackerAppController
+          .selectors
+          .toastRegion
       );
 
     if (!region) {
       return;
     }
 
-    const toast = document.createElement('div');
+    const toast =
+      document.createElement('div');
+
+    const supportedTypes = [
+      'success',
+      'warning',
+      'danger',
+      'error',
+      'info'
+    ];
 
     const normalizedType =
-      ['success', 'warning', 'danger', 'error']
-        .indexOf(type) !== -1
+      supportedTypes.indexOf(type) !== -1
         ? type
         : 'info';
 
     toast.className =
       'toast toast--' + normalizedType;
 
-    toast.setAttribute('role', 'status');
-    toast.textContent = String(message || '');
+    toast.setAttribute(
+      'role',
+      normalizedType === 'error'
+        ? 'alert'
+        : 'status'
+    );
+
+    toast.textContent =
+      String(message || '');
 
     region.appendChild(toast);
 
@@ -1164,7 +1284,10 @@ updateFooterStatus: function(bootstrap) {
         return;
       }
 
-      serverFunction.apply(runner, args);
+      serverFunction.apply(
+        runner,
+        args
+      );
     });
   },
 
@@ -1176,8 +1299,8 @@ updateFooterStatus: function(bootstrap) {
   isAppsScriptAvailable: function() {
     return Boolean(
       window.google &&
-      google.script &&
-      google.script.run
+      window.google.script &&
+      window.google.script.run
     );
   },
 
@@ -1234,9 +1357,41 @@ updateFooterStatus: function(bootstrap) {
   }
 });
 
-document.addEventListener(
-  'DOMContentLoaded',
-  function() {
-    PayTrackerAppController.initialize();
+window.PayTrackerAppController =
+  PayTrackerAppController;
+
+/**
+ * Starts the controller regardless of whether the script
+ * is evaluated before or after DOMContentLoaded.
+ */
+(function startPayTrackerApplication(
+  windowObject,
+  documentObject
+) {
+  function startApplication() {
+    windowObject.setTimeout(function() {
+      PayTrackerAppController
+        .initialize()
+        .catch(function(error) {
+          console.error(
+            'Pay Tracker controller startup failed.',
+            error
+          );
+        });
+    }, 0);
   }
-);
+
+  if (
+    documentObject.readyState === 'loading'
+  ) {
+    documentObject.addEventListener(
+      'DOMContentLoaded',
+      startApplication,
+      {
+        once: true
+      }
+    );
+  } else {
+    startApplication();
+  }
+})(window, document);

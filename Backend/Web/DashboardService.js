@@ -2,90 +2,85 @@
  * PAY TRACKER V2.6
  * Backend/Web/DashboardService.js
  *
- * Purpose:
- * - Supply live data to the web dashboard
- * - Read the latest populated PaySheet week
- * - Combine Pay, Finance, Savings and Life Goal figures
- * - Return browser-safe structured data
+ * Lightweight web-dashboard data service.
+ *
+ * Design goals:
+ * - One browser request
+ * - Batched spreadsheet reads
+ * - No dashboard recalculation calls
+ * - No repeated week-by-week sheet requests
+ * - Safe fallback data when optional sheets are missing
  *******************************************************/
 
 const PayTrackerWebDashboardService = Object.freeze({
-  /**
-   * Returns all live dashboard data.
-   *
-   * This is the public Apps Script function called by
-   * google.script.run from the browser.
-   *
-   * @return {Object} Dashboard response.
-   */
+  WEEKLY_SPENDING_DEFAULT: 100,
+
   getDashboardData: function() {
-    const generatedAt = new Date();
+    const startedAt = new Date();
 
     try {
-      const payData =
-        PayTrackerWebDashboardService
-          .getLatestPayWeekData();
+      const spreadsheet =
+        SpreadsheetApp.getActiveSpreadsheet();
 
-      const financeData =
+      if (!spreadsheet) {
+        throw new Error(
+          'No active Pay Tracker spreadsheet is available.'
+        );
+      }
+
+      const pay =
         PayTrackerWebDashboardService
-          .getFinanceData();
+          .readLatestPayWeek(spreadsheet);
+
+      const finance =
+        PayTrackerWebDashboardService
+          .readFinanceData(spreadsheet);
+
+      const savings =
+        PayTrackerWebDashboardService
+          .readSavingsData(spreadsheet);
 
       const cashFlow =
         PayTrackerWebDashboardService
-          .buildWeeklyCashFlow(
-            payData,
-            financeData
+          .buildCashFlow(
+            pay,
+            finance,
+            savings.settings
           );
 
       return {
         success: true,
-
-        generatedAt:
-          generatedAt.toISOString(),
-
-        pay: payData,
-
-        finance: financeData,
-
+        generatedAt: startedAt.toISOString(),
+        durationMilliseconds:
+          new Date().getTime() - startedAt.getTime(),
+        pay: pay,
+        finance: finance,
         cashFlow: cashFlow,
-
-        savingsPots:
-          PayTrackerWebDashboardService
-            .buildSavingsPots(
-              financeData
-            ),
-
+        savingsPots: savings.pots,
         commitments:
           PayTrackerWebDashboardService
             .buildCommitments(
-              financeData
+              finance,
+              savings
             ),
-
-        lifeGoals:
-          PayTrackerWebDashboardService
-            .buildLifeGoals(
-              financeData
-            ),
-
+        lifeGoals: savings.goals,
         activity: [],
-
         messages: {
           cashFlow:
             cashFlow.hasData
-              ? 'Weekly cash flow calculated from your latest populated pay week.'
+              ? 'Weekly cash flow calculated from the latest populated pay week.'
               : 'Add shifts to the PaySheet to calculate weekly cash flow.'
         }
       };
     } catch (error) {
       console.error(
-        'Web dashboard data could not be generated.',
+        'Web dashboard data generation failed.',
         error
       );
 
       return {
         success: false,
-        generatedAt:
-          generatedAt.toISOString(),
+        generatedAt: startedAt.toISOString(),
         error:
           PayTrackerWebDashboardService
             .getErrorMessage(error)
@@ -93,150 +88,234 @@ const PayTrackerWebDashboardService = Object.freeze({
     }
   },
 
-  /**
-   * Reads the latest populated PaySheet week.
-   *
-   * @return {Object} Weekly pay figures.
-   */
-  getLatestPayWeekData: function() {
-    let sheet;
+  readLatestPayWeek: function(spreadsheet) {
+    const sheetName =
+      PayTrackerConfig &&
+      PayTrackerConfig.SHEET &&
+      PayTrackerConfig.SHEET.NAME
+        ? PayTrackerConfig.SHEET.NAME
+        : 'PaySheet';
 
-    try {
-      sheet = PayTrackerUtils.getPaySheet();
-    } catch (error) {
+    const sheet =
+      spreadsheet.getSheetByName(sheetName);
+
+    if (!sheet) {
       return PayTrackerWebDashboardService
-        .getEmptyPayData(
+        .emptyPayData(
           'The PaySheet could not be found.'
         );
     }
 
-    const existingWeeks =
-      PayTrackerUtils.getExistingWeekCount(
-        sheet
-      );
+    const lastRow = Math.max(sheet.getLastRow(), 1);
+    const lastColumn = Math.max(
+      sheet.getLastColumn(),
+      PayTrackerConfig.SHEET.TOTAL_COLUMNS || 30
+    );
 
-    if (existingWeeks < 1) {
-      return PayTrackerWebDashboardService
-        .getEmptyPayData(
-          'No PaySheet weeks have been created.'
-        );
-    }
+    const values = sheet
+      .getRange(1, 1, lastRow, lastColumn)
+      .getValues();
 
+    const displayValues = sheet
+      .getRange(1, 1, lastRow, lastColumn)
+      .getDisplayValues();
+
+    const blockHeight =
+      PayTrackerConfig.SHEET.BLOCK_HEIGHT;
+
+    const dataOffset =
+      PayTrackerConfig.SHEET.WEEK_DATA_ROW_OFFSET;
+
+    const dataCount =
+      PayTrackerConfig.SHEET.WEEK_DATA_ROW_COUNT;
+
+    const totalOffset =
+      PayTrackerConfig.SHEET.WEEK_TOTAL_ROW_OFFSET;
+
+    const summaryColumn =
+      PayTrackerConfig.SHEET
+        .WEEKLY_SUMMARY_VALUE_COLUMN;
+
+    const tables =
+      PayTrackerWebDashboardService
+        .getPayTables();
+
+    let selectedStartIndex = -1;
     let selectedWeekNumber = 0;
-    let selectedStartRow = 0;
 
     for (
-      let weekNumber = existingWeeks;
-      weekNumber >= 1;
-      weekNumber--
+      let startIndex = 0;
+      startIndex < values.length;
+      startIndex += blockHeight
     ) {
-      const startRow =
-        PayTrackerUtils.getWeekStartRow(
-          weekNumber
-        );
+      const headerText = String(
+        displayValues[startIndex] &&
+        displayValues[startIndex][0]
+          ? displayValues[startIndex][0]
+          : ''
+      ).trim();
 
-      if (
-        PayTrackerWeekManager.weekHasShiftData(
-          sheet,
-          startRow
-        )
+      const weekMatch =
+        headerText.match(/^Week\s+(\d+)/i);
+
+      if (!weekMatch) {
+        continue;
+      }
+
+      let hasShift = false;
+
+      for (
+        let dayIndex = 0;
+        dayIndex < dataCount && !hasShift;
+        dayIndex++
       ) {
-        selectedWeekNumber = weekNumber;
-        selectedStartRow = startRow;
-        break;
+        const rowIndex =
+          startIndex + dataOffset + dayIndex;
+
+        if (rowIndex >= displayValues.length) {
+          break;
+        }
+
+        for (
+          let tableIndex = 0;
+          tableIndex < tables.length;
+          tableIndex++
+        ) {
+          const shiftColumnIndex =
+            tables[tableIndex].startColumn + 1;
+
+          const shiftName = String(
+            displayValues[rowIndex][shiftColumnIndex] || ''
+          ).trim();
+
+          if (shiftName !== '') {
+            hasShift = true;
+            break;
+          }
+        }
+      }
+
+      if (hasShift) {
+        selectedStartIndex = startIndex;
+        selectedWeekNumber = Number(weekMatch[1]) || 0;
       }
     }
 
-    if (!selectedWeekNumber) {
+    if (selectedStartIndex < 0) {
       return PayTrackerWebDashboardService
-        .getEmptyPayData(
+        .emptyPayData(
           'No shifts have been entered yet.'
         );
     }
 
-    const tables =
-      getConfiguredPayTables_();
-
-    const employerRows = {};
+    const employers = {};
+    let totalGross = 0;
 
     tables.forEach(function(table) {
       const key =
         PayTrackerWebDashboardService
           .getEmployerKey(table.name);
 
-      employerRows[key] =
+      const shiftColumnIndex =
+        table.startColumn + 1;
+
+      const payColumnIndex =
+        table.startColumn + 3;
+
+      let shifts = 0;
+      let calculatedTotal = 0;
+
+      for (
+        let dayIndex = 0;
+        dayIndex < dataCount;
+        dayIndex++
+      ) {
+        const rowIndex =
+          selectedStartIndex + dataOffset + dayIndex;
+
+        if (rowIndex >= values.length) {
+          break;
+        }
+
+        const shiftName = String(
+          displayValues[rowIndex][shiftColumnIndex] || ''
+        ).trim();
+
+        if (shiftName !== '') {
+          shifts++;
+        }
+
+        calculatedTotal +=
+          Number(values[rowIndex][payColumnIndex]) || 0;
+      }
+
+      const totalRowIndex =
+        selectedStartIndex + totalOffset;
+
+      const storedTotal =
+        totalRowIndex < values.length
+          ? Number(values[totalRowIndex][payColumnIndex]) || 0
+          : 0;
+
+      const total =
         PayTrackerWebDashboardService
-          .readEmployerWeek(
-            sheet,
-            selectedStartRow,
-            table
+          .roundCurrency(
+            storedTotal || calculatedTotal
           );
+
+      employers[key] = {
+        name: table.name,
+        taxable: Boolean(table.taxable),
+        shifts: shifts,
+        total: total
+      };
+
+      totalGross += total;
     });
 
-    const summaryValueColumn =
-      PayTrackerConfig.SHEET
-        .WEEKLY_SUMMARY_VALUE_COLUMN;
+    const summaryStartIndex =
+      selectedStartIndex + 1;
 
-    const summaryValues = sheet
-      .getRange(
-        selectedStartRow + 1,
-        summaryValueColumn,
-        5,
-        1
-      )
-      .getValues()
-      .map(function(row) {
-        return (
-          Number(row[0]) || 0
-        );
-      });
+    const summaryIndex =
+      summaryColumn - 1;
 
-    const taxableGross =
-      summaryValues[0] || 0;
+    const summaryValues = [];
 
-    const estimatedDeductions =
-      summaryValues[1] || 0;
+    for (let index = 0; index < 5; index++) {
+      const rowIndex = summaryStartIndex + index;
 
-    const taxableTakeHome =
-      summaryValues[2] || 0;
+      summaryValues.push(
+        rowIndex < values.length
+          ? Number(values[rowIndex][summaryIndex]) || 0
+          : 0
+      );
+    }
 
-    const loggingCash =
-      summaryValues[3] || 0;
+    const taxableGross = summaryValues[0];
+    const estimatedDeductions = summaryValues[1];
+    const taxableTakeHome = summaryValues[2];
+    const loggingCash = summaryValues[3];
+    const totalTakeHome = summaryValues[4];
 
-    const totalTakeHome =
-      summaryValues[4] || 0;
+    const firstDateIndex =
+      selectedStartIndex + dataOffset;
+
+    const lastDateIndex =
+      firstDateIndex + 6;
 
     const firstDate =
-      PayTrackerWebDashboardService
-        .readWeekDate(
-          sheet,
-          selectedStartRow,
-          0
-        );
+      values[firstDateIndex]
+        ? values[firstDateIndex][0]
+        : null;
 
     const lastDate =
-      PayTrackerWebDashboardService
-        .readWeekDate(
-          sheet,
-          selectedStartRow,
-          6
-        );
-
-    const totalGross =
-      Object.keys(employerRows)
-        .reduce(function(total, key) {
-          return (
-            total +
-            employerRows[key].total
-          );
-        }, 0);
+      values[lastDateIndex]
+        ? values[lastDateIndex][0]
+        : null;
 
     return {
       hasData: true,
-
-      weekNumber:
-        selectedWeekNumber,
-
+      weekNumber: selectedWeekNumber,
       weekLabel:
         PayTrackerWebDashboardService
           .formatWeekLabel(
@@ -244,544 +323,574 @@ const PayTrackerWebDashboardService = Object.freeze({
             firstDate,
             lastDate
           ),
-
       weekStart:
         PayTrackerWebDashboardService
           .serializeDate(firstDate),
-
       weekEnd:
         PayTrackerWebDashboardService
           .serializeDate(lastDate),
-
       gross:
-        PayTrackerUtils.roundCurrency(
-          totalGross
-        ),
-
+        PayTrackerWebDashboardService
+          .roundCurrency(totalGross),
       taxableGross:
-        PayTrackerUtils.roundCurrency(
-          taxableGross
-        ),
-
+        PayTrackerWebDashboardService
+          .roundCurrency(taxableGross),
       estimatedDeductions:
-        PayTrackerUtils.roundCurrency(
-          estimatedDeductions
-        ),
-
+        PayTrackerWebDashboardService
+          .roundCurrency(estimatedDeductions),
       taxableTakeHome:
-        PayTrackerUtils.roundCurrency(
-          taxableTakeHome
-        ),
-
+        PayTrackerWebDashboardService
+          .roundCurrency(taxableTakeHome),
       loggingCash:
-        PayTrackerUtils.roundCurrency(
-          loggingCash
-        ),
-
+        PayTrackerWebDashboardService
+          .roundCurrency(loggingCash),
       takeHome:
-        PayTrackerUtils.roundCurrency(
-          totalTakeHome
-        ),
-
+        PayTrackerWebDashboardService
+          .roundCurrency(
+            totalTakeHome ||
+            taxableTakeHome + loggingCash
+          ),
       deductionRate:
         taxableGross > 0
-          ? estimatedDeductions /
-            taxableGross
+          ? estimatedDeductions / taxableGross
           : 0,
-
-      employers: employerRows,
-
+      employers: employers,
       message: ''
     };
   },
 
-  /**
-   * Reads one employer table for the selected week.
-   *
-   * @param {GoogleAppsScript.Spreadsheet.Sheet} sheet
-   * @param {number} weekStartRow
-   * @param {Object} table
-   * @return {Object} Employer figures.
-   */
-  readEmployerWeek: function(
-    sheet,
-    weekStartRow,
-    table
-  ) {
-    const firstDataRow =
-      weekStartRow +
-      PayTrackerConfig.SHEET
-        .WEEK_DATA_ROW_OFFSET;
+  readFinanceData: function(spreadsheet) {
+    const billsSheet =
+      spreadsheet.getSheetByName('Bills');
 
-    const rowCount =
-      PayTrackerConfig.SHEET
-        .WEEK_DATA_ROW_COUNT;
+    const debtsSheet =
+      spreadsheet.getSheetByName('Debts');
 
-    const shiftColumn =
-      table.startColumn + 2;
+    const paymentsSheet =
+      spreadsheet.getSheetByName('Finance Payments');
 
-    const payColumn =
-      table.startColumn + 4;
+    let monthlyBills = 0;
+    let monthlyDebtRepayments = 0;
+    let dueNextSevenDays = 0;
+    let overduePayments = 0;
 
-    const shiftValues = sheet
-      .getRange(
-        firstDataRow,
-        shiftColumn,
-        rowCount,
-        1
-      )
-      .getDisplayValues();
+    if (billsSheet && billsSheet.getLastRow() >= 2) {
+      const rows = billsSheet
+        .getRange(
+          2,
+          1,
+          billsSheet.getLastRow() - 1,
+          Math.max(billsSheet.getLastColumn(), 9)
+        )
+        .getValues();
 
-    const payValues = sheet
-      .getRange(
-        firstDataRow,
-        payColumn,
-        rowCount,
-        1
-      )
-      .getValues();
+      rows.forEach(function(row) {
+        const active =
+          String(row[6] || '').trim().toLowerCase();
 
-    let shiftCount = 0;
-    let calculatedTotal = 0;
-
-    for (
-      let rowIndex = 0;
-      rowIndex < rowCount;
-      rowIndex++
-    ) {
-      const shiftName =
-        String(
-          shiftValues[rowIndex][0] || ''
-        ).trim();
-
-      if (shiftName !== '') {
-        shiftCount++;
-      }
-
-      calculatedTotal +=
-        Number(
-          payValues[rowIndex][0]
-        ) || 0;
+        if (active === 'yes') {
+          monthlyBills += Number(row[8]) || 0;
+        }
+      });
     }
 
-    const storedTotal =
-      Number(
-        sheet
-          .getRange(
-            weekStartRow +
-              PayTrackerConfig.SHEET
-                .WEEK_TOTAL_ROW_OFFSET,
-            payColumn
-          )
-          .getValue()
-      ) || 0;
+    if (debtsSheet && debtsSheet.getLastRow() >= 2) {
+      const rows = debtsSheet
+        .getRange(
+          2,
+          1,
+          debtsSheet.getLastRow() - 1,
+          Math.max(debtsSheet.getLastColumn(), 12)
+        )
+        .getValues();
+
+      rows.forEach(function(row) {
+        const active =
+          String(row[10] || '').trim().toLowerCase();
+
+        if (active === 'yes') {
+          monthlyDebtRepayments +=
+            Number(row[11]) || 0;
+        }
+      });
+    }
+
+    if (paymentsSheet && paymentsSheet.getLastRow() >= 2) {
+      const today =
+        PayTrackerWebDashboardService
+          .startOfDay(new Date());
+
+      const sevenDaysLater = new Date(today);
+      sevenDaysLater.setDate(
+        sevenDaysLater.getDate() + 7
+      );
+
+      const rows = paymentsSheet
+        .getRange(
+          2,
+          1,
+          paymentsSheet.getLastRow() - 1,
+          Math.max(paymentsSheet.getLastColumn(), 8)
+        )
+        .getValues();
+
+      rows.forEach(function(row) {
+        const dueDate =
+          PayTrackerWebDashboardService
+            .toDate(row[1]);
+
+        const paid =
+          row[6] === true ||
+          String(row[6] || '').trim().toLowerCase() === 'yes';
+
+        const status =
+          String(row[7] || '').trim().toLowerCase();
+
+        if (!dueDate || paid || status === 'completed') {
+          return;
+        }
+
+        const cleanDueDate =
+          PayTrackerWebDashboardService
+            .startOfDay(dueDate);
+
+        if (cleanDueDate < today) {
+          overduePayments++;
+        } else if (cleanDueDate <= sevenDaysLater) {
+          dueNextSevenDays++;
+        }
+      });
+    }
 
     return {
-      name: table.name,
-
-      taxable:
-        Boolean(table.taxable),
-
-      shifts:
-        shiftCount,
-
-      total:
-        PayTrackerUtils.roundCurrency(
-          storedTotal || calculatedTotal
-        )
+      available: true,
+      monthlyBills:
+        PayTrackerWebDashboardService
+          .roundCurrency(monthlyBills),
+      monthlyDebtRepayments:
+        PayTrackerWebDashboardService
+          .roundCurrency(monthlyDebtRepayments),
+      dueNextSevenDays: dueNextSevenDays,
+      overduePayments: overduePayments,
+      message: ''
     };
   },
 
-  /**
-   * Reads Finance and Savings dashboard calculations.
-   *
-   * @return {Object} Finance dashboard figures.
-   */
-  getFinanceData: function() {
+  readSavingsData: function(spreadsheet) {
+    const settings =
+      PayTrackerWebDashboardService
+        .readSavingsSettings(spreadsheet);
+
+    const pots =
+      PayTrackerWebDashboardService
+        .readSavingsPots(spreadsheet);
+
+    const goals =
+      PayTrackerWebDashboardService
+        .readLifeGoals(spreadsheet);
+
+    const contributionsSheet =
+      spreadsheet.getSheetByName(
+        'Savings Contributions'
+      );
+
+    let upcomingContributions = 0;
+
     if (
-      typeof PayTrackerFinanceDashboard ===
-      'undefined'
+      contributionsSheet &&
+      contributionsSheet.getLastRow() >= 2
     ) {
-      return (
-        PayTrackerWebDashboardService
-          .getEmptyFinanceData(
-            'Finance Dashboard service is unavailable.'
+      const rows = contributionsSheet
+        .getRange(
+          2,
+          1,
+          contributionsSheet.getLastRow() - 1,
+          Math.max(
+            contributionsSheet.getLastColumn(),
+            7
           )
-      );
+        )
+        .getValues();
+
+      rows.forEach(function(row) {
+        const deposited =
+          row[5] === true ||
+          String(row[5] || '')
+            .trim()
+            .toLowerCase() === 'yes';
+
+        const status =
+          String(row[6] || '')
+            .trim()
+            .toLowerCase();
+
+        if (!deposited && status === 'upcoming') {
+          upcomingContributions++;
+        }
+      });
     }
 
-    try {
-      const figures =
-        PayTrackerFinanceDashboard
-          .calculateDashboardFigures();
-
-      return Object.assign(
-        {
-          available: true,
-          message: ''
-        },
-        figures || {}
-      );
-    } catch (error) {
-      console.error(
-        'Finance dashboard figures could not be read.',
-        error
-      );
-
-      return (
-        PayTrackerWebDashboardService
-          .getEmptyFinanceData(
-            PayTrackerWebDashboardService
-              .getErrorMessage(error)
-          )
-      );
-    }
+    return {
+      settings: settings,
+      pots: pots,
+      goals: goals,
+      upcomingContributions:
+        upcomingContributions
+    };
   },
 
-  /**
-   * Converts monthly finance amounts to weekly values and
-   * calculates disposable income and suggested savings.
-   *
-   * @param {Object} payData
-   * @param {Object} financeData
-   * @return {Object} Weekly cash-flow figures.
-   */
-  buildWeeklyCashFlow: function(
-    payData,
-    financeData
-  ) {
-    const monthlyToWeekly =
-      12 / 52;
+  readSavingsSettings: function(spreadsheet) {
+    const defaults = {
+      mode: 'Percentage of Disposable Income',
+      percentage: 0.4,
+      fixedMonthlyAmount: 0,
+      maximumMonthlySavings: 0
+    };
 
-    const takeHome =
-      Number(payData.takeHome) || 0;
+    const sheet =
+      spreadsheet.getSheetByName(
+        'Savings Settings'
+      );
+
+    if (!sheet || sheet.getLastRow() < 2) {
+      return defaults;
+    }
+
+    const rows = sheet
+      .getRange(
+        2,
+        1,
+        sheet.getLastRow() - 1,
+        Math.max(sheet.getLastColumn(), 2)
+      )
+      .getValues();
+
+    const values = {};
+
+    rows.forEach(function(row) {
+      const key = String(row[0] || '').trim();
+
+      if (key !== '') {
+        values[key] = row[1];
+      }
+    });
+
+    return {
+      mode:
+        String(
+          values['Savings Mode'] ||
+          defaults.mode
+        ),
+      percentage:
+        PayTrackerWebDashboardService
+          .normalizePercentage(
+            values[
+              'Disposable Income Savings %'
+            ],
+            defaults.percentage
+          ),
+      fixedMonthlyAmount:
+        Number(
+          values[
+            'Fixed Monthly Savings Amount'
+          ]
+        ) || 0,
+      maximumMonthlySavings:
+        Number(
+          values['Maximum Monthly Savings']
+        ) || 0
+    };
+  },
+
+  readSavingsPots: function(spreadsheet) {
+    const sheet =
+      spreadsheet.getSheetByName('Savings Pots');
+
+    if (!sheet || sheet.getLastRow() < 2) {
+      return [];
+    }
+
+    const rows = sheet
+      .getRange(
+        2,
+        1,
+        sheet.getLastRow() - 1,
+        Math.max(sheet.getLastColumn(), 26)
+      )
+      .getValues();
+
+    return rows
+      .filter(function(row) {
+        return (
+          String(row[8] || '')
+            .trim()
+            .toLowerCase() === 'yes'
+        );
+      })
+      .slice(0, 3)
+      .map(function(row) {
+        const balance = Number(row[4]) || 0;
+        const goal = Number(row[5]) || 0;
+        const progressValue = Number(row[13]);
+
+        const progress =
+          Number.isFinite(progressValue)
+            ? PayTrackerWebDashboardService
+                .clampProgress(progressValue)
+            : goal > 0
+              ? PayTrackerWebDashboardService
+                  .clampProgress(balance / goal)
+              : 0;
+
+        return {
+          id: String(row[0] || ''),
+          name:
+            String(row[1] || 'Savings pot'),
+          provider: String(row[2] || ''),
+          accountType: String(row[3] || ''),
+          balance:
+            PayTrackerWebDashboardService
+              .roundCurrency(balance),
+          goal:
+            PayTrackerWebDashboardService
+              .roundCurrency(goal),
+          contribution:
+            PayTrackerWebDashboardService
+              .roundCurrency(
+                PayTrackerWebDashboardService
+                  .weeklyContributionFromPot(row)
+              ),
+          progress: progress,
+          monthsToGoal:
+            Number(row[24]) || 0,
+          targetStatus:
+            String(row[25] || '')
+        };
+      });
+  },
+
+  readLifeGoals: function(spreadsheet) {
+    const sheet =
+      spreadsheet.getSheetByName('Life Goals');
+
+    if (!sheet || sheet.getLastRow() < 2) {
+      return [];
+    }
+
+    const rows = sheet
+      .getRange(
+        2,
+        1,
+        sheet.getLastRow() - 1,
+        Math.max(sheet.getLastColumn(), 15)
+      )
+      .getValues();
+
+    return rows
+      .filter(function(row) {
+        return (
+          String(row[7] || '')
+            .trim()
+            .toLowerCase() === 'yes'
+        );
+      })
+      .sort(function(left, right) {
+        return (
+          PayTrackerWebDashboardService
+            .priorityWeight(left[6]) -
+          PayTrackerWebDashboardService
+            .priorityWeight(right[6])
+        );
+      })
+      .slice(0, 3)
+      .map(function(row) {
+        const target = Number(row[3]) || 0;
+        const current = Number(row[4]) || 0;
+        const progressValue = Number(row[9]);
+
+        return {
+          id: String(row[0] || ''),
+          name:
+            String(row[1] || 'Life goal'),
+          target:
+            PayTrackerWebDashboardService
+              .roundCurrency(target),
+          current:
+            PayTrackerWebDashboardService
+              .roundCurrency(current),
+          progress:
+            Number.isFinite(progressValue)
+              ? PayTrackerWebDashboardService
+                  .clampProgress(progressValue)
+              : target > 0
+                ? PayTrackerWebDashboardService
+                    .clampProgress(current / target)
+                : 0,
+          monthsRemaining:
+            Number(row[13]) || 0,
+          completionDate:
+            PayTrackerWebDashboardService
+              .serializeDate(row[10]),
+          targetStatus:
+            String(row[14] || ''),
+          priority:
+            String(row[6] || '')
+        };
+      });
+  },
+
+  buildCashFlow: function(
+    pay,
+    finance,
+    savingsSettings
+  ) {
+    const monthlyToWeekly = 12 / 52;
+
+    const takeHome = Number(pay.takeHome) || 0;
 
     const bills =
       (
-        Number(
-          financeData.monthlyBills
-        ) || 0
+        Number(finance.monthlyBills) || 0
       ) * monthlyToWeekly;
 
     const debtRepayments =
       (
         Number(
-          financeData
-            .monthlyDebtRepayments
+          finance.monthlyDebtRepayments
         ) || 0
       ) * monthlyToWeekly;
 
-    /*
-     * Debt repayments are included with bills because
-     * both are committed outgoing payments.
-     */
     const committedPayments =
       bills + debtRepayments;
 
     const weeklySpending =
       PayTrackerWebDashboardService
-        .getConfiguredWeeklySpending();
+        .WEEKLY_SPENDING_DEFAULT;
 
-    const disposableBeforeSavings =
+    const disposableIncome =
       takeHome -
       committedPayments -
       weeklySpending;
 
-    const plannedWeeklySavings =
-      (
-        Number(
-          financeData.monthlySavings
-        ) || 0
-      ) * monthlyToWeekly;
+    const availableDisposable =
+      Math.max(disposableIncome, 0);
 
-    const suggestedSavings =
-      Math.min(
-        Math.max(
-          plannedWeeklySavings,
-          0
-        ),
-        Math.max(
-          disposableBeforeSavings,
-          0
-        )
+    const settings = savingsSettings || {};
+
+    let suggestedSavings = 0;
+
+    if (
+      String(settings.mode || '') ===
+      'Fixed Monthly Amount'
+    ) {
+      suggestedSavings =
+        (
+          Number(settings.fixedMonthlyAmount) || 0
+        ) * monthlyToWeekly;
+    } else {
+      suggestedSavings =
+        availableDisposable *
+        PayTrackerWebDashboardService
+          .normalizePercentage(
+            settings.percentage,
+            0.4
+          );
+    }
+
+    const maximumMonthlySavings =
+      Number(settings.maximumMonthlySavings) || 0;
+
+    if (maximumMonthlySavings > 0) {
+      suggestedSavings = Math.min(
+        suggestedSavings,
+        maximumMonthlySavings * monthlyToWeekly
       );
+    }
+
+    suggestedSavings = Math.min(
+      Math.max(suggestedSavings, 0),
+      availableDisposable
+    );
 
     const availableAfterSavings =
-      disposableBeforeSavings -
-      suggestedSavings;
+      disposableIncome - suggestedSavings;
 
     return {
-      hasData:
-        Boolean(payData.hasData),
-
+      hasData: Boolean(pay.hasData),
       takeHome:
-        PayTrackerUtils.roundCurrency(
-          takeHome
-        ),
-
+        PayTrackerWebDashboardService
+          .roundCurrency(takeHome),
       bills:
-        PayTrackerUtils.roundCurrency(
-          committedPayments
-        ),
-
+        PayTrackerWebDashboardService
+          .roundCurrency(committedPayments),
       weeklySpending:
-        PayTrackerUtils.roundCurrency(
-          weeklySpending
-        ),
-
+        PayTrackerWebDashboardService
+          .roundCurrency(weeklySpending),
       disposableIncome:
-        PayTrackerUtils.roundCurrency(
-          disposableBeforeSavings
-        ),
-
+        PayTrackerWebDashboardService
+          .roundCurrency(disposableIncome),
       suggestedSavings:
-        PayTrackerUtils.roundCurrency(
-          suggestedSavings
-        ),
-
+        PayTrackerWebDashboardService
+          .roundCurrency(suggestedSavings),
       availableAfterSavings:
-        PayTrackerUtils.roundCurrency(
-          availableAfterSavings
-        ),
-
+        PayTrackerWebDashboardService
+          .roundCurrency(availableAfterSavings),
       savingsRate:
-        disposableBeforeSavings > 0
-          ? suggestedSavings /
-            disposableBeforeSavings
+        availableDisposable > 0
+          ? suggestedSavings / availableDisposable
           : 0
     };
   },
 
-  /**
-   * Returns the configured weekly spending allowance.
-   *
-   * This currently defaults to £100 per week. Later this
-   * will be moved into the web Settings page.
-   *
-   * @return {number} Weekly spending allowance.
-   */
-  getConfiguredWeeklySpending: function() {
-    return 100;
-  },
-
-  /**
-   * Returns up to three active savings pots.
-   *
-   * @param {Object} financeData
-   * @return {Object[]} Savings pots.
-   */
-  buildSavingsPots: function(financeData) {
-    const rows =
-      Array.isArray(
-        financeData.savingsPotRows
-      )
-        ? financeData.savingsPotRows
-        : [];
-
-    return rows
-      .slice(0, 3)
-      .map(function(pot) {
-        return {
-          id:
-            String(pot.id || ''),
-
-          name:
-            String(
-              pot.name ||
-              'Savings pot'
-            ),
-
-          provider:
-            String(
-              pot.provider || ''
-            ),
-
-          accountType:
-            String(
-              pot.accountType || ''
-            ),
-
-          balance:
-            PayTrackerUtils
-              .roundCurrency(
-                Number(
-                  pot.currentBalance
-                ) || 0
-              ),
-
-          goal:
-            PayTrackerUtils
-              .roundCurrency(
-                Number(
-                  pot.goalAmount
-                ) || 0
-              ),
-
-          contribution:
-            PayTrackerUtils
-              .roundCurrency(
-                PayTrackerWebDashboardService
-                  .getWeeklyContribution(
-                    pot
-                  )
-              ),
-
-          progress:
-            PayTrackerWebDashboardService
-              .clampProgress(
-                pot.progress
-              ),
-
-          monthsToGoal:
-            pot.monthsToGoal,
-
-          targetStatus:
-            String(
-              pot.targetStatus || ''
-            )
-        };
-      });
-  },
-
-  /**
-   * Returns Life Goals for the web dashboard.
-   *
-   * @param {Object} financeData
-   * @return {Object[]} Life Goals.
-   */
-  buildLifeGoals: function(financeData) {
-    const rows =
-      Array.isArray(
-        financeData.goalRows
-      )
-        ? financeData.goalRows
-        : [];
-
-    return rows
-      .slice(0, 3)
-      .map(function(goal) {
-        return {
-          id:
-            String(goal.id || ''),
-
-          name:
-            String(
-              goal.name ||
-              'Life goal'
-            ),
-
-          target:
-            PayTrackerUtils
-              .roundCurrency(
-                Number(
-                  goal.targetAmount
-                ) || 0
-              ),
-
-          current:
-            PayTrackerUtils
-              .roundCurrency(
-                Number(
-                  goal.currentAmount
-                ) || 0
-              ),
-
-          progress:
-            PayTrackerWebDashboardService
-              .clampProgress(
-                goal.progress
-              ),
-
-          monthsRemaining:
-            goal.monthsRemaining,
-
-          completionDate:
-            PayTrackerWebDashboardService
-              .serializeDate(
-                goal.completionDate
-              ),
-
-          targetStatus:
-            String(
-              goal.targetStatus || ''
-            ),
-
-          priority:
-            String(
-              goal.priority || ''
-            )
-        };
-      });
-  },
-
-  /**
-   * Builds basic commitment summary rows.
-   *
-   * @param {Object} financeData
-   * @return {Object[]} Commitments.
-   */
-  buildCommitments: function(financeData) {
+  buildCommitments: function(finance, savings) {
     const commitments = [];
 
-    const dueNextSevenDays =
+    const overdue =
+      Number(finance.overduePayments) || 0;
+
+    const dueSoon =
+      Number(finance.dueNextSevenDays) || 0;
+
+    const upcomingSavings =
       Number(
-        financeData.dueNextSevenDays
+        savings.upcomingContributions
       ) || 0;
 
-    const overduePayments =
-      Number(
-        financeData.overduePayments
-      ) || 0;
-
-    const upcomingContributions =
-      Number(
-        financeData.upcomingContributions
-      ) || 0;
-
-    if (overduePayments > 0) {
+    if (overdue > 0) {
       commitments.push({
         type: 'danger',
         name:
-          overduePayments +
-          (
-            overduePayments === 1
-              ? ' overdue payment'
-              : ' overdue payments'
-          ),
-        detail:
-          'Open Finance to review.',
+          overdue +
+          (overdue === 1
+            ? ' overdue payment'
+            : ' overdue payments'),
+        detail: 'Open Finance to review.',
         amount: null
       });
     }
 
-    if (dueNextSevenDays > 0) {
+    if (dueSoon > 0) {
       commitments.push({
         type: 'warning',
         name:
-          dueNextSevenDays +
-          (
-            dueNextSevenDays === 1
-              ? ' payment due soon'
-              : ' payments due soon'
-          ),
-        detail:
-          'Due within seven days.',
+          dueSoon +
+          (dueSoon === 1
+            ? ' payment due soon'
+            : ' payments due soon'),
+        detail: 'Due within seven days.',
         amount: null
       });
     }
 
-    if (upcomingContributions > 0) {
+    if (upcomingSavings > 0) {
       commitments.push({
         type: 'info',
         name:
-          upcomingContributions +
-          (
-            upcomingContributions === 1
-              ? ' savings contribution'
-              : ' savings contributions'
-          ),
-        detail:
-          'Scheduled contribution queue.',
+          upcomingSavings +
+          (upcomingSavings === 1
+            ? ' savings contribution'
+            : ' savings contributions'),
+        detail: 'Scheduled contribution queue.',
         amount: null
       });
     }
@@ -789,183 +898,66 @@ const PayTrackerWebDashboardService = Object.freeze({
     return commitments.slice(0, 3);
   },
 
-  /**
-   * Converts a pot contribution to a weekly equivalent.
-   *
-   * @param {Object} pot
-   * @return {number} Weekly contribution.
-   */
-  getWeeklyContribution: function(pot) {
-    const amount =
-      Math.max(
-        Number(
-          pot.contributionAmount
-        ) || 0,
-        0
-      );
+  getPayTables: function() {
+    const configuredTables =
+      PayTrackerConfig &&
+      PayTrackerConfig.TABLES
+        ? PayTrackerConfig.TABLES
+        : {};
 
+    return Object.keys(configuredTables)
+      .map(function(key) {
+        return configuredTables[key];
+      })
+      .filter(function(table) {
+        return (
+          table &&
+          Number(table.startColumn) > 0
+        );
+      });
+  },
+
+  weeklyContributionFromPot: function(row) {
     const frequency =
-      String(
-        pot.contributionFrequency || ''
-      )
+      String(row[21] || '')
         .trim()
         .toLowerCase();
 
-    if (
-      frequency === 'weekly'
-    ) {
+    const amount =
+      Math.max(Number(row[22]) || 0, 0);
+
+    if (frequency === 'weekly') {
       return amount;
     }
 
-    if (
-      frequency === 'fortnightly'
-    ) {
+    if (frequency === 'fortnightly') {
       return amount / 2;
     }
 
-    if (
-      frequency === 'monthly'
-    ) {
+    if (frequency === 'monthly') {
       return amount * 12 / 52;
     }
 
-    const monthlyEquivalent =
-      Math.max(
-        Number(
-          pot.monthlyEquivalent
-        ) || 0,
-        0
-      );
+    if (frequency === 'quarterly') {
+      return amount * 4 / 52;
+    }
+
+    if (frequency === 'annual') {
+      return amount / 52;
+    }
 
     return (
-      monthlyEquivalent *
+      Math.max(Number(row[23]) || 0, 0) *
       12 /
       52
     );
   },
 
-  /**
-   * Reads a date from the first configured pay table.
-   *
-   * @param {GoogleAppsScript.Spreadsheet.Sheet} sheet
-   * @param {number} weekStartRow
-   * @param {number} dayIndex
-   * @return {*}
-   */
-  readWeekDate: function(
-    sheet,
-    weekStartRow,
-    dayIndex
-  ) {
-    const firstTable =
-      getConfiguredPayTables_()[0];
-
-    if (!firstTable) {
-      return null;
-    }
-
-    return sheet
-      .getRange(
-        weekStartRow +
-          PayTrackerConfig.SHEET
-            .WEEK_DATA_ROW_OFFSET +
-          dayIndex,
-        firstTable.startColumn
-      )
-      .getValue();
-  },
-
-  /**
-   * Returns the normalized dashboard employer key.
-   *
-   * @param {*} employerName
-   * @return {string}
-   */
-  getEmployerKey: function(employerName) {
-    const name =
-      String(employerName || '')
-        .trim()
-        .toLowerCase();
-
-    if (name.indexOf('nhs') !== -1) {
-      return 'nhs';
-    }
-
-    if (
-      name.indexOf('relief') !== -1
-    ) {
-      return 'relief';
-    }
-
-    if (
-      name.indexOf('security') !== -1
-    ) {
-      return 'security';
-    }
-
-    if (
-      name.indexOf('logging') !== -1
-    ) {
-      return 'logging';
-    }
-
-    return name
-      .replace(/[^a-z0-9]+/g, '-')
-      .replace(/^-|-$/g, '');
-  },
-
-  /**
-   * Formats the selected week label.
-   *
-   * @param {number} weekNumber
-   * @param {*} startDate
-   * @param {*} endDate
-   * @return {string}
-   */
-  formatWeekLabel: function(
-    weekNumber,
-    startDate,
-    endDate
-  ) {
-    const timeZone =
-      Session.getScriptTimeZone();
-
-    if (
-      startDate instanceof Date &&
-      endDate instanceof Date
-    ) {
-      return (
-        'Week ' +
-        weekNumber +
-        ' · ' +
-        Utilities.formatDate(
-          startDate,
-          timeZone,
-          'd MMM'
-        ) +
-        ' – ' +
-        Utilities.formatDate(
-          endDate,
-          timeZone,
-          'd MMM yyyy'
-        )
-      );
-    }
-
-    return 'Week ' + weekNumber;
-  },
-
-  /**
-   * Returns empty pay data.
-   *
-   * @param {string=} message
-   * @return {Object}
-   */
-  getEmptyPayData: function(message) {
+  emptyPayData: function(message) {
     return {
       hasData: false,
       weekNumber: 0,
-      weekLabel: 'No populated week',
+      weekLabel: 'Current week',
       weekStart: null,
       weekEnd: null,
       gross: 0,
@@ -975,7 +967,6 @@ const PayTrackerWebDashboardService = Object.freeze({
       loggingCash: 0,
       takeHome: 0,
       deductionRate: 0,
-
       employers: {
         nhs: {
           name: 'NHS',
@@ -983,23 +974,18 @@ const PayTrackerWebDashboardService = Object.freeze({
           shifts: 0,
           total: 0
         },
-
         relief: {
-          name:
-            'Relief Assistant Warden',
+          name: 'Relief Assistant Warden',
           taxable: true,
           shifts: 0,
           total: 0
         },
-
         security: {
-          name:
-            'Night Security Warden',
+          name: 'Night Security Warden',
           taxable: true,
           shifts: 0,
           total: 0
         },
-
         logging: {
           name: 'Logging Cash',
           taxable: false,
@@ -1007,101 +993,168 @@ const PayTrackerWebDashboardService = Object.freeze({
           total: 0
         }
       },
-
-      message:
-        message ||
-        'No live pay data is available.'
+      message: String(message || '')
     };
   },
 
-  /**
-   * Returns empty finance figures.
-   *
-   * @param {string=} message
-   * @return {Object}
-   */
-  getEmptyFinanceData: function(message) {
-    return {
-      available: false,
-      message:
-        message ||
-        'Finance data is unavailable.',
+  getEmployerKey: function(name) {
+    const normalized = String(name || '')
+      .trim()
+      .toLowerCase();
 
-      estimatedMonthlyTakeHome: 0,
-      monthlyBills: 0,
-      monthlyDebtRepayments: 0,
-      monthlySavings: 0,
-      disposableBeforeSavings: 0,
-      disposableIncome: 0,
-      committedIncome: 0,
-      committedPercentage: 0,
-      totalDebtRemaining: 0,
-      originalDebt: 0,
-      debtRepaid: 0,
-      totalDebtProgress: 0,
-      billsDueNextThirtyDays: 0,
-      activeBills: 0,
-      activeDebts: 0,
-      overduePayments: 0,
-      dueNextSevenDays: 0,
-      dueNextThirtyDays: 0,
-      paidThisMonth: 0,
-      monthlyPaymentHistory: [],
-      monthlySavingsAvailable: 0,
-      totalSavings: 0,
-      totalSavingsGoals: 0,
-      totalSavingsRemaining: 0,
-      savingsProgress: 0,
-      annualSavingsInterest: 0,
-      monthlySavingsInterest: 0,
-      activePots: 0,
-      completedPots: 0,
-      upcomingContributions: 0,
-      overdueContributions: 0,
-      depositedThisMonth: 0,
-      depositedThisYear: 0,
-      allocationTotal: 0,
-      allocationValid: true,
-      savingsPotRows: [],
-      goalRows: [],
-      netWorth: 0
-    };
+    if (normalized.indexOf('nhs') !== -1) {
+      return 'nhs';
+    }
+
+    if (normalized.indexOf('relief') !== -1) {
+      return 'relief';
+    }
+
+    if (normalized.indexOf('security') !== -1) {
+      return 'security';
+    }
+
+    if (normalized.indexOf('logging') !== -1) {
+      return 'logging';
+    }
+
+    return normalized
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-|-$/g, '');
   },
 
-  /**
-   * Clamps progress between zero and one.
-   *
-   * @param {*} progress
-   * @return {number}
-   */
-  clampProgress: function(progress) {
-    return Math.min(
-      Math.max(
-        Number(progress) || 0,
-        0
-      ),
-      1
+  formatWeekLabel: function(
+    weekNumber,
+    firstDate,
+    lastDate
+  ) {
+    const first =
+      PayTrackerWebDashboardService
+        .toDate(firstDate);
+
+    const last =
+      PayTrackerWebDashboardService
+        .toDate(lastDate);
+
+    if (!first || !last) {
+      return 'Week ' + weekNumber;
+    }
+
+    const timeZone =
+      Session.getScriptTimeZone();
+
+    return (
+      'Week ' +
+      weekNumber +
+      ' • ' +
+      Utilities.formatDate(
+        first,
+        timeZone,
+        'dd MMM'
+      ) +
+      ' - ' +
+      Utilities.formatDate(
+        last,
+        timeZone,
+        'dd MMM yyyy'
+      )
     );
   },
 
-  /**
-   * Serializes a Date safely for the browser.
-   *
-   * @param {*} value
-   * @return {string|null}
-   */
   serializeDate: function(value) {
-    return value instanceof Date
-      ? value.toISOString()
-      : null;
+    const date =
+      PayTrackerWebDashboardService
+        .toDate(value);
+
+    return date ? date.toISOString() : null;
   },
 
-  /**
-   * Returns a readable error message.
-   *
-   * @param {*} error
-   * @return {string}
-   */
+  toDate: function(value) {
+    if (
+      Object.prototype.toString.call(value) ===
+      '[object Date]' &&
+      !Number.isNaN(value.getTime())
+    ) {
+      return value;
+    }
+
+    if (!value) {
+      return null;
+    }
+
+    const parsed = new Date(value);
+
+    return Number.isNaN(parsed.getTime())
+      ? null
+      : parsed;
+  },
+
+  startOfDay: function(date) {
+    return new Date(
+      date.getFullYear(),
+      date.getMonth(),
+      date.getDate(),
+      0,
+      0,
+      0,
+      0
+    );
+  },
+
+  normalizePercentage: function(
+    value,
+    fallback
+  ) {
+    let number = Number(value);
+
+    if (!Number.isFinite(number)) {
+      number = Number(fallback) || 0;
+    }
+
+    if (number > 1) {
+      number = number / 100;
+    }
+
+    return Math.min(Math.max(number, 0), 1);
+  },
+
+  clampProgress: function(value) {
+    let progress = Number(value) || 0;
+
+    if (progress > 1) {
+      progress = progress / 100;
+    }
+
+    return Math.min(Math.max(progress, 0), 1);
+  },
+
+  priorityWeight: function(value) {
+    const priority =
+      String(value || '')
+        .trim()
+        .toLowerCase();
+
+    if (priority === 'high') {
+      return 1;
+    }
+
+    if (priority === 'medium') {
+      return 2;
+    }
+
+    if (priority === 'low') {
+      return 3;
+    }
+
+    return 4;
+  },
+
+  roundCurrency: function(value) {
+    return Math.round(
+      (Number(value) || 0) * 100
+    ) / 100;
+  },
+
   getErrorMessage: function(error) {
     if (
       error &&
@@ -1123,7 +1176,7 @@ const PayTrackerWebDashboardService = Object.freeze({
 });
 
 /**
- * Public browser endpoint.
+ * Public browser endpoint used by google.script.run.
  *
  * @return {Object} Live dashboard data.
  */

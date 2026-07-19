@@ -9,7 +9,7 @@
  * - Handle dashboard refresh and route buttons
  *
  * Included inside a script tag by:
- * Frontend/UI/Scripts.html
+ * Frontend/Index.html
  *******************************************************/
 
 const PayTrackerDashboardService = Object.freeze({
@@ -26,11 +26,14 @@ const PayTrackerDashboardService = Object.freeze({
    * @return {Promise<void>}
    */
   initialize: async function() {
-    if (PayTrackerDashboardService.state.initialized) {
+    if (
+      PayTrackerDashboardService.state.initialized
+    ) {
       return;
     }
 
-    PayTrackerDashboardService.state.initialized = true;
+    PayTrackerDashboardService.state.initialized =
+      true;
 
     PayTrackerDashboardService.registerEvents();
 
@@ -41,6 +44,18 @@ const PayTrackerDashboardService = Object.freeze({
    * Registers dashboard event handlers.
    */
   registerEvents: function() {
+    if (
+      document.documentElement.dataset
+        .payTrackerDashboardEventsRegistered ===
+      'true'
+    ) {
+      return;
+    }
+
+    document.documentElement.dataset
+      .payTrackerDashboardEventsRegistered =
+      'true';
+
     document.addEventListener(
       'click',
       PayTrackerDashboardService.handleDocumentClick
@@ -57,8 +72,12 @@ const PayTrackerDashboardService = Object.freeze({
 
         if (
           route === 'dashboard' &&
-          !PayTrackerDashboardService.state.loaded &&
-          !PayTrackerDashboardService.state.loading
+          !PayTrackerDashboardService
+            .state
+            .loaded &&
+          !PayTrackerDashboardService
+            .state
+            .loading
         ) {
           PayTrackerDashboardService.load();
         }
@@ -72,8 +91,17 @@ const PayTrackerDashboardService = Object.freeze({
    * @param {MouseEvent} event Browser click event.
    */
   handleDocumentClick: function(event) {
+    const clickedElement =
+      event.target instanceof Element
+        ? event.target
+        : null;
+
+    if (!clickedElement) {
+      return;
+    }
+
     const refreshButton =
-      event.target.closest(
+      clickedElement.closest(
         '#dashboard-refresh-button'
       );
 
@@ -86,7 +114,7 @@ const PayTrackerDashboardService = Object.freeze({
     }
 
     const routeButton =
-      event.target.closest(
+      clickedElement.closest(
         '[data-dashboard-route]'
       );
 
@@ -97,11 +125,14 @@ const PayTrackerDashboardService = Object.freeze({
         routeButton.dataset.dashboardRoute;
 
       if (
-        window.PayTrackerAppController ||
-        typeof PayTrackerAppController !==
-          'undefined'
+        window.PayTrackerAppController &&
+        typeof window
+          .PayTrackerAppController
+          .navigate === 'function'
       ) {
-        PayTrackerAppController.navigate(route);
+        window.PayTrackerAppController.navigate(
+          route
+        );
       }
     }
   },
@@ -133,22 +164,37 @@ const PayTrackerDashboardService = Object.freeze({
       return;
     }
 
-    PayTrackerDashboardService.state.loading = true;
-    PayTrackerDashboardService.setLoadingState(true);
+    PayTrackerDashboardService.state.loading =
+      true;
 
-    PayTrackerDashboardService.setText(
-    'dashboard-weekly-gross-change',
-    'Loading live dashboard data...'
+    PayTrackerDashboardService.setLoadingState(
+      true
     );
 
     PayTrackerDashboardService.setText(
-    'dashboard-cash-flow-message',
-    'Connecting to Pay Tracker services...'
+      'dashboard-weekly-gross-change',
+      'Loading live dashboard data...'
+    );
+
+    PayTrackerDashboardService.setText(
+      'dashboard-cash-flow-message',
+      'Connecting to Pay Tracker services...'
     );
 
     try {
+      if (
+        !window.PayTrackerAppController ||
+        typeof window
+          .PayTrackerAppController
+          .runServerFunction !== 'function'
+      ) {
+        throw new Error(
+          'Pay Tracker application controller is unavailable.'
+        );
+      }
+
       const response =
-        await PayTrackerAppController
+        await window.PayTrackerAppController
           .runServerFunction(
             'getPayTrackerWebDashboardData'
           );
@@ -158,7 +204,8 @@ const PayTrackerDashboardService = Object.freeze({
         response.success !== true
       ) {
         throw new Error(
-          response && response.error
+          response &&
+          response.error
             ? response.error
             : 'Dashboard data could not be loaded.'
         );
@@ -170,14 +217,17 @@ const PayTrackerDashboardService = Object.freeze({
       PayTrackerDashboardService.state.loaded =
         true;
 
-      PayTrackerDashboardService.render(response);
+      PayTrackerDashboardService.render(
+        response
+      );
 
-      PayTrackerAppController.updateFooterStatus({
-        generatedAt: response.generatedAt
-      });
+      window.PayTrackerAppController
+        .updateFooterStatus({
+          generatedAt: response.generatedAt
+        });
 
       if (config.force) {
-        PayTrackerAppController.showToast(
+        window.PayTrackerAppController.showToast(
           'Dashboard refreshed.',
           'success'
         );
@@ -188,20 +238,29 @@ const PayTrackerDashboardService = Object.freeze({
         error
       );
 
-      PayTrackerDashboardService
-        .renderError(error);
-
-      PayTrackerAppController.showToast(
-        PayTrackerAppController
-          .getErrorMessage(error),
-        'error'
+      PayTrackerDashboardService.renderError(
+        error
       );
+
+      if (
+        window.PayTrackerAppController &&
+        typeof window
+          .PayTrackerAppController
+          .showToast === 'function'
+      ) {
+        window.PayTrackerAppController.showToast(
+          window.PayTrackerAppController
+            .getErrorMessage(error),
+          'error'
+        );
+      }
     } finally {
       PayTrackerDashboardService.state.loading =
         false;
 
-      PayTrackerDashboardService
-        .setLoadingState(false);
+      PayTrackerDashboardService.setLoadingState(
+        false
+      );
     }
   },
 
@@ -211,26 +270,40 @@ const PayTrackerDashboardService = Object.freeze({
    * @param {Object} data Dashboard response.
    */
   render: function(data) {
-    const pay = data.pay || {};
-    const cashFlow = data.cashFlow || {};
+    const dashboardData = data || {};
+
+    const pay =
+      dashboardData.pay || {};
+
+    const cashFlow =
+      dashboardData.cashFlow || {};
+
     const savingsPots =
-      Array.isArray(data.savingsPots)
-        ? data.savingsPots
+      Array.isArray(
+        dashboardData.savingsPots
+      )
+        ? dashboardData.savingsPots
         : [];
 
     const commitments =
-      Array.isArray(data.commitments)
-        ? data.commitments
+      Array.isArray(
+        dashboardData.commitments
+      )
+        ? dashboardData.commitments
         : [];
 
     const lifeGoals =
-      Array.isArray(data.lifeGoals)
-        ? data.lifeGoals
+      Array.isArray(
+        dashboardData.lifeGoals
+      )
+        ? dashboardData.lifeGoals
         : [];
 
     const activity =
-      Array.isArray(data.activity)
-        ? data.activity
+      Array.isArray(
+        dashboardData.activity
+      )
+        ? dashboardData.activity
         : [];
 
     PayTrackerDashboardService.renderSummary(
@@ -244,7 +317,7 @@ const PayTrackerDashboardService = Object.freeze({
 
     PayTrackerDashboardService.renderCashFlow(
       cashFlow,
-      data.messages || {}
+      dashboardData.messages || {}
     );
 
     PayTrackerDashboardService.renderSavingsPots(
@@ -302,8 +375,14 @@ const PayTrackerDashboardService = Object.freeze({
     PayTrackerDashboardService.setText(
       'dashboard-weekly-gross-change',
       pay.hasData
-        ? pay.weekLabel || 'Latest populated week'
-        : pay.message || 'Waiting for live pay data'
+        ? (
+          pay.weekLabel ||
+          'Latest populated week'
+        )
+        : (
+          pay.message ||
+          'Waiting for live pay data'
+        )
     );
 
     const deductionRate =
@@ -314,9 +393,13 @@ const PayTrackerDashboardService = Object.freeze({
     PayTrackerDashboardService.setText(
       'dashboard-deduction-rate',
       pay.hasData
-        ? PayTrackerDashboardService
-            .formatPercent(deductionRate) +
+        ? (
+          PayTrackerDashboardService
+            .formatPercent(
+              deductionRate
+            ) +
           ' estimated deductions'
+        )
         : 'Deduction estimate unavailable'
     );
 
@@ -329,10 +412,10 @@ const PayTrackerDashboardService = Object.freeze({
       'dashboard-disposable-status',
       cashFlow.hasData
         ? (
-            disposableIncome >= 0
-              ? 'Available after bills and spending'
-              : 'Outgoing costs exceed take-home'
-          )
+          disposableIncome >= 0
+            ? 'Available after bills and spending'
+            : 'Outgoing costs exceed take-home'
+        )
         : 'Spending information not loaded'
     );
 
@@ -344,15 +427,19 @@ const PayTrackerDashboardService = Object.freeze({
     if (disposableStatus) {
       disposableStatus.classList.toggle(
         'is-positive',
-        cashFlow.hasData &&
-        disposableIncome >= 0
+        Boolean(
+          cashFlow.hasData &&
+          disposableIncome >= 0
+        )
       );
 
       disposableStatus.classList.toggle(
         'is-negative',
-        cashFlow.hasData &&
-        disposableIncome < 0
-      );
+        Boolean(
+            cashFlow.hasData &&
+            !(disposableIncome >= 0)
+        )
+        );
     }
 
     const savingsRate =
@@ -363,9 +450,13 @@ const PayTrackerDashboardService = Object.freeze({
     PayTrackerDashboardService.setText(
       'dashboard-savings-rate',
       cashFlow.hasData
-        ? PayTrackerDashboardService
-            .formatPercent(savingsRate) +
+        ? (
+          PayTrackerDashboardService
+            .formatPercent(
+              savingsRate
+            ) +
           ' of disposable income'
+        )
         : 'Savings rate not loaded'
     );
   },
@@ -376,7 +467,8 @@ const PayTrackerDashboardService = Object.freeze({
    * @param {Object} pay Pay data.
    */
   renderEarnings: function(pay) {
-    const employers = pay.employers || {};
+    const employers =
+      pay.employers || {};
 
     [
       'nhs',
@@ -395,26 +487,34 @@ const PayTrackerDashboardService = Object.freeze({
           employer.shifts
         );
 
+      let shiftText = '';
+
+      if (shiftCount > 0) {
+        shiftText =
+          shiftCount +
+          (
+            shiftCount === 1
+              ? ' shift loaded'
+              : ' shifts loaded'
+          );
+      } else {
+        shiftText =
+          key === 'logging'
+            ? 'No work loaded'
+            : 'No shifts loaded';
+      }
+
       PayTrackerDashboardService.setText(
-        'dashboard-' + key + '-shifts',
-        shiftCount > 0
-          ? (
-              shiftCount +
-              (
-                shiftCount === 1
-                  ? ' shift loaded'
-                  : ' shifts loaded'
-              )
-            )
-          : (
-              key === 'logging'
-                ? 'No work loaded'
-                : 'No shifts loaded'
-            )
+        'dashboard-' +
+          key +
+          '-shifts',
+        shiftText
       );
 
       PayTrackerDashboardService.setText(
-        'dashboard-' + key + '-total',
+        'dashboard-' +
+          key +
+          '-total',
         PayTrackerDashboardService.formatMoney(
           employer.total
         )
@@ -495,7 +595,7 @@ const PayTrackerDashboardService = Object.freeze({
   },
 
   /**
-   * Updates the conic-gradient cash-flow ring.
+   * Updates the cash-flow ring.
    *
    * @param {Object} cashFlow Cash-flow figures.
    */
@@ -509,33 +609,37 @@ const PayTrackerDashboardService = Object.freeze({
       return;
     }
 
-    const bills = Math.max(
-      PayTrackerDashboardService.toNumber(
-        cashFlow.bills
-      ),
-      0
-    );
+    const bills =
+      Math.max(
+        PayTrackerDashboardService.toNumber(
+          cashFlow.bills
+        ),
+        0
+      );
 
-    const spending = Math.max(
-      PayTrackerDashboardService.toNumber(
-        cashFlow.weeklySpending
-      ),
-      0
-    );
+    const spending =
+      Math.max(
+        PayTrackerDashboardService.toNumber(
+          cashFlow.weeklySpending
+        ),
+        0
+      );
 
-    const savings = Math.max(
-      PayTrackerDashboardService.toNumber(
-        cashFlow.suggestedSavings
-      ),
-      0
-    );
+    const savings =
+      Math.max(
+        PayTrackerDashboardService.toNumber(
+          cashFlow.suggestedSavings
+        ),
+        0
+      );
 
-    const remaining = Math.max(
-      PayTrackerDashboardService.toNumber(
-        cashFlow.availableAfterSavings
-      ),
-      0
-    );
+    const remaining =
+      Math.max(
+        PayTrackerDashboardService.toNumber(
+          cashFlow.availableAfterSavings
+        ),
+        0
+      );
 
     const total =
       bills +
@@ -543,11 +647,14 @@ const PayTrackerDashboardService = Object.freeze({
       savings +
       remaining;
 
-    if (total <= 0) {
-      ring.style.background =
-        'conic-gradient(var(--color-border) 0deg 360deg)';
+    if (!(total > 0)) {
+        ring.style.background =
+            'conic-gradient(' +
+            'var(--color-border) ' +
+            '0deg 360deg' +
+            ')';
 
-      return;
+        return;
     }
 
     const billsEnd =
@@ -578,7 +685,8 @@ const PayTrackerDashboardService = Object.freeze({
       'deg,' +
       'var(--color-success) ' +
       savingsEnd +
-      'deg 360deg)';
+      'deg 360deg' +
+      ')';
   },
 
   /**
@@ -589,29 +697,46 @@ const PayTrackerDashboardService = Object.freeze({
   renderSavingsPots: function(pots) {
     const slots = [
       {
-        prefix: 'dashboard-mortgage-pot',
-        fallbackName: 'Home Mortgage',
-        fallbackMeta: 'Deposit fund'
+        prefix:
+          'dashboard-mortgage-pot',
+        fallbackName:
+          'Home Mortgage',
+        fallbackMeta:
+          'Deposit fund'
       },
       {
-        prefix: 'dashboard-secondary-pot',
-        fallbackName: 'Secondary savings pot',
-        fallbackMeta: 'Flexible savings'
+        prefix:
+          'dashboard-secondary-pot',
+        fallbackName:
+          'Secondary savings pot',
+        fallbackMeta:
+          'Flexible savings'
       },
       {
-        prefix: 'dashboard-third-pot',
-        fallbackName: 'Third savings pot',
-        fallbackMeta: 'Flexible savings'
+        prefix:
+          'dashboard-third-pot',
+        fallbackName:
+          'Third savings pot',
+        fallbackMeta:
+          'Flexible savings'
       }
     ];
 
-    const rows = document.querySelectorAll(
-      '#dashboard-savings-pots-list .savings-pot-row'
-    );
+    const rows =
+      document.querySelectorAll(
+        '#dashboard-savings-pots-list ' +
+        '.savings-pot-row'
+      );
 
-    slots.forEach(function(slot, index) {
-      const pot = pots[index] || null;
-      const row = rows[index] || null;
+    slots.forEach(function(
+      slot,
+      index
+    ) {
+      const pot =
+        pots[index] || null;
+
+      const row =
+        rows[index] || null;
 
       if (row) {
         const name =
@@ -625,19 +750,21 @@ const PayTrackerDashboardService = Object.freeze({
           );
 
         if (name) {
-          name.textContent = pot
-            ? pot.name
-            : slot.fallbackName;
+          name.textContent =
+            pot
+              ? pot.name
+              : slot.fallbackName;
         }
 
         if (meta) {
-          meta.textContent = pot
-            ? (
+          meta.textContent =
+            pot
+              ? (
                 pot.provider ||
                 pot.accountType ||
                 slot.fallbackMeta
               )
-            : slot.fallbackMeta;
+              : slot.fallbackMeta;
         }
 
         row.classList.toggle(
@@ -646,31 +773,43 @@ const PayTrackerDashboardService = Object.freeze({
         );
       }
 
-      const progress = pot
-        ? PayTrackerDashboardService
-            .normalizeProgress(pot.progress)
-        : 0;
+      const progress =
+        pot
+          ? PayTrackerDashboardService
+            .normalizeProgress(
+              pot.progress
+            )
+          : 0;
 
       const percent =
-        Math.round(progress * 100);
+        Math.round(
+          progress * 100
+        );
 
       PayTrackerDashboardService.setText(
         slot.prefix + '-balance',
         pot
           ? PayTrackerDashboardService
-              .formatMoney(pot.balance)
+            .formatMoney(
+              pot.balance
+            )
           : '£—'
       );
 
       PayTrackerDashboardService.setText(
         slot.prefix + '-goal',
-        pot && PayTrackerDashboardService
-          .toNumber(pot.goal) > 0
+        pot &&
+        PayTrackerDashboardService
+          .toNumber(
+            pot.goal
+          ) > 0
           ? (
-              'of ' +
-              PayTrackerDashboardService
-                .formatMoney(pot.goal)
-            )
+            'of ' +
+            PayTrackerDashboardService
+              .formatMoney(
+                pot.goal
+              )
+          )
           : 'of £—'
       );
 
@@ -683,12 +822,12 @@ const PayTrackerDashboardService = Object.freeze({
         slot.prefix + '-contribution',
         pot
           ? (
-              PayTrackerDashboardService
-                .formatMoney(
-                  pot.contribution
-                ) +
-              ' per week'
-            )
+            PayTrackerDashboardService
+              .formatMoney(
+                pot.contribution
+              ) +
+            ' per week'
+          )
           : '£— per week'
       );
 
@@ -740,11 +879,14 @@ const PayTrackerDashboardService = Object.freeze({
       return;
     }
 
-    commitments.forEach(function(commitment) {
+    commitments.forEach(function(
+      commitment
+    ) {
       const item =
         document.createElement('div');
 
-      item.className = 'commitment-item';
+      item.className =
+        'commitment-item';
 
       const icon =
         document.createElement('div');
@@ -756,10 +898,10 @@ const PayTrackerDashboardService = Object.freeze({
         commitment.type === 'danger'
           ? '!'
           : (
-              commitment.type === 'warning'
-                ? '£'
-                : 'i'
-            );
+            commitment.type === 'warning'
+              ? '£'
+              : 'i'
+          );
 
       const copy =
         document.createElement('div');
@@ -786,9 +928,15 @@ const PayTrackerDashboardService = Object.freeze({
       detail.textContent =
         commitment.detail || '';
 
-      copy.append(name, detail);
+      copy.append(
+        name,
+        detail
+      );
 
-      item.append(icon, copy);
+      item.append(
+        icon,
+        copy
+      );
 
       if (
         commitment.amount !== null &&
@@ -822,7 +970,8 @@ const PayTrackerDashboardService = Object.freeze({
     const empty =
       document.createElement('div');
 
-    empty.className = 'commitment-empty';
+    empty.className =
+      'commitment-empty';
 
     const icon =
       document.createElement('div');
@@ -848,9 +997,14 @@ const PayTrackerDashboardService = Object.freeze({
       'commitment-empty__message';
 
     message.textContent =
-      'There are no urgent bills, debts or savings contributions to show.';
+      'There are no urgent bills, debts or ' +
+      'savings contributions to show.';
 
-    empty.append(icon, title, message);
+    empty.append(
+      icon,
+      title,
+      message
+    );
 
     return empty;
   },
@@ -861,7 +1015,8 @@ const PayTrackerDashboardService = Object.freeze({
    * @param {Object[]} goals Life Goals.
    */
   renderLifeGoals: function(goals) {
-    const goal = goals[0] || null;
+    const goal =
+      goals[0] || null;
 
     const status =
       document.getElementById(
@@ -876,7 +1031,8 @@ const PayTrackerDashboardService = Object.freeze({
 
       PayTrackerDashboardService.setText(
         'dashboard-primary-goal-forecast',
-        'Add a goal and contribution plan to calculate your forecast.'
+        'Add a goal and contribution plan ' +
+        'to calculate your forecast.'
       );
 
       PayTrackerDashboardService.setText(
@@ -890,9 +1046,12 @@ const PayTrackerDashboardService = Object.freeze({
       );
 
       if (status) {
-        status.textContent = 'Awaiting data';
+        status.textContent =
+          'Awaiting data';
+
         status.className =
-          'status-badge status-badge--neutral';
+          'status-badge ' +
+          'status-badge--neutral';
       }
 
       return;
@@ -919,25 +1078,29 @@ const PayTrackerDashboardService = Object.freeze({
       'dashboard-primary-goal-months',
       months > 0
         ? (
-            months +
-            (
-              months === 1
-                ? ' month'
-                : ' months'
-            )
+          months +
+          (
+            months === 1
+              ? ' month'
+              : ' months'
           )
+        )
         : (
-            PayTrackerDashboardService
-              .toNumber(goal.progress) >= 1
-              ? 'Complete'
-              : 'Not forecast'
-          )
+          PayTrackerDashboardService
+            .toNumber(
+              goal.progress
+            ) >= 1
+            ? 'Complete'
+            : 'Not forecast'
+        )
     );
 
     PayTrackerDashboardService.setText(
       'dashboard-primary-goal-forecast',
       PayTrackerDashboardService
-        .buildGoalForecast(goal)
+        .buildGoalForecast(
+          goal
+        )
     );
 
     if (status) {
@@ -950,26 +1113,34 @@ const PayTrackerDashboardService = Object.freeze({
         goal.targetStatus ||
         (
           PayTrackerDashboardService
-            .toNumber(goal.progress) >= 1
+            .toNumber(
+              goal.progress
+            ) >= 1
             ? 'Complete'
             : 'In progress'
         );
 
-      status.className =
-        'status-badge ' +
-        (
-          normalizedStatus.indexOf(
-            'complete'
-          ) !== -1
-            ? 'status-badge--success'
-            : (
-                normalizedStatus.indexOf(
-                  'overdue'
-                ) !== -1
-                  ? 'status-badge--danger'
-                  : 'status-badge--warning'
-              )
-        );
+      if (
+        normalizedStatus.indexOf(
+          'complete'
+        ) !== -1
+      ) {
+        status.className =
+          'status-badge ' +
+          'status-badge--success';
+      } else if (
+        normalizedStatus.indexOf(
+          'overdue'
+        ) !== -1
+      ) {
+        status.className =
+          'status-badge ' +
+          'status-badge--danger';
+      } else {
+        status.className =
+          'status-badge ' +
+          'status-badge--warning';
+      }
     }
   },
 
@@ -979,64 +1150,65 @@ const PayTrackerDashboardService = Object.freeze({
    * @param {Object} goal Life Goal.
    * @return {string} Forecast.
    */
-  /**
- * Builds the Life Goal forecast text.
- *
- * @param {Object} goal Life Goal.
- * @return {string} Forecast.
- */
-buildGoalForecast: function(goal) {
-  const current =
-    PayTrackerDashboardService.toNumber(
-      goal.current
-    );
+  buildGoalForecast: function(goal) {
+    const current =
+      PayTrackerDashboardService.toNumber(
+        goal.current
+      );
 
-  const target =
-    PayTrackerDashboardService.toNumber(
-      goal.target
-    );
+    const target =
+      PayTrackerDashboardService.toNumber(
+        goal.target
+      );
 
-  const months =
-    PayTrackerDashboardService.toNumber(
-      goal.monthsRemaining
-    );
+    const months =
+      PayTrackerDashboardService.toNumber(
+        goal.monthsRemaining
+      );
 
-  if (target > 0 && current >= target) {
+    if (
+      target > 0 &&
+      current >= target
+    ) {
+      return (
+        'Goal completed with ' +
+        PayTrackerDashboardService
+          .formatMoney(
+            current
+          ) +
+        ' saved.'
+      );
+    }
+
+    if (months > 0) {
+      return (
+        PayTrackerDashboardService
+          .formatMoney(
+            current
+          ) +
+        ' saved so far. Estimated completion in ' +
+        months +
+        (
+          months === 1
+            ? ' month.'
+            : ' months.'
+        )
+      );
+    }
+
     return (
-      'Goal completed with ' +
-      PayTrackerDashboardService.formatMoney(
-        current
-      ) +
-      ' saved.'
+      PayTrackerDashboardService
+        .formatMoney(
+          current
+        ) +
+      ' saved towards a target of ' +
+      PayTrackerDashboardService
+        .formatMoney(
+          target
+        ) +
+      '.'
     );
-  }
-
-  if (months > 0) {
-    return (
-      PayTrackerDashboardService.formatMoney(
-        current
-      ) +
-      ' saved so far. Estimated completion in ' +
-      months +
-      (
-        months === 1
-          ? ' month.'
-          : ' months.'
-      )
-    );
-  }
-
-  return (
-    PayTrackerDashboardService.formatMoney(
-      current
-    ) +
-    ' saved towards a target of ' +
-    PayTrackerDashboardService.formatMoney(
-      target
-    ) +
-    '.'
-  );
-},
+  },
 
   /**
    * Renders recent dashboard activity.
@@ -1049,17 +1221,33 @@ buildGoalForecast: function(goal) {
         'dashboard-activity-list'
       );
 
-    if (!container || !activity.length) {
+    if (!container) {
       return;
     }
 
     container.replaceChildren();
 
+    if (!activity.length) {
+      const empty =
+        document.createElement('div');
+
+      empty.className =
+        'activity-empty';
+
+      empty.textContent =
+        'No recent activity to display.';
+
+      container.appendChild(empty);
+
+      return;
+    }
+
     activity.forEach(function(entry) {
       const item =
         document.createElement('div');
 
-      item.className = 'activity-item';
+      item.className =
+        'activity-item';
 
       const icon =
         document.createElement('div');
@@ -1083,7 +1271,8 @@ buildGoalForecast: function(goal) {
         'activity-item__title';
 
       title.textContent =
-        entry.title || 'Pay Tracker update';
+        entry.title ||
+        'Pay Tracker update';
 
       const meta =
         document.createElement('p');
@@ -1094,9 +1283,15 @@ buildGoalForecast: function(goal) {
       meta.textContent =
         entry.meta || '';
 
-      copy.append(title, meta);
+      copy.append(
+        title,
+        meta
+      );
 
-      item.append(icon, copy);
+      item.append(
+        icon,
+        copy
+      );
 
       if (
         entry.amount !== null &&
@@ -1110,7 +1305,9 @@ buildGoalForecast: function(goal) {
 
         amount.textContent =
           PayTrackerDashboardService
-            .formatMoney(entry.amount);
+            .formatMoney(
+              entry.amount
+            );
 
         item.appendChild(amount);
       }
@@ -1125,9 +1322,25 @@ buildGoalForecast: function(goal) {
    * @param {*} error Error value.
    */
   renderError: function(error) {
-    const message =
-      PayTrackerAppController
-        .getErrorMessage(error);
+    let message =
+      'Dashboard data could not be loaded.';
+
+    if (
+      window.PayTrackerAppController &&
+      typeof window
+        .PayTrackerAppController
+        .getErrorMessage === 'function'
+    ) {
+      message =
+        window.PayTrackerAppController
+          .getErrorMessage(error);
+    } else if (
+      error &&
+      error.message
+    ) {
+      message =
+        String(error.message);
+    }
 
     PayTrackerDashboardService.setText(
       'dashboard-weekly-gross-change',
@@ -1146,6 +1359,9 @@ buildGoalForecast: function(goal) {
    * @param {boolean} loading Loading state.
    */
   setLoadingState: function(loading) {
+    const isLoading =
+      Boolean(loading);
+
     const refreshButton =
       document.getElementById(
         'dashboard-refresh-button'
@@ -1153,11 +1369,11 @@ buildGoalForecast: function(goal) {
 
     if (refreshButton) {
       refreshButton.disabled =
-        Boolean(loading);
+        isLoading;
 
       refreshButton.classList.toggle(
         'is-loading',
-        Boolean(loading)
+        isLoading
       );
     }
 
@@ -1169,12 +1385,12 @@ buildGoalForecast: function(goal) {
     if (dashboard) {
       dashboard.classList.toggle(
         'is-loading',
-        Boolean(loading)
+        isLoading
       );
 
       dashboard.setAttribute(
         'aria-busy',
-        String(Boolean(loading))
+        String(isLoading)
       );
     }
   },
@@ -1191,7 +1407,8 @@ buildGoalForecast: function(goal) {
 
     if (element) {
       element.textContent =
-        value == null
+        value === null ||
+        value === undefined
           ? ''
           : String(value);
     }
@@ -1205,8 +1422,9 @@ buildGoalForecast: function(goal) {
    */
   formatMoney: function(value) {
     const number =
-      PayTrackerDashboardService
-        .toNumber(value);
+      PayTrackerDashboardService.toNumber(
+        value
+      );
 
     return new Intl.NumberFormat(
       'en-GB',
@@ -1234,8 +1452,9 @@ buildGoalForecast: function(goal) {
         maximumFractionDigits: 1
       }
     ).format(
-      PayTrackerDashboardService
-        .toNumber(value)
+      PayTrackerDashboardService.toNumber(
+        value
+      )
     );
   },
 
@@ -1247,15 +1466,22 @@ buildGoalForecast: function(goal) {
    */
   normalizeProgress: function(value) {
     const progress =
-      PayTrackerDashboardService
-        .toNumber(value);
+      PayTrackerDashboardService.toNumber(
+        value
+      );
 
-    if (progress > 1 && progress <= 100) {
-      return progress / 100;
-    }
+    if (
+        progress > 1 &&
+        !(progress > 100)
+        ) {
+        return progress / 100;
+     }
 
     return Math.min(
-      Math.max(progress, 0),
+      Math.max(
+        progress,
+        0
+      ),
       1
     );
   },
@@ -1267,7 +1493,8 @@ buildGoalForecast: function(goal) {
    * @return {number} Number.
    */
   toNumber: function(value) {
-    const number = Number(value);
+    const number =
+      Number(value);
 
     return Number.isFinite(number)
       ? number
@@ -1275,18 +1502,17 @@ buildGoalForecast: function(goal) {
   }
 });
 
+window.PayTrackerDashboardService =
+  PayTrackerDashboardService;
+
 /**
- * Makes the dashboard service visible for diagnostics
- * and starts it whether the document is still loading
- * or has already finished loading.
+ * Starts the dashboard service regardless of whether
+ * the document is still loading or already loaded.
  */
 (function startPayTrackerDashboardService(
   windowObject,
   documentObject
 ) {
-  windowObject.PayTrackerDashboardService =
-    PayTrackerDashboardService;
-
   function startDashboard() {
     windowObject.setTimeout(function() {
       PayTrackerDashboardService
@@ -1302,15 +1528,20 @@ buildGoalForecast: function(goal) {
           );
 
           if (
-            typeof PayTrackerAppController !==
-            'undefined'
+            windowObject.PayTrackerAppController &&
+            typeof windowObject
+              .PayTrackerAppController
+              .showToast === 'function'
           ) {
-            PayTrackerAppController.showToast(
-              PayTrackerAppController
-                .getErrorMessage(error),
-              'error',
-              8000
-            );
+            windowObject
+              .PayTrackerAppController
+              .showToast(
+                windowObject
+                  .PayTrackerAppController
+                  .getErrorMessage(error),
+                'error',
+                8000
+              );
           }
         });
     }, 0);

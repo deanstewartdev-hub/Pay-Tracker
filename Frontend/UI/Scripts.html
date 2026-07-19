@@ -1,13 +1,19 @@
-<script>
-  <?!= includePayTrackerHtml('Frontend/App/AppRoutes'); ?>
-</script>
-
-<script>
-  <?!= includePayTrackerHtml('Frontend/App/AppController'); ?>
-</script>
-
-<script>
-  <?!= includePayTrackerHtml(
-    'Frontend/Services/DashboardService'
-  ); ?>
-</script>
+<!--
+*******************************************************
+ * PAY TRACKER V2.6
+ * Frontend/UI/Scripts.html
+ *
+ * This file is intentionally left empty.
+ *
+ * JavaScript modules are now loaded directly from
+ * Frontend/Index.html in the following order:
+ *
+ * 1. Frontend/App/AppRoutes
+ * 2. Frontend/App/AppController
+ * 3. Frontend/Services/DashboardService
+ *
+ * Keeping this file prevents broken includes in any
+ * future templates while avoiding nested script
+ * evaluation inside Apps Script.
+ *******************************************************
+-->

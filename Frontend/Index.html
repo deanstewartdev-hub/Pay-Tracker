@@ -1,4 +1,5 @@
 <!DOCTYPE html>
+
 <html lang="en">
   <head>
     <base target="_top">
@@ -447,6 +448,22 @@
         <?!= bootstrapJson ?>;
     </script>
 
-    <?!= includePayTrackerHtml('Frontend/UI/Scripts'); ?>
+    <script>
+      <?!= includePayTrackerHtml(
+        'Frontend/App/AppRoutes'
+      ); ?>
+    </script>
+
+    <script>
+      <?!= includePayTrackerHtml(
+        'Frontend/App/AppController'
+      ); ?>
+    </script>
+
+    <script>
+      <?!= includePayTrackerHtml(
+        'Frontend/Services/DashboardService'
+      ); ?>
+    </script>
   </body>
 </html>
