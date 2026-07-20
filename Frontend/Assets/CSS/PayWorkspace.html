@@ -3,12 +3,19 @@
  * Frontend/Assets/CSS/PayWorkspace.html
  *
  * Purpose:
- * - Pay Workspace shell
- * - Week controls
- * - Workspace navigation
- * - Pay summary placeholders
- * - Responsive Pay Workspace layout
+ * - Premium Pay Workspace layout
+ * - Live weekly income dashboard
+ * - Pay summary cards
+ * - Employer contribution bars
+ * - Week navigation
+ * - Workspace tabs
+ * - Loading and interaction states
+ * - Responsive desktop, tablet and mobile design
  *******************************************************/
+
+/* =====================================================
+ * WORKSPACE
+ * ===================================================== */
 
 .pay-workspace {
   display: flex;
@@ -17,38 +24,95 @@
   gap: 20px;
 }
 
+.pay-workspace.is-loading {
+  pointer-events: none;
+}
+
+.pay-workspace.is-loading::after {
+  position: fixed;
+  z-index: 100;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  background: rgba(9, 15, 28, 0.08);
+  content: "";
+  pointer-events: none;
+}
+
+.pay-workspace-message {
+  padding: 12px 15px;
+  border: 1px solid rgba(245, 158, 11, 0.26);
+  border-radius: 12px;
+  background: rgba(245, 158, 11, 0.08);
+  color: #f6bd55;
+  font-size: 11px;
+  font-weight: 650;
+  line-height: 1.5;
+}
+
+.pay-workspace-message[hidden] {
+  display: none !important;
+}
+
+/* =====================================================
+ * HERO
+ * ===================================================== */
+
 .pay-workspace__hero {
   position: relative;
   display: flex;
   min-width: 0;
+  min-height: 170px;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 28px;
+  gap: 32px;
   overflow: hidden;
-  padding: 26px;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-large);
+  padding: 30px;
+  border: 1px solid rgba(83, 114, 171, 0.28);
+  border-radius: 18px;
   background:
     radial-gradient(
-      circle at 88% 20%,
-      rgba(75, 116, 255, 0.15),
-      transparent 32%
+      circle at 91% 22%,
+      rgba(69, 125, 255, 0.25),
+      transparent 30%
+    ),
+    radial-gradient(
+      circle at 78% 115%,
+      rgba(91, 72, 226, 0.15),
+      transparent 36%
     ),
     linear-gradient(
       135deg,
-      rgba(31, 41, 55, 0.96),
-      rgba(17, 24, 39, 0.96)
+      rgba(30, 42, 65, 0.99),
+      rgba(17, 27, 47, 0.99)
     );
-  box-shadow: var(--shadow-medium);
+  box-shadow:
+    0 18px 42px rgba(3, 8, 20, 0.2),
+    inset 0 1px 0 rgba(255, 255, 255, 0.025);
+}
+
+.pay-workspace__hero::before {
+  position: absolute;
+  z-index: 0;
+  top: -90px;
+  right: -30px;
+  width: 320px;
+  height: 320px;
+  border: 1px solid rgba(94, 143, 255, 0.09);
+  border-radius: 50%;
+  content: "";
+  pointer-events: none;
 }
 
 .pay-workspace__hero::after {
   position: absolute;
-  right: -70px;
-  bottom: -100px;
-  width: 240px;
-  height: 240px;
-  border: 1px solid rgba(94, 129, 255, 0.12);
+  z-index: 0;
+  right: 80px;
+  bottom: -175px;
+  width: 300px;
+  height: 300px;
+  border: 1px solid rgba(94, 143, 255, 0.08);
   border-radius: 50%;
   content: "";
   pointer-events: none;
@@ -58,7 +122,29 @@
   position: relative;
   z-index: 1;
   min-width: 0;
-  max-width: 730px;
+  max-width: 760px;
+}
+
+.pay-workspace__hero .page-header__eyebrow {
+  margin-bottom: 8px;
+  color: #60a5fa;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+}
+
+.pay-workspace__hero .page-header__title {
+  margin-bottom: 10px;
+  font-size: clamp(28px, 3vw, 38px);
+  letter-spacing: -0.045em;
+}
+
+.pay-workspace__hero .page-header__description {
+  max-width: 690px;
+  margin: 0;
+  color: #aebbd0;
+  font-size: 13px;
+  line-height: 1.7;
 }
 
 .pay-workspace__hero-actions {
@@ -70,50 +156,92 @@
   gap: 10px;
 }
 
+.pay-workspace__hero-actions .button {
+  min-height: 42px;
+  padding-right: 17px;
+  padding-left: 17px;
+  border-radius: 11px;
+}
+
+.pay-workspace__hero-actions .button--primary {
+  box-shadow:
+    0 9px 24px rgba(55, 125, 255, 0.2),
+    inset 0 1px 0 rgba(255, 255, 255, 0.15);
+}
+
+/* =====================================================
+ * COMMAND BAR AND WEEK SELECTOR
+ * ===================================================== */
+
 .pay-command-bar {
   display: flex;
   min-width: 0;
+  min-height: 76px;
   align-items: center;
   justify-content: space-between;
-  gap: 18px;
-  padding: 14px 16px;
+  gap: 22px;
+  padding: 12px 14px;
   border: 1px solid var(--color-border);
-  border-radius: var(--radius-medium);
-  background: var(--color-surface);
-  box-shadow: var(--shadow-small);
+  border-radius: 15px;
+  background:
+    linear-gradient(
+      140deg,
+      rgba(20, 31, 52, 0.98),
+      rgba(15, 25, 43, 0.98)
+    );
+  box-shadow:
+    var(--shadow-small),
+    inset 0 1px 0 rgba(255, 255, 255, 0.018);
 }
 
 .pay-week-selector {
   display: flex;
   min-width: 0;
   align-items: center;
-  gap: 12px;
+  gap: 14px;
 }
 
 .pay-week-selector__button {
   display: inline-grid;
-  width: 38px;
-  height: 38px;
+  width: 42px;
+  height: 42px;
   flex: 0 0 auto;
   place-items: center;
   padding: 0;
-  border: 1px solid var(--color-border);
-  border-radius: 10px;
-  background: var(--color-surface-soft);
-  color: var(--color-text-muted);
+  border: 1px solid rgba(94, 118, 159, 0.35);
+  border-radius: 11px;
+  background:
+    linear-gradient(
+      145deg,
+      rgba(30, 44, 69, 0.94),
+      rgba(19, 31, 52, 0.94)
+    );
+  color: #8ea0bb;
   cursor: pointer;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.02);
   transition:
     border-color 160ms ease,
     background-color 160ms ease,
     color 160ms ease,
+    box-shadow 160ms ease,
     transform 160ms ease;
 }
 
-.pay-week-selector__button:hover {
-  border-color: rgba(91, 124, 250, 0.55);
-  background: rgba(91, 124, 250, 0.11);
-  color: var(--color-primary);
+.pay-week-selector__button:hover:not(:disabled) {
+  border-color: rgba(91, 132, 255, 0.62);
+  background: rgba(65, 105, 220, 0.13);
+  color: #79a3ff;
+  box-shadow: 0 7px 18px rgba(4, 11, 25, 0.2);
   transform: translateY(-1px);
+}
+
+.pay-week-selector__button:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.pay-week-selector__button:disabled {
+  cursor: not-allowed;
+  opacity: 0.42;
 }
 
 .pay-week-selector__button:focus-visible {
@@ -127,16 +255,16 @@
 }
 
 .pay-week-selector__content {
-  min-width: 190px;
+  min-width: 205px;
   text-align: center;
 }
 
 .pay-week-selector__eyebrow {
-  margin: 0 0 2px;
-  color: var(--color-text-muted);
-  font-size: 9px;
-  font-weight: 750;
-  letter-spacing: 0.09em;
+  margin: 0 0 3px;
+  color: #68a1ff;
+  font-size: 8.5px;
+  font-weight: 800;
+  letter-spacing: 0.115em;
   line-height: 1.2;
   text-transform: uppercase;
 }
@@ -144,15 +272,16 @@
 .pay-week-selector__label {
   margin: 0;
   color: var(--color-heading);
-  font-size: 13px;
-  font-weight: 760;
-  line-height: 1.35;
+  font-size: 14px;
+  font-weight: 800;
+  letter-spacing: -0.015em;
+  line-height: 1.3;
 }
 
 .pay-week-selector__dates {
-  margin: 2px 0 0;
+  margin: 3px 0 0;
   color: var(--color-text-muted);
-  font-size: 10.5px;
+  font-size: 10px;
   line-height: 1.35;
 }
 
@@ -160,72 +289,98 @@
   display: flex;
   flex: 0 0 auto;
   align-items: center;
-  gap: 8px;
+  gap: 7px;
 }
 
+.pay-command-bar__actions .button {
+  min-height: 38px;
+  padding: 8px 14px;
+  border-radius: 10px;
+  font-size: 10.5px;
+}
+
+.pay-command-bar__actions .button:disabled {
+  cursor: default;
+  opacity: 0.42;
+}
+
+/* =====================================================
+ * WORKSPACE TABS
+ * ===================================================== */
+
 .pay-workspace-tabs {
-  display: flex;
+  display: grid;
   min-width: 0;
+  grid-template-columns: repeat(6, minmax(110px, 1fr));
   gap: 6px;
   overflow-x: auto;
   padding: 6px;
   border: 1px solid var(--color-border);
-  border-radius: var(--radius-medium);
-  background: var(--color-surface);
-  box-shadow: var(--shadow-small);
+  border-radius: 15px;
+  background:
+    linear-gradient(
+      145deg,
+      rgba(20, 31, 52, 0.98),
+      rgba(15, 25, 43, 0.98)
+    );
+  box-shadow:
+    var(--shadow-small),
+    inset 0 1px 0 rgba(255, 255, 255, 0.018);
   scrollbar-width: thin;
 }
 
 .pay-workspace-tab {
   position: relative;
   display: inline-flex;
-  min-height: 42px;
-  flex: 1 0 auto;
+  min-height: 44px;
   align-items: center;
   justify-content: center;
   gap: 8px;
-  padding: 9px 14px;
+  padding: 10px 14px;
   border: 0;
   border-radius: 10px;
   background: transparent;
-  color: var(--color-text-muted);
+  color: #8798b3;
   cursor: pointer;
-  font-size: 11px;
-  font-weight: 700;
+  font-size: 10.5px;
+  font-weight: 720;
   line-height: 1.2;
   white-space: nowrap;
   transition:
     background-color 160ms ease,
     color 160ms ease,
+    box-shadow 160ms ease,
     transform 160ms ease;
 }
 
 .pay-workspace-tab:hover {
-  background: var(--color-surface-soft);
-  color: var(--color-heading);
+  background: rgba(95, 128, 190, 0.08);
+  color: #c4d0e2;
 }
 
 .pay-workspace-tab.is-active {
   background:
     linear-gradient(
       135deg,
-      rgba(70, 105, 235, 0.22),
-      rgba(70, 105, 235, 0.1)
+      rgba(68, 111, 226, 0.24),
+      rgba(55, 87, 176, 0.13)
     );
-  color: var(--color-primary);
+  color: #6ca3ff;
   box-shadow:
-    inset 0 0 0 1px rgba(91, 124, 250, 0.24);
+    inset 0 0 0 1px rgba(91, 133, 255, 0.28),
+    0 6px 16px rgba(7, 15, 31, 0.12);
 }
 
 .pay-workspace-tab.is-active::after {
   position: absolute;
-  right: 16px;
+  right: 14px;
   bottom: 3px;
-  left: 16px;
+  left: 14px;
   height: 2px;
   border-radius: 999px;
-  background: var(--color-primary);
+  background: #69a1ff;
   content: "";
+  box-shadow: 0 0 9px rgba(82, 138, 255, 0.34);
 }
 
 .pay-workspace-tab:focus-visible {
@@ -235,16 +390,20 @@
 
 .pay-workspace-tab__icon {
   display: inline-grid;
-  width: 18px;
-  height: 18px;
+  width: 17px;
+  height: 17px;
   flex: 0 0 auto;
   place-items: center;
 }
 
 .pay-workspace-tab__icon svg {
-  width: 17px;
-  height: 17px;
+  width: 16px;
+  height: 16px;
 }
+
+/* =====================================================
+ * PANELS
+ * ===================================================== */
 
 .pay-workspace-panel {
   min-width: 0;
@@ -258,7 +417,7 @@
 @keyframes payWorkspacePanelEnter {
   from {
     opacity: 0;
-    transform: translateY(5px);
+    transform: translateY(6px);
   }
 
   to {
@@ -266,6 +425,10 @@
     transform: translateY(0);
   }
 }
+
+/* =====================================================
+ * SUMMARY CARDS
+ * ===================================================== */
 
 .pay-shell-summary-grid {
   display: grid;
@@ -276,20 +439,43 @@
 
 .pay-shell-summary-card {
   --pay-summary-accent: var(--color-primary);
+  --pay-summary-accent-rgb: 79, 124, 246;
 
   position: relative;
+  display: flex;
   min-width: 0;
+  min-height: 148px;
+  flex-direction: column;
   overflow: hidden;
-  padding: 17px;
+  padding: 18px;
   border: 1px solid var(--color-border);
-  border-radius: var(--radius-medium);
+  border-radius: 15px;
   background:
+    radial-gradient(
+      circle at 92% 8%,
+      rgba(var(--pay-summary-accent-rgb), 0.09),
+      transparent 34%
+    ),
     linear-gradient(
       145deg,
-      var(--color-surface),
-      var(--color-surface-soft)
+      rgba(22, 34, 56, 0.99),
+      rgba(17, 28, 47, 0.99)
     );
-  box-shadow: var(--shadow-small);
+  box-shadow:
+    var(--shadow-small),
+    inset 0 1px 0 rgba(255, 255, 255, 0.018);
+  transition:
+    border-color 180ms ease,
+    box-shadow 180ms ease,
+    transform 180ms ease;
+}
+
+.pay-shell-summary-card:hover {
+  border-color: rgba(var(--pay-summary-accent-rgb), 0.38);
+  box-shadow:
+    0 13px 29px rgba(3, 8, 20, 0.18),
+    inset 0 1px 0 rgba(255, 255, 255, 0.022);
+  transform: translateY(-2px);
 }
 
 .pay-shell-summary-card::before {
@@ -300,22 +486,39 @@
   height: 2px;
   background: var(--pay-summary-accent);
   content: "";
+  box-shadow: 0 0 13px rgba(var(--pay-summary-accent-rgb), 0.26);
+}
+
+.pay-shell-summary-card::after {
+  position: absolute;
+  right: -33px;
+  bottom: -42px;
+  width: 105px;
+  height: 105px;
+  border: 1px solid rgba(var(--pay-summary-accent-rgb), 0.07);
+  border-radius: 50%;
+  content: "";
+  pointer-events: none;
 }
 
 .pay-shell-summary-card--gross {
-  --pay-summary-accent: #4e7df2;
+  --pay-summary-accent: #4f83f1;
+  --pay-summary-accent-rgb: 79, 131, 241;
 }
 
 .pay-shell-summary-card--take-home {
-  --pay-summary-accent: #23a76f;
+  --pay-summary-accent: #25b47c;
+  --pay-summary-accent-rgb: 37, 180, 124;
 }
 
 .pay-shell-summary-card--hours {
-  --pay-summary-accent: #8a65e8;
+  --pay-summary-accent: #8c69e9;
+  --pay-summary-accent-rgb: 140, 105, 233;
 }
 
 .pay-shell-summary-card--shifts {
-  --pay-summary-accent: #dc8c20;
+  --pay-summary-accent: #dc9229;
+  --pay-summary-accent-rgb: 220, 146, 41;
 }
 
 .pay-shell-summary-card__header {
@@ -330,66 +533,82 @@
   margin: 0;
   color: var(--color-heading);
   font-size: 11px;
-  font-weight: 740;
+  font-weight: 760;
   line-height: 1.3;
 }
 
 .pay-shell-summary-card__period {
   margin: 3px 0 0;
   color: var(--color-text-muted);
-  font-size: 9.5px;
-  line-height: 1.3;
+  font-size: 9px;
+  line-height: 1.35;
 }
 
 .pay-shell-summary-card__icon {
   display: inline-grid;
-  width: 31px;
-  height: 31px;
+  width: 32px;
+  height: 32px;
   flex: 0 0 auto;
   place-items: center;
-  border: 1px solid
-    color-mix(
-      in srgb,
-      var(--pay-summary-accent) 26%,
-      transparent
-    );
+  border: 1px solid rgba(var(--pay-summary-accent-rgb), 0.3);
   border-radius: 9px;
-  background:
-    color-mix(
-      in srgb,
-      var(--pay-summary-accent) 12%,
-      transparent
-    );
+  background: rgba(var(--pay-summary-accent-rgb), 0.11);
   color: var(--pay-summary-accent);
   font-size: 12px;
   font-weight: 800;
+  box-shadow: 0 7px 19px rgba(var(--pay-summary-accent-rgb), 0.08);
 }
 
 .pay-shell-summary-card__value {
-  margin: 17px 0 0;
+  margin: auto 0 0;
+  padding-top: 17px;
   color: var(--color-heading);
-  font-size: clamp(23px, 2.2vw, 31px);
-  font-weight: 800;
-  letter-spacing: -0.035em;
+  font-size: clamp(25px, 2.5vw, 33px);
+  font-weight: 820;
+  letter-spacing: -0.045em;
   line-height: 1;
 }
 
 .pay-shell-summary-card__meta {
+  min-height: 14px;
   margin: 9px 0 0;
   color: var(--color-text-muted);
-  font-size: 9.5px;
+  font-size: 9px;
   line-height: 1.4;
 }
+
+/* =====================================================
+ * MAIN CONTENT GRID
+ * ===================================================== */
 
 .pay-shell-content-grid {
   display: grid;
   min-width: 0;
-  grid-template-columns: minmax(0, 1.55fr) minmax(280px, 0.8fr);
+  grid-template-columns:
+    minmax(0, 1.55fr)
+    minmax(290px, 0.78fr);
   gap: 16px;
 }
 
 .pay-shell-card {
   min-width: 0;
+  overflow: hidden;
+}
+
+.pay-shell-card.card {
+  border-radius: 15px;
+  box-shadow:
+    var(--shadow-small),
+    inset 0 1px 0 rgba(255, 255, 255, 0.016);
+}
+
+.pay-shell-card .card__header {
+  min-height: 71px;
+  padding: 17px 18px;
+}
+
+.pay-shell-card .card__body {
+  padding: 18px;
 }
 
 .pay-shell-card--primary {
@@ -401,14 +620,344 @@
   min-height: 24px;
   align-items: center;
   padding: 4px 9px;
-  border: 1px solid rgba(91, 124, 250, 0.28);
+  border: 1px solid rgba(91, 124, 250, 0.3);
   border-radius: 999px;
-  background: rgba(91, 124, 250, 0.1);
-  color: var(--color-primary);
+  background: rgba(91, 124, 250, 0.11);
+  color: #6da0ff;
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+
+/* =====================================================
+ * INCOME BREAKDOWN
+ * ===================================================== */
+
+.pay-income-breakdown {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 22px;
+}
+
+.pay-income-breakdown__total {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 16px;
+  border: 1px solid rgba(90, 119, 169, 0.22);
+  border-radius: 13px;
+  background:
+    radial-gradient(
+      circle at 93% 12%,
+      rgba(75, 127, 246, 0.1),
+      transparent 40%
+    ),
+    rgba(20, 33, 55, 0.78);
+}
+
+.pay-income-breakdown__eyebrow {
+  margin: 0 0 6px;
+  color: var(--color-text-muted);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.pay-income-breakdown__total-value {
+  margin: 0;
+  color: var(--color-heading);
+  font-size: 26px;
+  font-weight: 820;
+  letter-spacing: -0.04em;
+  line-height: 1;
+}
+
+.pay-income-breakdown__badge {
+  display: inline-flex;
+  min-height: 27px;
+  align-items: center;
+  padding: 5px 10px;
+  border: 1px solid rgba(86, 131, 236, 0.26);
+  border-radius: 999px;
+  background: rgba(66, 107, 205, 0.11);
+  color: #78a5ff;
   font-size: 8.5px;
   font-weight: 760;
-  letter-spacing: 0.06em;
+  white-space: nowrap;
+}
+
+.pay-income-breakdown__rows {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 19px;
+}
+
+.pay-income-row {
+  --pay-income-accent: #4f83f1;
+  --pay-income-accent-rgb: 79, 131, 241;
+
+  position: relative;
+  min-width: 0;
+  padding-right: 48px;
+}
+
+.pay-income-row__header {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  margin-bottom: 8px;
+}
+
+.pay-income-row__name {
+  overflow: hidden;
+  color: #dce5f2;
+  font-size: 10.5px;
+  font-weight: 730;
+  line-height: 1.3;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pay-income-row__value {
+  flex: 0 0 auto;
+  color: var(--color-heading);
+  font-size: 10.5px;
+  font-weight: 780;
+}
+
+.pay-income-row__track {
+  position: relative;
+  height: 7px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(95, 117, 151, 0.2);
+  box-shadow: inset 0 1px 2px rgba(2, 7, 17, 0.3);
+}
+
+.pay-income-row__bar {
+  display: block;
+  width: 0;
+  height: 100%;
+  border-radius: inherit;
+  background:
+    linear-gradient(
+      90deg,
+      var(--pay-income-accent),
+      rgba(var(--pay-income-accent-rgb), 0.72)
+    );
+  box-shadow: 0 0 12px rgba(var(--pay-income-accent-rgb), 0.25);
+  transition: width 650ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.pay-income-row__bar--nhs {
+  --pay-income-accent: #4f83f1;
+  --pay-income-accent-rgb: 79, 131, 241;
+}
+
+.pay-income-row__bar--relief {
+  --pay-income-accent: #24b47d;
+  --pay-income-accent-rgb: 36, 180, 125;
+}
+
+.pay-income-row__bar--security {
+  --pay-income-accent: #8b63e7;
+  --pay-income-accent-rgb: 139, 99, 231;
+}
+
+.pay-income-row__bar--logging {
+  --pay-income-accent: #e49a26;
+  --pay-income-accent-rgb: 228, 154, 38;
+}
+
+.pay-income-row__percent {
+  position: absolute;
+  right: 0;
+  bottom: -3px;
+  display: inline-flex;
+  min-width: 37px;
+  min-height: 21px;
+  align-items: center;
+  justify-content: center;
+  margin: 0;
+  padding: 3px 7px;
+  border: 1px solid rgba(92, 128, 197, 0.22);
+  border-radius: 999px;
+  background: rgba(40, 63, 103, 0.22);
+  color: #93a9c8;
+  font-size: 8px;
+  font-weight: 780;
+}
+
+/* =====================================================
+ * EMPLOYER BREAKDOWN
+ * ===================================================== */
+
+.pay-employer-shell-list {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+}
+
+.pay-employer-shell-item {
+  --employer-accent: #4f83f1;
+  --employer-accent-rgb: 79, 131, 241;
+
+  position: relative;
+  display: grid;
+  min-width: 0;
+  min-height: 67px;
+  grid-template-columns: 4px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 0;
+  border-bottom: 1px solid rgba(93, 116, 151, 0.2);
+  transition:
+    background-color 160ms ease,
+    transform 160ms ease;
+}
+
+.pay-employer-shell-item:last-child {
+  border-bottom: 0;
+}
+
+.pay-employer-shell-item:hover {
+  background: rgba(var(--employer-accent-rgb), 0.035);
+  transform: translateX(2px);
+}
+
+.pay-employer-shell-item__marker {
+  width: 4px;
+  height: 32px;
+  border-radius: 999px;
+  background: var(--employer-accent);
+  box-shadow: 0 0 11px rgba(var(--employer-accent-rgb), 0.22);
+}
+
+.pay-employer-shell-item--nhs {
+  --employer-accent: #4f83f1;
+  --employer-accent-rgb: 79, 131, 241;
+}
+
+.pay-employer-shell-item--relief {
+  --employer-accent: #24b47d;
+  --employer-accent-rgb: 36, 180, 125;
+}
+
+.pay-employer-shell-item--security {
+  --employer-accent: #8b63e7;
+  --employer-accent-rgb: 139, 99, 231;
+}
+
+.pay-employer-shell-item--logging {
+  --employer-accent: #e49a26;
+  --employer-accent-rgb: 228, 154, 38;
+}
+
+.pay-employer-shell-item__copy {
+  min-width: 0;
+}
+
+.pay-employer-shell-item__name {
+  overflow: hidden;
+  margin: 0;
+  color: var(--color-heading);
+  font-size: 10.5px;
+  font-weight: 750;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pay-employer-shell-item__meta {
+  overflow: hidden;
+  margin: 4px 0 0;
+  color: var(--color-text-muted);
+  font-size: 8.5px;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pay-employer-shell-item__value {
+  margin: 0;
+  color: var(--color-heading);
+  font-size: 11px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+/* =====================================================
+ * WEEK TIMELINE PLACEHOLDER
+ * ===================================================== */
+
+.pay-week-shell {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.pay-week-shell__day {
+  display: flex;
+  min-width: 0;
+  min-height: 65px;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  border: 1px solid rgba(95, 118, 154, 0.22);
+  border-radius: 10px;
+  background:
+    linear-gradient(
+      145deg,
+      rgba(27, 40, 63, 0.72),
+      rgba(18, 29, 49, 0.72)
+    );
+  transition:
+    border-color 160ms ease,
+    background-color 160ms ease,
+    transform 160ms ease;
+}
+
+.pay-week-shell__day:hover {
+  border-color: rgba(91, 130, 214, 0.36);
+  background: rgba(59, 89, 150, 0.08);
+  transform: translateY(-1px);
+}
+
+.pay-week-shell__day span {
+  color: var(--color-text-muted);
+  font-size: 7.5px;
+  font-weight: 780;
+  letter-spacing: 0.045em;
   text-transform: uppercase;
+}
+
+.pay-week-shell__day strong {
+  color: #71839f;
+  font-size: 12px;
+  font-weight: 750;
+}
+
+/* =====================================================
+ * PLACEHOLDER PANELS
+ * ===================================================== */
+
+.pay-workspace-panel > .card {
+  min-height: 330px;
+  border-radius: 15px;
+}
+
+.pay-workspace-panel > .card .empty-state {
+  min-height: 330px;
 }
 
 .pay-shell-placeholder {
@@ -473,144 +1022,73 @@
   line-height: 1.6;
 }
 
-.pay-employer-shell-list {
-  display: flex;
-  flex-direction: column;
+/* =====================================================
+ * LOADING STATES
+ * ===================================================== */
+
+#pay-refresh-button.is-loading .button__icon {
+  animation: payWorkspaceSpin 750ms linear infinite;
 }
 
-.pay-employer-shell-item {
-  --pay-employer-accent: var(--color-primary);
-
-  display: flex;
-  min-width: 0;
-  min-height: 58px;
-  align-items: center;
-  gap: 11px;
-  padding: 9px 1px;
-  border-bottom: 1px solid var(--color-border);
+.pay-workspace.is-loading .pay-shell-summary-card__value,
+.pay-workspace.is-loading .pay-employer-shell-item__value,
+.pay-workspace.is-loading .pay-income-breakdown__total-value {
+  opacity: 0.58;
 }
 
-.pay-employer-shell-item:last-child {
-  border-bottom: 0;
+.pay-workspace.is-loading .pay-income-row__bar {
+  animation: payWorkspaceBarPulse 1s ease-in-out infinite alternate;
 }
 
-.pay-employer-shell-item--nhs {
-  --pay-employer-accent: #4e7df2;
+@keyframes payWorkspaceSpin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
-.pay-employer-shell-item--relief {
-  --pay-employer-accent: #23a76f;
+@keyframes payWorkspaceBarPulse {
+  from {
+    opacity: 0.45;
+  }
+
+  to {
+    opacity: 1;
+  }
 }
 
-.pay-employer-shell-item--security {
-  --pay-employer-accent: #8a65e8;
+/* =====================================================
+ * RESPONSIVE — LARGE DESKTOP
+ * ===================================================== */
+
+@media (min-width: 1500px) {
+  .pay-workspace {
+    gap: 22px;
+  }
+
+  .pay-workspace__hero {
+    min-height: 178px;
+    padding: 32px;
+  }
+
+  .pay-shell-summary-card {
+    min-height: 154px;
+    padding: 19px;
+  }
+
+  .pay-shell-content-grid {
+    grid-template-columns:
+      minmax(0, 1.7fr)
+      minmax(320px, 0.8fr);
+  }
+
+  .pay-shell-card .card__body {
+    padding: 20px;
+  }
 }
 
-.pay-employer-shell-item--logging {
-  --pay-employer-accent: #dc8c20;
-}
-
-.pay-employer-shell-item__marker {
-  width: 5px;
-  height: 31px;
-  flex: 0 0 auto;
-  border-radius: 999px;
-  background: var(--pay-employer-accent);
-}
-
-.pay-employer-shell-item__copy {
-  min-width: 0;
-  flex: 1 1 auto;
-}
-
-.pay-employer-shell-item__name {
-  margin: 0;
-  overflow: hidden;
-  color: var(--color-heading);
-  font-size: 11px;
-  font-weight: 720;
-  line-height: 1.3;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.pay-employer-shell-item__meta {
-  margin: 3px 0 0;
-  overflow: hidden;
-  color: var(--color-text-muted);
-  font-size: 9.5px;
-  line-height: 1.3;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.pay-employer-shell-item__value {
-  flex: 0 0 auto;
-  margin: 0;
-  color: var(--color-heading);
-  font-size: 12px;
-  font-weight: 760;
-}
-
-.pay-week-shell {
-  display: grid;
-  grid-template-columns: repeat(7, minmax(44px, 1fr));
-  gap: 7px;
-}
-
-.pay-week-shell__day {
-  display: flex;
-  min-height: 66px;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  padding: 8px 4px;
-  border: 1px solid var(--color-border);
-  border-radius: 9px;
-  background: var(--color-surface-soft);
-}
-
-.pay-week-shell__day span {
-  color: var(--color-text-muted);
-  font-size: 8.5px;
-  font-weight: 720;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-}
-
-.pay-week-shell__day strong {
-  color: var(--color-heading);
-  font-size: 14px;
-  font-weight: 760;
-}
-
-.toast {
-  min-width: 250px;
-  max-width: min(360px, calc(100vw - 32px));
-  padding: 12px 14px;
-  border: 1px solid var(--color-border);
-  border-radius: 11px;
-  background: var(--color-surface-elevated, var(--color-surface));
-  color: var(--color-text);
-  box-shadow: var(--shadow-medium);
-  font-size: 10.5px;
-  line-height: 1.45;
-  opacity: 0;
-  transform: translateY(8px);
-  transition:
-    opacity 180ms ease,
-    transform 180ms ease;
-}
-
-.toast.is-visible {
-  opacity: 1;
-  transform: translateY(0);
-}
-
-.toast--info {
-  border-color: rgba(91, 124, 250, 0.3);
-}
+/* =====================================================
+ * RESPONSIVE — STANDARD DESKTOP / LAPTOP
+ * ===================================================== */
 
 @media (max-width: 1180px) {
   .pay-shell-summary-grid {
@@ -618,17 +1096,30 @@
   }
 
   .pay-shell-content-grid {
-    grid-template-columns: minmax(0, 1fr);
+    grid-template-columns:
+      minmax(0, 1.35fr)
+      minmax(270px, 0.8fr);
   }
 
-  .pay-shell-card--primary {
-    grid-row: auto;
+  .pay-workspace-tabs {
+    display: flex;
+  }
+
+  .pay-workspace-tab {
+    min-width: 125px;
+    flex: 1 0 auto;
   }
 }
 
-@media (max-width: 860px) {
+/* =====================================================
+ * RESPONSIVE — TABLET
+ * ===================================================== */
+
+@media (max-width: 900px) {
   .pay-workspace__hero {
+    min-height: auto;
     flex-direction: column;
+    padding: 25px;
   }
 
   .pay-workspace__hero-actions {
@@ -637,6 +1128,7 @@
 
   .pay-workspace__hero-actions .button {
     flex: 1 1 0;
+    justify-content: center;
   }
 
   .pay-command-bar {
@@ -651,15 +1143,43 @@
   .pay-command-bar__actions {
     justify-content: center;
   }
+
+  .pay-shell-content-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .pay-shell-card--primary {
+    grid-row: auto;
+  }
+
+  .pay-week-shell {
+    grid-template-columns: repeat(7, minmax(56px, 1fr));
+    overflow-x: auto;
+    padding-bottom: 4px;
+  }
 }
+
+/* =====================================================
+ * RESPONSIVE — MOBILE
+ * ===================================================== */
 
 @media (max-width: 620px) {
   .pay-workspace {
-    gap: 14px;
+    gap: 15px;
   }
 
   .pay-workspace__hero {
-    padding: 20px;
+    gap: 22px;
+    padding: 21px;
+    border-radius: 15px;
+  }
+
+  .pay-workspace__hero .page-header__title {
+    font-size: 27px;
+  }
+
+  .pay-workspace__hero .page-header__description {
+    font-size: 11.5px;
   }
 
   .pay-workspace__hero-actions {
@@ -667,13 +1187,23 @@
     flex-direction: column;
   }
 
-  .pay-shell-summary-grid {
-    grid-template-columns: minmax(0, 1fr);
+  .pay-workspace__hero-actions .button {
+    width: 100%;
   }
 
-  .pay-command-bar__actions {
-    align-items: stretch;
-    flex-direction: column;
+  .pay-command-bar {
+    padding: 13px;
+  }
+
+  .pay-week-selector {
+    width: 100%;
+    justify-content: space-between;
+    gap: 8px;
+  }
+
+  .pay-week-selector__button {
+    width: 39px;
+    height: 39px;
   }
 
   .pay-week-selector__content {
@@ -681,44 +1211,79 @@
     flex: 1 1 auto;
   }
 
+  .pay-command-bar__actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .pay-command-bar__actions .button {
+    justify-content: center;
+  }
+
+  .pay-workspace-tabs {
+    gap: 5px;
+    border-radius: 13px;
+  }
+
   .pay-workspace-tab {
-    flex: 0 0 auto;
+    min-width: 112px;
   }
 
-  .pay-week-shell {
-    grid-template-columns: repeat(4, minmax(44px, 1fr));
+  .pay-shell-summary-grid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 11px;
   }
 
-  .pay-shell-placeholder {
-    min-height: 250px;
-    padding: 20px 14px;
+  .pay-shell-summary-card {
+    min-height: 137px;
   }
 
-  .pay-shell-placeholder__graphic {
-    gap: 7px;
-    padding-right: 8px;
-    padding-left: 8px;
+  .pay-shell-content-grid {
+    gap: 13px;
   }
 
-  .pay-shell-placeholder__graphic span {
-    width: 17px;
+  .pay-shell-card .card__header {
+    min-height: auto;
+    padding: 15px;
+  }
+
+  .pay-shell-card .card__body {
+    padding: 15px;
+  }
+
+  .pay-income-breakdown__total {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .pay-income-row {
+    padding-right: 43px;
+  }
+
+  .pay-employer-shell-item {
+    grid-template-columns: 4px minmax(0, 1fr);
+  }
+
+  .pay-employer-shell-item__value {
+    grid-column: 2;
+    margin-top: -5px;
+    color: #dbe6f4;
   }
 }
 
-@media (max-width: 420px) {
-  .pay-week-shell {
-    grid-template-columns: repeat(2, minmax(44px, 1fr));
-  }
-}
+/* =====================================================
+ * REDUCED MOTION
+ * ===================================================== */
 
 @media (prefers-reduced-motion: reduce) {
-  .pay-workspace-panel {
-    animation: none;
-  }
-
-  .pay-week-selector__button,
+  .pay-workspace-panel,
+  .pay-shell-summary-card,
   .pay-workspace-tab,
-  .toast {
-    transition: none;
+  .pay-week-selector__button,
+  .pay-income-row__bar,
+  .pay-employer-shell-item,
+  .pay-week-shell__day {
+    animation: none !important;
+    transition: none !important;
   }
 }

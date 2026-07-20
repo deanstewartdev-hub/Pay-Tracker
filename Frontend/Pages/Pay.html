@@ -15,8 +15,9 @@
       </h2>
 
       <p class="page-header__description">
-        View, manage and analyse income from NHS, Relief Warden,
-        Night Security and Logging work from one central workspace.
+        Review weekly earnings, employer contributions, estimated
+        deductions and take-home pay across NHS, Relief Warden,
+        Night Security and Logging work.
       </p>
     </div>
 
@@ -56,7 +57,7 @@
         >
           <svg viewBox="0 0 24 24">
             <path
-              d="M7 2h2v2h6V2h2v2h4v18H3V4h4V2Zm12 7H5v11h14V9ZM5 6v1h14V6h-2v1h-2V6H9v1H7V6H5Zm7 5a4 4 0 1 1-3.46 2H7l2.5-2.5L12 13h-1.29A2 2 0 1 0 12 11Z"
+              d="M7 2h2v2h6V2h2v2h4v18H3V4h4V2Zm12 7H5v11h14V9ZM5 6v1h14V6h-2v1h-2V6H9v1H7V6H5Zm2 5h3v3H7v-3Zm4 0h3v3h-3v-3Zm4 0h2v3h-2v-3Zm-8 4h3v3H7v-3Zm4 0h3v3h-3v-3Z"
               fill="currentColor"
             />
           </svg>
@@ -71,7 +72,7 @@
 
   <section
     class="pay-command-bar"
-    aria-label="Pay Workspace controls"
+    aria-label="Pay Workspace week controls"
   >
     <div class="pay-week-selector">
       <button
@@ -79,6 +80,7 @@
         class="pay-week-selector__button"
         type="button"
         aria-label="View previous week"
+        aria-disabled="true"
         disabled
       >
         <svg
@@ -117,6 +119,7 @@
         class="pay-week-selector__button"
         type="button"
         aria-label="View next week"
+        aria-disabled="true"
         disabled
       >
         <svg
@@ -154,6 +157,7 @@
     id="pay-workspace-message"
     class="pay-workspace-message"
     role="status"
+    aria-live="polite"
     hidden
   ></div>
 
@@ -308,7 +312,7 @@
   >
     <section
       class="pay-shell-summary-grid"
-      aria-label="Weekly pay summary"
+      aria-label="Selected-week pay summary"
     >
       <article class="pay-shell-summary-card pay-shell-summary-card--gross">
         <div class="pay-shell-summary-card__header">
@@ -318,11 +322,14 @@
             </p>
 
             <p class="pay-shell-summary-card__period">
-              All employers
+              All income sources
             </p>
           </div>
 
-          <span class="pay-shell-summary-card__icon">
+          <span
+            class="pay-shell-summary-card__icon"
+            aria-hidden="true"
+          >
             £
           </span>
         </div>
@@ -354,7 +361,10 @@
             </p>
           </div>
 
-          <span class="pay-shell-summary-card__icon">
+          <span
+            class="pay-shell-summary-card__icon"
+            aria-hidden="true"
+          >
             ✓
           </span>
         </div>
@@ -386,7 +396,10 @@
             </p>
           </div>
 
-          <span class="pay-shell-summary-card__icon">
+          <span
+            class="pay-shell-summary-card__icon"
+            aria-hidden="true"
+          >
             h
           </span>
         </div>
@@ -418,7 +431,10 @@
             </p>
           </div>
 
-          <span class="pay-shell-summary-card__icon">
+          <span
+            class="pay-shell-summary-card__icon"
+            aria-hidden="true"
+          >
             #
           </span>
         </div>
@@ -434,7 +450,7 @@
           id="pay-shell-shifts-meta"
           class="pay-shell-summary-card__meta"
         >
-          Loading work entries
+          Loading recorded work
         </p>
       </article>
     </section>
@@ -448,7 +464,7 @@
             </h3>
 
             <p class="card__subtitle">
-              Employer contribution to selected-week gross pay
+              Contribution from each employer to total weekly gross
             </p>
           </div>
 
@@ -493,7 +509,10 @@
                   </span>
                 </div>
 
-                <div class="pay-income-row__track">
+                <div
+                  class="pay-income-row__track"
+                  aria-hidden="true"
+                >
                   <span
                     id="pay-income-bar-nhs"
                     class="pay-income-row__bar pay-income-row__bar--nhs"
@@ -523,7 +542,10 @@
                   </span>
                 </div>
 
-                <div class="pay-income-row__track">
+                <div
+                  class="pay-income-row__track"
+                  aria-hidden="true"
+                >
                   <span
                     id="pay-income-bar-relief"
                     class="pay-income-row__bar pay-income-row__bar--relief"
@@ -553,7 +575,10 @@
                   </span>
                 </div>
 
-                <div class="pay-income-row__track">
+                <div
+                  class="pay-income-row__track"
+                  aria-hidden="true"
+                >
                   <span
                     id="pay-income-bar-security"
                     class="pay-income-row__bar pay-income-row__bar--security"
@@ -583,7 +608,10 @@
                   </span>
                 </div>
 
-                <div class="pay-income-row__track">
+                <div
+                  class="pay-income-row__track"
+                  aria-hidden="true"
+                >
                   <span
                     id="pay-income-bar-logging"
                     class="pay-income-row__bar pay-income-row__bar--logging"
@@ -611,7 +639,7 @@
             </h3>
 
             <p class="card__subtitle">
-              Income and work entries by employer
+              Income and recorded work by employer
             </p>
           </div>
         </div>
@@ -619,7 +647,10 @@
         <div class="card__body">
           <div class="pay-employer-shell-list">
             <div class="pay-employer-shell-item pay-employer-shell-item--nhs">
-              <span class="pay-employer-shell-item__marker"></span>
+              <span
+                class="pay-employer-shell-item__marker"
+                aria-hidden="true"
+              ></span>
 
               <div class="pay-employer-shell-item__copy">
                 <p class="pay-employer-shell-item__name">
@@ -643,7 +674,10 @@
             </div>
 
             <div class="pay-employer-shell-item pay-employer-shell-item--relief">
-              <span class="pay-employer-shell-item__marker"></span>
+              <span
+                class="pay-employer-shell-item__marker"
+                aria-hidden="true"
+              ></span>
 
               <div class="pay-employer-shell-item__copy">
                 <p class="pay-employer-shell-item__name">
@@ -667,7 +701,10 @@
             </div>
 
             <div class="pay-employer-shell-item pay-employer-shell-item--security">
-              <span class="pay-employer-shell-item__marker"></span>
+              <span
+                class="pay-employer-shell-item__marker"
+                aria-hidden="true"
+              ></span>
 
               <div class="pay-employer-shell-item__copy">
                 <p class="pay-employer-shell-item__name">
@@ -691,7 +728,10 @@
             </div>
 
             <div class="pay-employer-shell-item pay-employer-shell-item--logging">
-              <span class="pay-employer-shell-item__marker"></span>
+              <span
+                class="pay-employer-shell-item__marker"
+                aria-hidden="true"
+              ></span>
 
               <div class="pay-employer-shell-item__copy">
                 <p class="pay-employer-shell-item__name">
@@ -725,7 +765,7 @@
             </h3>
 
             <p class="card__subtitle">
-              Detailed daily timeline arrives in Feature 4
+              Daily shift timeline arrives in Feature 4
             </p>
           </div>
         </div>
@@ -733,41 +773,76 @@
         <div class="card__body">
           <div
             class="pay-week-shell"
-            aria-label="Weekly timeline"
+            aria-label="Weekly shift timeline placeholder"
           >
             <div class="pay-week-shell__day">
-              <span>Mon</span>
-              <strong>—</strong>
+              <span>
+                Mon
+              </span>
+
+              <strong>
+                —
+              </strong>
             </div>
 
             <div class="pay-week-shell__day">
-              <span>Tue</span>
-              <strong>—</strong>
+              <span>
+                Tue
+              </span>
+
+              <strong>
+                —
+              </strong>
             </div>
 
             <div class="pay-week-shell__day">
-              <span>Wed</span>
-              <strong>—</strong>
+              <span>
+                Wed
+              </span>
+
+              <strong>
+                —
+              </strong>
             </div>
 
             <div class="pay-week-shell__day">
-              <span>Thu</span>
-              <strong>—</strong>
+              <span>
+                Thu
+              </span>
+
+              <strong>
+                —
+              </strong>
             </div>
 
             <div class="pay-week-shell__day">
-              <span>Fri</span>
-              <strong>—</strong>
+              <span>
+                Fri
+              </span>
+
+              <strong>
+                —
+              </strong>
             </div>
 
             <div class="pay-week-shell__day">
-              <span>Sat</span>
-              <strong>—</strong>
+              <span>
+                Sat
+              </span>
+
+              <strong>
+                —
+              </strong>
             </div>
 
             <div class="pay-week-shell__day">
-              <span>Sun</span>
-              <strong>—</strong>
+              <span>
+                Sun
+              </span>
+
+              <strong>
+                —
+              </strong>
             </div>
           </div>
         </div>
@@ -795,8 +870,8 @@
         </h3>
 
         <p class="empty-state__message">
-          Shift records, hours and daily pay will be added during
-          the Shift Table feature.
+          Shift dates, working hours, employer roles and calculated
+          earnings will be connected during the Shift Table feature.
         </p>
       </div>
     </div>
@@ -822,8 +897,8 @@
         </h3>
 
         <p class="empty-state__message">
-          Calendar-based shift and income information will be added
-          during the Weekly Calendar feature.
+          Calendar shifts, employer colours and daily income will be
+          shown here during the Weekly Calendar feature.
         </p>
       </div>
     </div>
@@ -849,8 +924,8 @@
         </h3>
 
         <p class="empty-state__message">
-          Future earnings forecasts will use scheduled shifts and
-          historical income patterns.
+          Future pay forecasts will use upcoming calendar shifts,
+          employer rates and historical earnings patterns.
         </p>
       </div>
     </div>
@@ -876,8 +951,8 @@
         </h3>
 
         <p class="empty-state__message">
-          Predicted earnings and actual payslip figures will be
-          compared here.
+          Predicted earnings, actual payslip income and any difference
+          between them will be compared here.
         </p>
       </div>
     </div>
@@ -903,8 +978,8 @@
         </h3>
 
         <p class="empty-state__message">
-          Employer statistics, overtime, deductions and year-to-date
-          performance will be presented here.
+          Employer statistics, overtime trends, deductions and
+          year-to-date income will be presented here.
         </p>
       </div>
     </div>

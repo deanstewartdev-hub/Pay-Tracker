@@ -329,13 +329,15 @@ const PayTrackerWebPayWorkspaceService = Object.freeze({
           config: config
         });
 
-    const dates =
-      PayTrackerWebPayWorkspaceService
-        .readWeekDates({
-          values: values,
-          startIndex: startIndex,
-          config: config
-        });
+   const dates =
+  PayTrackerWebPayWorkspaceService
+    .readWeekDates({
+      values: values,
+      displayValues: displayValues,
+      startIndex: startIndex,
+      config: config,
+      headerText: headerText
+    });
 
     const gross =
       PayTrackerWebPayWorkspaceService
@@ -646,41 +648,200 @@ const PayTrackerWebPayWorkspaceService = Object.freeze({
     };
   },
 
-  /**
-   * Reads first and last dates from a week.
+   /**
+   * Reads the first and last dates from a PaySheet week.
+   *
+   * The function checks the raw spreadsheet values first,
+   * then checks displayed date text as a fallback.
    *
    * @param {Object} options Read options.
    * @return {Object} Week dates.
    */
   readWeekDates: function(options) {
     const values =
-      options.values;
+      options.values || [];
+
+    const displayValues =
+      options.displayValues || [];
 
     const startIndex =
-      options.startIndex;
+      Number(options.startIndex) || 0;
 
     const config =
-      options.config;
+      options.config || {};
 
-    const firstDateIndex =
-      startIndex +
-      config.dataRowOffset;
+    const dataRowOffset =
+      Number(config.dataRowOffset) || 2;
 
-    const lastDateIndex =
-      firstDateIndex +
-      config.dataRowCount -
-      1;
+    const dataRowCount =
+      Number(config.dataRowCount) || 7;
+
+    const dates = [];
+
+    /**
+     * Adds a valid date to the result.
+     *
+     * @param {*} value Possible date value.
+     */
+    const addDate = function(value) {
+      let date = null;
+
+      if (
+        Object.prototype.toString.call(value) ===
+          '[object Date]' &&
+        !Number.isNaN(value.getTime())
+      ) {
+        date = new Date(value.getTime());
+      } else {
+        const text =
+          String(value || '').trim();
+
+        if (!text) {
+          return;
+        }
+
+        /*
+         * UK numeric date:
+         * 27/07/2026
+         * 27-07-2026
+         */
+        const numericMatch =
+          text.match(
+            /^(\d{1,2})[\/-](\d{1,2})[\/-](\d{2,4})$/
+          );
+
+        if (numericMatch) {
+          let year =
+            Number(numericMatch[3]);
+
+          if (year < 100) {
+            year += 2000;
+          }
+
+          date = new Date(
+            year,
+            Number(numericMatch[2]) - 1,
+            Number(numericMatch[1]),
+            12,
+            0,
+            0,
+            0
+          );
+        } else {
+          const parsed =
+            new Date(text);
+
+          if (!Number.isNaN(parsed.getTime())) {
+            date = parsed;
+          }
+        }
+      }
+
+      if (
+        date &&
+        !Number.isNaN(date.getTime())
+      ) {
+        dates.push(date);
+      }
+    };
+
+    for (
+      let dayIndex = 0;
+      dayIndex < dataRowCount;
+      dayIndex++
+    ) {
+      const rowIndex =
+        startIndex +
+        dataRowOffset +
+        dayIndex;
+
+      if (rowIndex >= values.length) {
+        break;
+      }
+
+      const rawRow =
+        values[rowIndex] || [];
+
+      const displayedRow =
+        displayValues[rowIndex] || [];
+
+      let dateFoundForRow = false;
+
+      /*
+       * Check the first four columns. This preserves the
+       * existing column-A behaviour while safely handling
+       * dates stored beside the day name.
+       */
+      for (
+        let columnIndex = 0;
+        columnIndex < 4;
+        columnIndex++
+      ) {
+        const dateCountBefore =
+          dates.length;
+
+        addDate(
+          rawRow[columnIndex]
+        );
+
+        if (
+          dates.length >
+          dateCountBefore
+        ) {
+          dateFoundForRow = true;
+          break;
+        }
+      }
+
+      if (dateFoundForRow) {
+        continue;
+      }
+
+      /*
+       * Fall back to the displayed text because Sheets may
+       * return a formatted date as text in some layouts.
+       */
+      for (
+        let columnIndex = 0;
+        columnIndex < 4;
+        columnIndex++
+      ) {
+        const dateCountBefore =
+          dates.length;
+
+        addDate(
+          displayedRow[columnIndex]
+        );
+
+        if (
+          dates.length >
+          dateCountBefore
+        ) {
+          break;
+        }
+      }
+    }
+
+    if (dates.length === 0) {
+      return {
+        firstDate: null,
+        lastDate: null
+      };
+    }
+
+    dates.sort(function(firstDate, secondDate) {
+      return (
+        firstDate.getTime() -
+        secondDate.getTime()
+      );
+    });
 
     return {
       firstDate:
-        values[firstDateIndex]
-          ? values[firstDateIndex][0]
-          : null,
+        dates[0],
 
       lastDate:
-        values[lastDateIndex]
-          ? values[lastDateIndex][0]
-          : null
+        dates[dates.length - 1]
     };
   },
 
