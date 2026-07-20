@@ -1,0 +1,1401 @@
+/*******************************************************
+ * PAY TRACKER V2.8
+ * Frontend/Services/PayWorkspaceService.html
+ *
+ * Purpose:
+ * - Request live Pay Workspace data
+ * - Render the selected PaySheet week
+ * - Handle previous, next and latest-week navigation
+ * - Refresh live pay information
+ * - Open the connected spreadsheet
+ * - Manage Pay Workspace tabs
+ *
+ * Included inside a script tag by:
+ * Frontend/Index.html
+ *******************************************************/
+
+const PayTrackerPayWorkspaceService = Object.freeze({
+  EMPLOYER_KEYS: Object.freeze([
+    'nhs',
+    'relief',
+    'security',
+    'logging'
+  ]),
+
+  state: {
+    initialized: false,
+    eventsRegistered: false,
+    loading: false,
+    loaded: false,
+    data: null,
+    selectedWeekNumber: null,
+    activeTab: 'overview'
+  },
+
+  /**
+   * Starts the Pay Workspace service.
+   *
+   * @return {Promise<void>}
+   */
+  initialize: async function() {
+    if (
+      PayTrackerPayWorkspaceService
+        .state
+        .initialized
+    ) {
+      return;
+    }
+
+    PayTrackerPayWorkspaceService
+      .state
+      .initialized = true;
+
+    PayTrackerPayWorkspaceService
+      .registerEvents();
+
+    const currentRoute =
+      window.PayTrackerAppRoutes &&
+      typeof window.PayTrackerAppRoutes
+        .resolveFromLocation === 'function'
+        ? window.PayTrackerAppRoutes
+            .resolveFromLocation()
+        : '';
+
+    if (currentRoute === 'pay') {
+      await PayTrackerPayWorkspaceService
+        .load();
+    }
+  },
+
+  /**
+   * Registers Pay Workspace events once.
+   */
+  registerEvents: function() {
+    if (
+      PayTrackerPayWorkspaceService
+        .state
+        .eventsRegistered
+    ) {
+      return;
+    }
+
+    PayTrackerPayWorkspaceService
+      .state
+      .eventsRegistered = true;
+
+    document.addEventListener(
+      'click',
+      PayTrackerPayWorkspaceService
+        .handleDocumentClick
+    );
+
+    document.addEventListener(
+      'paytracker:routechange',
+      PayTrackerPayWorkspaceService
+        .handleRouteChange
+    );
+  },
+
+  /**
+   * Handles application route changes.
+   *
+   * @param {CustomEvent} event Route event.
+   */
+  handleRouteChange: function(event) {
+    const route =
+      event &&
+      event.detail
+        ? String(event.detail.route || '')
+        : '';
+
+    if (
+      route === 'pay' &&
+      !PayTrackerPayWorkspaceService
+        .state
+        .loaded &&
+      !PayTrackerPayWorkspaceService
+        .state
+        .loading
+    ) {
+      PayTrackerPayWorkspaceService
+        .load();
+    }
+  },
+
+  /**
+   * Handles Pay Workspace click actions.
+   *
+   * @param {MouseEvent} event Click event.
+   */
+  handleDocumentClick: function(event) {
+    const clickedElement =
+      event.target instanceof Element
+        ? event.target
+        : null;
+
+    if (!clickedElement) {
+      return;
+    }
+
+    const tab =
+      clickedElement.closest(
+        '[data-pay-tab]'
+      );
+
+    if (tab) {
+      event.preventDefault();
+
+      PayTrackerPayWorkspaceService
+        .activateTab(
+          tab.dataset.payTab
+        );
+
+      return;
+    }
+
+    const refreshButton =
+      clickedElement.closest(
+        '#pay-refresh-button'
+      );
+
+    if (refreshButton) {
+      event.preventDefault();
+
+      PayTrackerPayWorkspaceService
+        .load({
+          force: true,
+          weekNumber:
+            PayTrackerPayWorkspaceService
+              .state
+              .selectedWeekNumber
+        });
+
+      return;
+    }
+
+    const previousWeekButton =
+      clickedElement.closest(
+        '#pay-previous-week-button'
+      );
+
+    if (previousWeekButton) {
+      event.preventDefault();
+
+      PayTrackerPayWorkspaceService
+        .loadAdjacentWeek('previous');
+
+      return;
+    }
+
+    const nextWeekButton =
+      clickedElement.closest(
+        '#pay-next-week-button'
+      );
+
+    if (nextWeekButton) {
+      event.preventDefault();
+
+      PayTrackerPayWorkspaceService
+        .loadAdjacentWeek('next');
+
+      return;
+    }
+
+    const currentWeekButton =
+      clickedElement.closest(
+        '#pay-current-week-button'
+      );
+
+    if (currentWeekButton) {
+      event.preventDefault();
+
+      PayTrackerPayWorkspaceService
+        .loadLatestWeek();
+
+      return;
+    }
+
+    const openSheetButton =
+      clickedElement.closest(
+        '#pay-open-sheet-button'
+      );
+
+    if (openSheetButton) {
+      event.preventDefault();
+
+      PayTrackerPayWorkspaceService
+        .openPaySheet();
+
+      return;
+    }
+
+    const syncCalendarButton =
+      clickedElement.closest(
+        '#pay-sync-calendar-button'
+      );
+
+    if (syncCalendarButton) {
+      event.preventDefault();
+
+      PayTrackerPayWorkspaceService
+        .showToast(
+          'Calendar synchronisation will be connected during the Calendar feature.',
+          'info'
+        );
+    }
+  },
+
+  /**
+   * Loads Pay Workspace data from Apps Script.
+   *
+   * @param {Object=} options Load options.
+   * @return {Promise<void>}
+   */
+  load: async function(options) {
+    const config = Object.assign(
+      {
+        force: false,
+        weekNumber: null
+      },
+      options || {}
+    );
+
+    if (
+      PayTrackerPayWorkspaceService
+        .state
+        .loading
+    ) {
+      return;
+    }
+
+    if (
+      PayTrackerPayWorkspaceService
+        .state
+        .loaded &&
+      !config.force &&
+      config.weekNumber === null
+    ) {
+      return;
+    }
+
+    PayTrackerPayWorkspaceService
+      .state
+      .loading = true;
+
+    PayTrackerPayWorkspaceService
+      .setLoadingState(true);
+
+    try {
+      if (
+        !window.PayTrackerAppController ||
+        typeof window
+          .PayTrackerAppController
+          .runServerFunction !== 'function'
+      ) {
+        throw new Error(
+          'Pay Tracker application controller is unavailable.'
+        );
+      }
+
+      const requestedWeekNumber =
+        PayTrackerPayWorkspaceService
+          .normalizeWeekNumber(
+            config.weekNumber
+          );
+
+      const response =
+        await window.PayTrackerAppController
+          .runServerFunction(
+            'getPayTrackerWebPayWorkspaceData',
+            requestedWeekNumber
+          );
+
+      if (
+        !response ||
+        response.success !== true
+      ) {
+        throw new Error(
+          response &&
+          response.error
+            ? response.error
+            : 'Pay Workspace data could not be loaded.'
+        );
+      }
+
+      PayTrackerPayWorkspaceService
+        .state
+        .data = response;
+
+      PayTrackerPayWorkspaceService
+        .state
+        .loaded = true;
+
+      PayTrackerPayWorkspaceService
+        .state
+        .selectedWeekNumber =
+          response.selectedWeek
+            ? response
+                .selectedWeek
+                .weekNumber
+            : null;
+
+      PayTrackerPayWorkspaceService
+        .render(response);
+
+      if (
+        window.PayTrackerAppController &&
+        typeof window
+          .PayTrackerAppController
+          .updateFooterStatus === 'function'
+      ) {
+        window.PayTrackerAppController
+          .updateFooterStatus({
+            generatedAt:
+              response.generatedAt
+          });
+      }
+
+      if (config.force) {
+        PayTrackerPayWorkspaceService
+          .showToast(
+            'Pay Workspace refreshed.',
+            'success'
+          );
+      }
+    } catch (error) {
+      console.error(
+        'Pay Workspace data request failed.',
+        error
+      );
+
+      PayTrackerPayWorkspaceService
+        .renderError(error);
+
+      PayTrackerPayWorkspaceService
+        .showToast(
+          PayTrackerPayWorkspaceService
+            .getErrorMessage(error),
+          'error'
+        );
+    } finally {
+      PayTrackerPayWorkspaceService
+        .state
+        .loading = false;
+
+      PayTrackerPayWorkspaceService
+        .setLoadingState(false);
+    }
+  },
+
+  /**
+   * Loads a neighbouring week.
+   *
+   * @param {'previous'|'next'} direction Direction.
+   */
+  loadAdjacentWeek: function(direction) {
+    const data =
+      PayTrackerPayWorkspaceService
+        .state
+        .data || {};
+
+    const navigation =
+      data.navigation || {};
+
+    const requestedWeekNumber =
+      direction === 'previous'
+        ? navigation.previousWeekNumber
+        : navigation.nextWeekNumber;
+
+    if (
+      !requestedWeekNumber ||
+      (
+        direction === 'previous' &&
+        navigation.hasPrevious !== true
+      ) ||
+      (
+        direction === 'next' &&
+        navigation.hasNext !== true
+      )
+    ) {
+      return;
+    }
+
+    PayTrackerPayWorkspaceService
+      .load({
+        force: true,
+        weekNumber:
+          requestedWeekNumber
+      });
+  },
+
+  /**
+   * Loads the latest populated week.
+   */
+  loadLatestWeek: function() {
+    const data =
+      PayTrackerPayWorkspaceService
+        .state
+        .data || {};
+
+    const navigation =
+      data.navigation || {};
+
+    const latestWeekNumber =
+      PayTrackerPayWorkspaceService
+        .normalizeWeekNumber(
+          navigation.latestWeekNumber
+        );
+
+    PayTrackerPayWorkspaceService
+      .load({
+        force: true,
+        weekNumber:
+          latestWeekNumber
+      });
+  },
+
+  /**
+   * Opens the connected Pay Tracker spreadsheet.
+   */
+  openPaySheet: function() {
+    const data =
+      PayTrackerPayWorkspaceService
+        .state
+        .data || {};
+
+    const spreadsheetUrl =
+      String(
+        data.spreadsheetUrl || ''
+      ).trim();
+
+    if (!spreadsheetUrl) {
+      PayTrackerPayWorkspaceService
+        .showToast(
+          'The PaySheet link is unavailable.',
+          'error'
+        );
+
+      return;
+    }
+
+    window.open(
+      spreadsheetUrl,
+      '_blank',
+      'noopener,noreferrer'
+    );
+  },
+
+  /**
+   * Renders all Pay Workspace sections.
+   *
+   * @param {Object} data Pay Workspace response.
+   */
+  render: function(data) {
+    const response =
+      data || {};
+
+    const selectedWeek =
+      response.selectedWeek || null;
+
+    if (!selectedWeek) {
+      PayTrackerPayWorkspaceService
+        .renderEmpty(
+          response.message ||
+          'No PaySheet weeks were found.'
+        );
+
+      PayTrackerPayWorkspaceService
+        .renderNavigation(
+          response.navigation || {}
+        );
+
+      return;
+    }
+
+    PayTrackerPayWorkspaceService
+      .renderWeekHeader(
+        selectedWeek
+      );
+
+    PayTrackerPayWorkspaceService
+      .renderSummary(
+        selectedWeek
+      );
+
+    PayTrackerPayWorkspaceService
+      .renderEmployers(
+        selectedWeek
+      );
+
+    PayTrackerPayWorkspaceService
+      .renderIncomeChart(
+        selectedWeek
+      );
+
+    PayTrackerPayWorkspaceService
+      .renderNavigation(
+        response.navigation || {}
+      );
+
+    PayTrackerPayWorkspaceService
+      .renderWorkspaceMessage(
+        selectedWeek.message ||
+        response.message ||
+        ''
+      );
+  },
+
+  /**
+   * Renders selected-week heading.
+   *
+   * @param {Object} week Selected week.
+   */
+  renderWeekHeader: function(week) {
+    const weekNumber =
+      PayTrackerPayWorkspaceService
+        .toNumber(
+          week.weekNumber
+        );
+
+    PayTrackerPayWorkspaceService
+      .setText(
+        'pay-selected-week-label',
+        weekNumber > 0
+          ? 'Week ' + weekNumber
+          : 'Selected week'
+      );
+
+    PayTrackerPayWorkspaceService
+      .setText(
+        'pay-selected-week-dates',
+        PayTrackerPayWorkspaceService
+          .formatWeekDates(
+            week.weekStart,
+            week.weekEnd
+          )
+      );
+  },
+
+  /**
+   * Renders Pay Workspace KPI cards.
+   *
+   * @param {Object} week Selected week.
+   */
+  renderSummary: function(week) {
+    PayTrackerPayWorkspaceService
+      .setText(
+        'pay-shell-weekly-gross',
+        PayTrackerPayWorkspaceService
+          .formatMoney(
+            week.gross
+          )
+      );
+
+    PayTrackerPayWorkspaceService
+      .setText(
+        'pay-shell-take-home',
+        PayTrackerPayWorkspaceService
+          .formatMoney(
+            week.takeHome
+          )
+      );
+
+    PayTrackerPayWorkspaceService
+      .setText(
+        'pay-shell-hours-worked',
+        week.totalHours === null ||
+        typeof week.totalHours ===
+          'undefined'
+          ? '—'
+          : PayTrackerPayWorkspaceService
+              .formatHours(
+                week.totalHours
+              )
+      );
+
+    const totalShifts =
+      PayTrackerPayWorkspaceService
+        .toNumber(
+          week.totalShifts
+        );
+
+    PayTrackerPayWorkspaceService
+      .setText(
+        'pay-shell-shift-count',
+        String(totalShifts)
+      );
+
+    PayTrackerPayWorkspaceService
+      .setText(
+        'pay-shell-gross-meta',
+        week.hasData
+          ? (
+            PayTrackerPayWorkspaceService
+              .formatMoney(
+                week.taxableGross
+              ) +
+            ' taxable gross'
+          )
+          : 'No income recorded'
+      );
+
+    PayTrackerPayWorkspaceService
+      .setText(
+        'pay-shell-take-home-meta',
+        week.hasData
+          ? (
+            PayTrackerPayWorkspaceService
+              .formatMoney(
+                week.estimatedDeductions
+              ) +
+            ' estimated deductions'
+          )
+          : 'Deduction estimate unavailable'
+      );
+
+    PayTrackerPayWorkspaceService
+      .setText(
+        'pay-shell-hours-meta',
+        week.totalHours === null ||
+        typeof week.totalHours ===
+          'undefined'
+          ? 'Hours connect during Shift Table'
+          : 'Calculated from recorded shifts'
+      );
+
+    PayTrackerPayWorkspaceService
+      .setText(
+        'pay-shell-shifts-meta',
+        totalShifts === 1
+          ? '1 recorded work entry'
+          : (
+            totalShifts +
+            ' recorded work entries'
+          )
+      );
+  },
+
+  /**
+   * Renders employer totals and shift counts.
+   *
+   * @param {Object} week Selected week.
+   */
+  renderEmployers: function(week) {
+    const employers =
+      week.employers || {};
+
+    PayTrackerPayWorkspaceService
+      .EMPLOYER_KEYS
+      .forEach(function(key) {
+        const employer =
+          employers[key] || {
+            shifts: 0,
+            total: 0
+          };
+
+        const shiftCount =
+          PayTrackerPayWorkspaceService
+            .toNumber(
+              employer.shifts
+            );
+
+        PayTrackerPayWorkspaceService
+          .setText(
+            'pay-employer-' +
+              key +
+              '-value',
+            PayTrackerPayWorkspaceService
+              .formatMoney(
+                employer.total
+              )
+          );
+
+        PayTrackerPayWorkspaceService
+          .setText(
+            'pay-employer-' +
+              key +
+              '-meta',
+            shiftCount > 0
+              ? (
+                shiftCount +
+                (
+                  shiftCount === 1
+                    ? ' shift recorded'
+                    : ' shifts recorded'
+                )
+              )
+              : (
+                key === 'logging'
+                  ? 'No cash work recorded'
+                  : 'No shifts recorded'
+              )
+          );
+      });
+  },
+
+  /**
+   * Renders employer contribution bars.
+   *
+   * @param {Object} week Selected week.
+   */
+  renderIncomeChart: function(week) {
+    const employers =
+      week.employers || {};
+
+    const gross =
+      Math.max(
+        PayTrackerPayWorkspaceService
+          .toNumber(
+            week.gross
+          ),
+        0
+      );
+
+    PayTrackerPayWorkspaceService
+      .EMPLOYER_KEYS
+      .forEach(function(key) {
+        const employer =
+          employers[key] || {
+            total: 0
+          };
+
+        const employerTotal =
+          Math.max(
+            PayTrackerPayWorkspaceService
+              .toNumber(
+                employer.total
+              ),
+            0
+          );
+
+        const percentage =
+          gross > 0
+            ? Math.min(
+              Math.max(
+                employerTotal /
+                gross *
+                100,
+                0
+              ),
+              100
+            )
+            : 0;
+
+        const bar =
+          document.getElementById(
+            'pay-income-bar-' + key
+          );
+
+        if (bar) {
+          bar.style.width =
+            percentage.toFixed(1) +
+            '%';
+        }
+
+        PayTrackerPayWorkspaceService
+          .setText(
+            'pay-income-percent-' +
+              key,
+            Math.round(percentage) +
+              '%'
+          );
+
+        PayTrackerPayWorkspaceService
+          .setText(
+            'pay-income-value-' +
+              key,
+            PayTrackerPayWorkspaceService
+              .formatMoney(
+                employerTotal
+              )
+          );
+      });
+
+    PayTrackerPayWorkspaceService
+      .setText(
+        'pay-income-total-gross',
+        PayTrackerPayWorkspaceService
+          .formatMoney(
+            gross
+          )
+      );
+  },
+
+  /**
+   * Renders week navigation controls.
+   *
+   * @param {Object} navigation Navigation state.
+   */
+  renderNavigation: function(navigation) {
+    const previousButton =
+      document.getElementById(
+        'pay-previous-week-button'
+      );
+
+    const nextButton =
+      document.getElementById(
+        'pay-next-week-button'
+      );
+
+    const currentButton =
+      document.getElementById(
+        'pay-current-week-button'
+      );
+
+    if (previousButton) {
+      previousButton.disabled =
+        navigation.hasPrevious !== true;
+
+      previousButton.setAttribute(
+        'aria-disabled',
+        navigation.hasPrevious === true
+          ? 'false'
+          : 'true'
+      );
+    }
+
+    if (nextButton) {
+      nextButton.disabled =
+        navigation.hasNext !== true;
+
+      nextButton.setAttribute(
+        'aria-disabled',
+        navigation.hasNext === true
+          ? 'false'
+          : 'true'
+      );
+    }
+
+    if (currentButton) {
+      const selectedWeekNumber =
+        PayTrackerPayWorkspaceService
+          .state
+          .selectedWeekNumber;
+
+      const latestWeekNumber =
+        PayTrackerPayWorkspaceService
+          .normalizeWeekNumber(
+            navigation.latestWeekNumber
+          );
+
+      currentButton.disabled =
+        Boolean(
+          selectedWeekNumber &&
+          latestWeekNumber &&
+          selectedWeekNumber ===
+            latestWeekNumber
+        );
+    }
+  },
+
+  /**
+   * Renders an empty Pay Workspace state.
+   *
+   * @param {string} message Empty message.
+   */
+  renderEmpty: function(message) {
+    PayTrackerPayWorkspaceService
+      .setText(
+        'pay-selected-week-label',
+        'No pay weeks found'
+      );
+
+    PayTrackerPayWorkspaceService
+      .setText(
+        'pay-selected-week-dates',
+        String(
+          message ||
+          'Waiting for PaySheet data'
+        )
+      );
+
+    PayTrackerPayWorkspaceService
+      .setText(
+        'pay-shell-weekly-gross',
+        '£—'
+      );
+
+    PayTrackerPayWorkspaceService
+      .setText(
+        'pay-shell-take-home',
+        '£—'
+      );
+
+    PayTrackerPayWorkspaceService
+      .setText(
+        'pay-shell-hours-worked',
+        '—'
+      );
+
+    PayTrackerPayWorkspaceService
+      .setText(
+        'pay-shell-shift-count',
+        '0'
+      );
+
+    PayTrackerPayWorkspaceService
+      .EMPLOYER_KEYS
+      .forEach(function(key) {
+        PayTrackerPayWorkspaceService
+          .setText(
+            'pay-employer-' +
+              key +
+              '-value',
+            '£—'
+          );
+
+        PayTrackerPayWorkspaceService
+          .setText(
+            'pay-employer-' +
+              key +
+              '-meta',
+            'No data available'
+          );
+
+        PayTrackerPayWorkspaceService
+          .setText(
+            'pay-income-value-' +
+              key,
+            '£—'
+          );
+
+        PayTrackerPayWorkspaceService
+          .setText(
+            'pay-income-percent-' +
+              key,
+            '0%'
+          );
+
+        const bar =
+          document.getElementById(
+            'pay-income-bar-' + key
+          );
+
+        if (bar) {
+          bar.style.width = '0%';
+        }
+      });
+
+    PayTrackerPayWorkspaceService
+      .setText(
+        'pay-income-total-gross',
+        '£—'
+      );
+
+    PayTrackerPayWorkspaceService
+      .renderWorkspaceMessage(
+        message
+      );
+  },
+
+  /**
+   * Renders an error state.
+   *
+   * @param {*} error Error.
+   */
+  renderError: function(error) {
+    const message =
+      PayTrackerPayWorkspaceService
+        .getErrorMessage(error);
+
+    PayTrackerPayWorkspaceService
+      .renderEmpty(message);
+
+    PayTrackerPayWorkspaceService
+      .setText(
+        'pay-selected-week-label',
+        'Pay data unavailable'
+      );
+  },
+
+  /**
+   * Renders the workspace status message.
+   *
+   * @param {string} message Message.
+   */
+  renderWorkspaceMessage: function(message) {
+    const element =
+      document.getElementById(
+        'pay-workspace-message'
+      );
+
+    if (!element) {
+      return;
+    }
+
+    const normalizedMessage =
+      String(message || '').trim();
+
+    element.textContent =
+      normalizedMessage;
+
+    element.hidden =
+      normalizedMessage === '';
+  },
+
+  /**
+   * Activates one Pay Workspace tab.
+   *
+   * @param {string} tabId Tab ID.
+   */
+  activateTab: function(tabId) {
+    const normalizedTabId =
+      String(tabId || '')
+        .trim()
+        .toLowerCase();
+
+    if (!normalizedTabId) {
+      return;
+    }
+
+    const tabs =
+      document.querySelectorAll(
+        '[data-pay-tab]'
+      );
+
+    const panels =
+      document.querySelectorAll(
+        '[data-pay-panel]'
+      );
+
+    let tabExists = false;
+
+    tabs.forEach(function(tab) {
+      const isActive =
+        tab.dataset.payTab ===
+        normalizedTabId;
+
+      if (isActive) {
+        tabExists = true;
+      }
+
+      tab.classList.toggle(
+        'is-active',
+        isActive
+      );
+
+      tab.setAttribute(
+        'aria-selected',
+        isActive
+          ? 'true'
+          : 'false'
+      );
+    });
+
+    if (!tabExists) {
+      return;
+    }
+
+    panels.forEach(function(panel) {
+      const isActive =
+        panel.dataset.payPanel ===
+        normalizedTabId;
+
+      panel.hidden = !isActive;
+    });
+
+    PayTrackerPayWorkspaceService
+      .state
+      .activeTab =
+        normalizedTabId;
+  },
+
+  /**
+   * Sets Pay Workspace loading state.
+   *
+   * @param {boolean} loading Loading state.
+   */
+  setLoadingState: function(loading) {
+    const workspace =
+      document.querySelector(
+        '[data-pay-workspace]'
+      );
+
+    const refreshButton =
+      document.getElementById(
+        'pay-refresh-button'
+      );
+
+    const previousButton =
+      document.getElementById(
+        'pay-previous-week-button'
+      );
+
+    const nextButton =
+      document.getElementById(
+        'pay-next-week-button'
+      );
+
+    const currentButton =
+      document.getElementById(
+        'pay-current-week-button'
+      );
+
+    if (workspace) {
+      workspace.classList.toggle(
+        'is-loading',
+        Boolean(loading)
+      );
+
+      workspace.setAttribute(
+        'aria-busy',
+        loading
+          ? 'true'
+          : 'false'
+      );
+    }
+
+    [
+      refreshButton,
+      previousButton,
+      nextButton,
+      currentButton
+    ]
+      .filter(Boolean)
+      .forEach(function(button) {
+        button.disabled =
+          Boolean(loading);
+      });
+
+    if (refreshButton) {
+      refreshButton.classList.toggle(
+        'is-loading',
+        Boolean(loading)
+      );
+    }
+  },
+
+  /**
+   * Sets element text safely.
+   *
+   * @param {string} elementId Element ID.
+   * @param {*} value Text value.
+   */
+  setText: function(elementId, value) {
+    const element =
+      document.getElementById(
+        elementId
+      );
+
+    if (!element) {
+      return;
+    }
+
+    element.textContent =
+      value === null ||
+      typeof value === 'undefined'
+        ? ''
+        : String(value);
+  },
+
+  /**
+   * Displays an application toast.
+   *
+   * @param {string} message Message.
+   * @param {string=} type Toast type.
+   */
+  showToast: function(message, type) {
+    if (
+      window.PayTrackerAppController &&
+      typeof window
+        .PayTrackerAppController
+        .showToast === 'function'
+    ) {
+      window.PayTrackerAppController
+        .showToast(
+          message,
+          type || 'info'
+        );
+
+      return;
+    }
+
+    console.log(message);
+  },
+
+  /**
+   * Formats currency.
+   *
+   * @param {*} value Value.
+   * @return {string} Currency text.
+   */
+  formatMoney: function(value) {
+    const amount =
+      PayTrackerPayWorkspaceService
+        .toNumber(value);
+
+    return new Intl.NumberFormat(
+      'en-GB',
+      {
+        style: 'currency',
+        currency: 'GBP',
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2
+      }
+    ).format(amount);
+  },
+
+  /**
+   * Formats hours.
+   *
+   * @param {*} value Hours.
+   * @return {string} Hours text.
+   */
+  formatHours: function(value) {
+    const hours =
+      PayTrackerPayWorkspaceService
+        .toNumber(value);
+
+    return (
+      hours.toFixed(
+        Number.isInteger(hours)
+          ? 0
+          : 1
+      ) +
+      'h'
+    );
+  },
+
+  /**
+   * Formats selected-week dates.
+   *
+   * @param {*} startValue Start date.
+   * @param {*} endValue End date.
+   * @return {string} Date range.
+   */
+  formatWeekDates: function(
+    startValue,
+    endValue
+  ) {
+    const start =
+      PayTrackerPayWorkspaceService
+        .toDate(startValue);
+
+    const end =
+      PayTrackerPayWorkspaceService
+        .toDate(endValue);
+
+    if (!start || !end) {
+      return 'Week dates unavailable';
+    }
+
+    const startText =
+      new Intl.DateTimeFormat(
+        'en-GB',
+        {
+          day: '2-digit',
+          month: 'short'
+        }
+      ).format(start);
+
+    const endText =
+      new Intl.DateTimeFormat(
+        'en-GB',
+        {
+          day: '2-digit',
+          month: 'short',
+          year: 'numeric'
+        }
+      ).format(end);
+
+    return (
+      startText +
+      ' – ' +
+      endText
+    );
+  },
+
+  /**
+   * Converts a value to a Date.
+   *
+   * @param {*} value Value.
+   * @return {Date|null} Date.
+   */
+  toDate: function(value) {
+    if (!value) {
+      return null;
+    }
+
+    const date =
+      value instanceof Date
+        ? value
+        : new Date(value);
+
+    return Number.isNaN(
+      date.getTime()
+    )
+      ? null
+      : date;
+  },
+
+  /**
+   * Converts a value to a finite number.
+   *
+   * @param {*} value Value.
+   * @return {number} Number.
+   */
+  toNumber: function(value) {
+    const number =
+      Number(value);
+
+    return Number.isFinite(number)
+      ? number
+      : 0;
+  },
+
+  /**
+   * Normalizes a week number.
+   *
+   * @param {*} value Value.
+   * @return {number|null} Week number.
+   */
+  normalizeWeekNumber: function(value) {
+    const weekNumber =
+      Number(value);
+
+    return (
+      Number.isFinite(weekNumber) &&
+      weekNumber > 0
+    )
+      ? weekNumber
+      : null;
+  },
+
+  /**
+   * Returns an error message.
+   *
+   * @param {*} error Error.
+   * @return {string} Message.
+   */
+  getErrorMessage: function(error) {
+    if (
+      error &&
+      typeof error.message ===
+        'string' &&
+      error.message.trim() !== ''
+    ) {
+      return error.message.trim();
+    }
+
+    return String(
+      error ||
+      'An unknown Pay Workspace error occurred.'
+    );
+  }
+});
+
+window.PayTrackerPayWorkspaceService =
+  PayTrackerPayWorkspaceService;
+
+if (document.readyState === 'loading') {
+  document.addEventListener(
+    'DOMContentLoaded',
+    function() {
+      PayTrackerPayWorkspaceService
+        .initialize();
+    }
+  );
+} else {
+  PayTrackerPayWorkspaceService
+    .initialize();
+}
