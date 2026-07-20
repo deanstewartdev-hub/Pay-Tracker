@@ -42,7 +42,7 @@
 }
 
 /* =====================================================
-   Summary Cards 2.0
+   KPI Cards v2 — Status badges
    ===================================================== */
 
 .dashboard-summary-grid {
@@ -52,7 +52,7 @@
 .summary-card {
   position: relative;
   display: flex;
-  min-height: 168px;
+  min-height: 150px;
   flex-direction: column;
   overflow: hidden;
   padding: 15px 16px;
@@ -109,12 +109,147 @@
 }
 
 .summary-card__footer {
-  min-height: 16px;
-  margin-top: 8px;
+  display: flex;
+  min-height: 24px;
+  align-items: flex-start;
+  margin-top: 9px;
 }
 
 .summary-card__change {
-  font-size: 10.5px;
+  display: inline-flex;
+  width: fit-content;
+  max-width: 100%;
+  align-items: center;
+  gap: 6px;
+  overflow: hidden;
+  padding: 4px 8px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-round);
+  background:
+    color-mix(
+      in srgb,
+      var(--summary-card-accent) 11%,
+      transparent
+    );
+  color: var(--summary-card-accent);
+  font-size: 9.5px;
+  font-weight: 700;
+  line-height: 1.3;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.summary-card__change::before {
+  width: 5px;
+  height: 5px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: currentColor;
+  content: "";
+}
+
+/* Expected weekly pay */
+
+.summary-card--income .summary-card__change {
+  border-color:
+    color-mix(
+      in srgb,
+      var(--color-primary) 20%,
+      transparent
+    );
+  background:
+    color-mix(
+      in srgb,
+      var(--color-primary) 11%,
+      transparent
+    );
+  color: var(--color-primary);
+}
+
+/* Estimated take-home */
+
+.summary-card--take-home .summary-card__change {
+  border-color:
+    color-mix(
+      in srgb,
+      var(--color-success) 20%,
+      transparent
+    );
+  background:
+    color-mix(
+      in srgb,
+      var(--color-success) 11%,
+      transparent
+    );
+  color: var(--color-success);
+}
+
+/* Disposable income */
+
+.summary-card--disposable .summary-card__change {
+  border-color:
+    color-mix(
+      in srgb,
+      #7c5ce7 22%,
+      transparent
+    );
+  background:
+    color-mix(
+      in srgb,
+      #7c5ce7 12%,
+      transparent
+    );
+  color: #9b82f4;
+}
+
+.summary-card--disposable .summary-card__change.is-positive {
+  border-color:
+    color-mix(
+      in srgb,
+      var(--color-success) 22%,
+      transparent
+    );
+  background:
+    color-mix(
+      in srgb,
+      var(--color-success) 11%,
+      transparent
+    );
+  color: var(--color-success);
+}
+
+.summary-card--disposable .summary-card__change.is-negative {
+  border-color:
+    color-mix(
+      in srgb,
+      var(--color-danger) 22%,
+      transparent
+    );
+  background:
+    color-mix(
+      in srgb,
+      var(--color-danger) 11%,
+      transparent
+    );
+  color: var(--color-danger);
+}
+
+/* Suggested savings */
+
+.summary-card--savings .summary-card__change {
+  border-color:
+    color-mix(
+      in srgb,
+      var(--color-warning) 22%,
+      transparent
+    );
+  background:
+    color-mix(
+      in srgb,
+      var(--color-warning) 11%,
+      transparent
+    );
+  color: var(--color-warning);
 }
 
 /* =====================================================
