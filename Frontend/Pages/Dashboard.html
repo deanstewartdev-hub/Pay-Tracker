@@ -53,7 +53,10 @@
     class="dashboard-summary-grid"
     aria-label="Financial summary"
   >
-    <article class="summary-card summary-card--income">
+    <article
+      id="dashboard-income-summary-card"
+      class="summary-card summary-card--income"
+    >
       <div class="summary-card__header">
         <div>
           <p class="summary-card__label">
@@ -93,9 +96,40 @@
           Waiting for live pay data
         </span>
       </div>
+
+      <div class="summary-card__details">
+        <div class="summary-card__detail-row">
+          <span class="summary-card__detail-label">
+            Selected period
+          </span>
+
+          <strong
+            id="dashboard-summary-week-period"
+            class="summary-card__detail-value"
+          >
+            Current week
+          </strong>
+        </div>
+
+        <div class="summary-card__detail-row">
+          <span class="summary-card__detail-label">
+            Shifts and work entries
+          </span>
+
+          <strong
+            id="dashboard-summary-shift-count"
+            class="summary-card__detail-value"
+          >
+            —
+          </strong>
+        </div>
+      </div>
     </article>
 
-    <article class="summary-card summary-card--take-home">
+    <article
+      id="dashboard-take-home-summary-card"
+      class="summary-card summary-card--take-home"
+    >
       <div class="summary-card__header">
         <div>
           <p class="summary-card__label">
@@ -135,9 +169,52 @@
           Deduction estimate unavailable
         </span>
       </div>
+
+      <div class="summary-card__details">
+        <div
+          class="summary-card__meter"
+          role="progressbar"
+          aria-label="Estimated take-home percentage"
+          aria-valuemin="0"
+          aria-valuemax="100"
+          aria-valuenow="0"
+        >
+          <span
+            id="dashboard-take-home-meter"
+            class="summary-card__meter-value"
+            style="width: 0%"
+          ></span>
+        </div>
+
+        <div class="summary-card__meter-caption">
+          <span>
+            Take-home percentage
+          </span>
+
+          <strong id="dashboard-take-home-percent">
+            0%
+          </strong>
+        </div>
+
+        <div class="summary-card__detail-row">
+          <span class="summary-card__detail-label">
+            Estimated deductions
+          </span>
+
+          <strong
+            id="dashboard-summary-deductions"
+            class="summary-card__detail-value"
+          >
+            £—
+          </strong>
+        </div>
+      </div>
     </article>
 
-    <article class="summary-card summary-card--disposable">
+    <article
+      id="dashboard-disposable-summary-card"
+      class="summary-card summary-card--disposable"
+    >
       <div class="summary-card__header">
         <div>
           <p class="summary-card__label">
@@ -177,9 +254,54 @@
           Spending information not loaded
         </span>
       </div>
+
+      <div class="summary-card__details">
+        <div class="summary-card__detail-row">
+          <span class="summary-card__detail-label">
+            Weekly commitments
+          </span>
+
+          <strong
+            id="dashboard-summary-weekly-bills"
+            class="summary-card__detail-value"
+          >
+            £—
+          </strong>
+        </div>
+
+        <div class="summary-card__detail-row">
+          <span class="summary-card__detail-label">
+            Weekly spending
+          </span>
+
+          <strong
+            id="dashboard-summary-weekly-spending"
+            class="summary-card__detail-value"
+          >
+            £—
+          </strong>
+        </div>
+
+        <div
+          id="dashboard-disposable-badge"
+          class="summary-card__status"
+        >
+          <span class="summary-card__status-dot"></span>
+
+          <span
+            id="dashboard-disposable-badge-text"
+            class="summary-card__status-text"
+          >
+            Awaiting calculation
+          </span>
+        </div>
+      </div>
     </article>
 
-    <article class="summary-card summary-card--savings">
+    <article
+      id="dashboard-savings-summary-card"
+      class="summary-card summary-card--savings"
+    >
       <div class="summary-card__header">
         <div>
           <p class="summary-card__label">
@@ -218,6 +340,46 @@
         >
           Savings rate not loaded
         </span>
+      </div>
+
+      <div class="summary-card__details">
+        <div
+          class="summary-card__meter"
+          role="progressbar"
+          aria-label="Suggested savings percentage"
+          aria-valuemin="0"
+          aria-valuemax="100"
+          aria-valuenow="0"
+        >
+          <span
+            id="dashboard-savings-meter"
+            class="summary-card__meter-value"
+            style="width: 0%"
+          ></span>
+        </div>
+
+        <div class="summary-card__meter-caption">
+          <span>
+            Disposable income allocated
+          </span>
+
+          <strong id="dashboard-summary-savings-percent">
+            0%
+          </strong>
+        </div>
+
+        <div class="summary-card__detail-row">
+          <span class="summary-card__detail-label">
+            Available after savings
+          </span>
+
+          <strong
+            id="dashboard-summary-after-savings"
+            class="summary-card__detail-value"
+          >
+            £—
+          </strong>
+        </div>
       </div>
     </article>
   </section>
@@ -599,15 +761,11 @@
             </div>
 
             <div class="savings-pot-row__footer">
-              <span
-                id="dashboard-mortgage-pot-percent"
-              >
+              <span id="dashboard-mortgage-pot-percent">
                 0% complete
               </span>
 
-              <span
-                id="dashboard-mortgage-pot-contribution"
-              >
+              <span id="dashboard-mortgage-pot-contribution">
                 £— per week
               </span>
             </div>
@@ -658,15 +816,11 @@
             </div>
 
             <div class="savings-pot-row__footer">
-              <span
-                id="dashboard-secondary-pot-percent"
-              >
+              <span id="dashboard-secondary-pot-percent">
                 0% complete
               </span>
 
-              <span
-                id="dashboard-secondary-pot-contribution"
-              >
+              <span id="dashboard-secondary-pot-contribution">
                 £— per week
               </span>
             </div>
@@ -717,15 +871,11 @@
             </div>
 
             <div class="savings-pot-row__footer">
-              <span
-                id="dashboard-third-pot-percent"
-              >
+              <span id="dashboard-third-pot-percent">
                 0% complete
               </span>
 
-              <span
-                id="dashboard-third-pot-contribution"
-              >
+              <span id="dashboard-third-pot-contribution">
                 £— per week
               </span>
             </div>
