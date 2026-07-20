@@ -224,171 +224,287 @@
 
   <section class="dashboard-primary-grid">
     <article class="card dashboard-card dashboard-card--earnings">
-      <div class="card__header">
-        <div>
-          <h3 class="card__title">
-            Weekly earnings breakdown
-          </h3>
+  <div class="card__header">
+    <div>
+      <h3 class="card__title">
+        Weekly earnings breakdown
+      </h3>
 
-          <p class="card__subtitle">
-            Expected income by role for the selected week
-          </p>
-        </div>
+      <p class="card__subtitle">
+        Expected income contribution by role for the selected week
+      </p>
+    </div>
 
-        <button
-          class="card-link-button"
-          type="button"
-          data-dashboard-route="pay"
-        >
-          View pay
-        </button>
-      </div>
+    <button
+      class="card-link-button"
+      type="button"
+      data-dashboard-route="pay"
+    >
+      View pay
+    </button>
+  </div>
 
-      <div class="card__body">
-        <div
-          id="dashboard-earnings-list"
-          class="earnings-list"
-        >
-          <div
-            class="earnings-row"
-            data-dashboard-employer="nhs"
-          >
-            <div class="earnings-row__identity">
-              <span class="earnings-row__marker earnings-row__marker--nhs"></span>
+  <div class="card__body">
+    <div
+      id="dashboard-earnings-list"
+      class="earnings-list"
+    >
+      <div
+        class="earnings-row earnings-row--nhs"
+        data-dashboard-employer="nhs"
+      >
+        <div class="earnings-row__top">
+          <div class="earnings-row__identity">
+            <span
+              class="earnings-row__marker earnings-row__marker--nhs"
+              aria-hidden="true"
+            ></span>
 
-              <div>
-                <p class="earnings-row__name">
-                  NHS
-                </p>
+            <div>
+              <p class="earnings-row__name">
+                NHS
+              </p>
 
-                <p
-                  id="dashboard-nhs-shifts"
-                  class="earnings-row__meta"
-                >
-                  No shifts loaded
-                </p>
-              </div>
+              <p
+                id="dashboard-nhs-shifts"
+                class="earnings-row__meta"
+              >
+                No shifts loaded
+              </p>
             </div>
+          </div>
 
+          <div class="earnings-row__result">
             <div
               id="dashboard-nhs-total"
               class="earnings-row__amount"
             >
               £—
             </div>
+
+            <div
+              id="dashboard-nhs-percent"
+              class="earnings-row__percent"
+            >
+              0%
+            </div>
+          </div>
+        </div>
+
+        <div
+          class="earnings-row__progress"
+          role="progressbar"
+          aria-label="NHS share of weekly earnings"
+          aria-valuemin="0"
+          aria-valuemax="100"
+          aria-valuenow="0"
+        >
+          <span
+            id="dashboard-nhs-progress"
+            class="earnings-row__progress-value"
+            style="width: 0%"
+          ></span>
+        </div>
+      </div>
+
+      <div
+        class="earnings-row earnings-row--relief"
+        data-dashboard-employer="relief"
+      >
+        <div class="earnings-row__top">
+          <div class="earnings-row__identity">
+            <span
+              class="earnings-row__marker earnings-row__marker--relief"
+              aria-hidden="true"
+            ></span>
+
+            <div>
+              <p class="earnings-row__name">
+                Relief Warden
+              </p>
+
+              <p
+                id="dashboard-relief-shifts"
+                class="earnings-row__meta"
+              >
+                No shifts loaded
+              </p>
+            </div>
           </div>
 
-          <div
-            class="earnings-row"
-            data-dashboard-employer="relief"
-          >
-            <div class="earnings-row__identity">
-              <span class="earnings-row__marker earnings-row__marker--relief"></span>
-
-              <div>
-                <p class="earnings-row__name">
-                  Relief Warden
-                </p>
-
-                <p
-                  id="dashboard-relief-shifts"
-                  class="earnings-row__meta"
-                >
-                  No shifts loaded
-                </p>
-              </div>
-            </div>
-
+          <div class="earnings-row__result">
             <div
               id="dashboard-relief-total"
               class="earnings-row__amount"
             >
               £—
             </div>
+
+            <div
+              id="dashboard-relief-percent"
+              class="earnings-row__percent"
+            >
+              0%
+            </div>
+          </div>
+        </div>
+
+        <div
+          class="earnings-row__progress"
+          role="progressbar"
+          aria-label="Relief Warden share of weekly earnings"
+          aria-valuemin="0"
+          aria-valuemax="100"
+          aria-valuenow="0"
+        >
+          <span
+            id="dashboard-relief-progress"
+            class="earnings-row__progress-value"
+            style="width: 0%"
+          ></span>
+        </div>
+      </div>
+
+      <div
+        class="earnings-row earnings-row--security"
+        data-dashboard-employer="security"
+      >
+        <div class="earnings-row__top">
+          <div class="earnings-row__identity">
+            <span
+              class="earnings-row__marker earnings-row__marker--security"
+              aria-hidden="true"
+            ></span>
+
+            <div>
+              <p class="earnings-row__name">
+                Night Security
+              </p>
+
+              <p
+                id="dashboard-security-shifts"
+                class="earnings-row__meta"
+              >
+                No shifts loaded
+              </p>
+            </div>
           </div>
 
-          <div
-            class="earnings-row"
-            data-dashboard-employer="security"
-          >
-            <div class="earnings-row__identity">
-              <span class="earnings-row__marker earnings-row__marker--security"></span>
-
-              <div>
-                <p class="earnings-row__name">
-                  Night Security
-                </p>
-
-                <p
-                  id="dashboard-security-shifts"
-                  class="earnings-row__meta"
-                >
-                  No shifts loaded
-                </p>
-              </div>
-            </div>
-
+          <div class="earnings-row__result">
             <div
               id="dashboard-security-total"
               class="earnings-row__amount"
             >
               £—
             </div>
+
+            <div
+              id="dashboard-security-percent"
+              class="earnings-row__percent"
+            >
+              0%
+            </div>
+          </div>
+        </div>
+
+        <div
+          class="earnings-row__progress"
+          role="progressbar"
+          aria-label="Night Security share of weekly earnings"
+          aria-valuemin="0"
+          aria-valuemax="100"
+          aria-valuenow="0"
+        >
+          <span
+            id="dashboard-security-progress"
+            class="earnings-row__progress-value"
+            style="width: 0%"
+          ></span>
+        </div>
+      </div>
+
+      <div
+        class="earnings-row earnings-row--logging"
+        data-dashboard-employer="logging"
+      >
+        <div class="earnings-row__top">
+          <div class="earnings-row__identity">
+            <span
+              class="earnings-row__marker earnings-row__marker--logging"
+              aria-hidden="true"
+            ></span>
+
+            <div>
+              <p class="earnings-row__name">
+                Logging and cash work
+              </p>
+
+              <p
+                id="dashboard-logging-shifts"
+                class="earnings-row__meta"
+              >
+                No work loaded
+              </p>
+            </div>
           </div>
 
-          <div
-            class="earnings-row"
-            data-dashboard-employer="logging"
-          >
-            <div class="earnings-row__identity">
-              <span class="earnings-row__marker earnings-row__marker--logging"></span>
-
-              <div>
-                <p class="earnings-row__name">
-                  Logging and cash work
-                </p>
-
-                <p
-                  id="dashboard-logging-shifts"
-                  class="earnings-row__meta"
-                >
-                  No work loaded
-                </p>
-              </div>
-            </div>
-
+          <div class="earnings-row__result">
             <div
               id="dashboard-logging-total"
               class="earnings-row__amount"
             >
               £—
             </div>
+
+            <div
+              id="dashboard-logging-percent"
+              class="earnings-row__percent"
+            >
+              0%
+            </div>
           </div>
         </div>
 
-        <div class="earnings-total">
-          <div>
-            <p class="earnings-total__label">
-              Total expected gross
-            </p>
-
-            <p
-              id="dashboard-selected-week"
-              class="earnings-total__period"
-            >
-              Current week
-            </p>
-          </div>
-
-          <div
-            id="dashboard-earnings-total"
-            class="earnings-total__value"
-          >
-            £—
-          </div>
+        <div
+          class="earnings-row__progress"
+          role="progressbar"
+          aria-label="Logging and cash work share of weekly earnings"
+          aria-valuemin="0"
+          aria-valuemax="100"
+          aria-valuenow="0"
+        >
+          <span
+            id="dashboard-logging-progress"
+            class="earnings-row__progress-value"
+            style="width: 0%"
+          ></span>
         </div>
       </div>
-    </article>
+    </div>
+
+    <div class="earnings-total">
+      <div>
+        <p class="earnings-total__label">
+          Total expected gross
+        </p>
+
+        <p
+          id="dashboard-selected-week"
+          class="earnings-total__period"
+        >
+          Current week
+        </p>
+      </div>
+
+      <div
+        id="dashboard-earnings-total"
+        class="earnings-total__value"
+      >
+        £—
+      </div>
+    </div>
+  </div>
+</article>
 
     <article class="card dashboard-card dashboard-card--cash-flow">
       <div class="card__header">

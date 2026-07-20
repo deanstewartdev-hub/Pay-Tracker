@@ -466,73 +466,133 @@ const PayTrackerDashboardService = Object.freeze({
    *
    * @param {Object} pay Pay data.
    */
-  renderEarnings: function(pay) {
-    const employers =
-      pay.employers || {};
+  /**
+ * Renders weekly employer earnings.
+ *
+ * @param {Object} pay Pay data.
+ */
+renderEarnings: function(pay) {
+  const employers =
+    pay.employers || {};
 
-    [
-      'nhs',
-      'relief',
-      'security',
-      'logging'
-    ].forEach(function(key) {
-      const employer =
-        employers[key] || {
-          shifts: 0,
-          total: 0
-        };
+  const gross =
+    Math.max(
+      PayTrackerDashboardService.toNumber(
+        pay.gross
+      ),
+      0
+    );
 
-      const shiftCount =
+  [
+    'nhs',
+    'relief',
+    'security',
+    'logging'
+  ].forEach(function(key) {
+    const employer =
+      employers[key] || {
+        shifts: 0,
+        total: 0
+      };
+
+    const shiftCount =
+      PayTrackerDashboardService.toNumber(
+        employer.shifts
+      );
+
+    const employerTotal =
+      Math.max(
         PayTrackerDashboardService.toNumber(
-          employer.shifts
-        );
-
-      let shiftText = '';
-
-      if (shiftCount > 0) {
-        shiftText =
-          shiftCount +
-          (
-            shiftCount === 1
-              ? ' shift loaded'
-              : ' shifts loaded'
-          );
-      } else {
-        shiftText =
-          key === 'logging'
-            ? 'No work loaded'
-            : 'No shifts loaded';
-      }
-
-      PayTrackerDashboardService.setText(
-        'dashboard-' +
-          key +
-          '-shifts',
-        shiftText
-      );
-
-      PayTrackerDashboardService.setText(
-        'dashboard-' +
-          key +
-          '-total',
-        PayTrackerDashboardService.formatMoney(
           employer.total
-        )
+        ),
+        0
       );
-    });
+
+    const earningsShare =
+      gross > 0
+        ? employerTotal / gross
+        : 0;
+
+    const earningsPercent =
+      Math.round(
+        earningsShare * 100
+      );
+
+    let shiftText = '';
+
+    if (shiftCount > 0) {
+      shiftText =
+        shiftCount +
+        (
+          shiftCount === 1
+            ? ' shift loaded'
+            : ' shifts loaded'
+        );
+    } else {
+      shiftText =
+        key === 'logging'
+          ? 'No work loaded'
+          : 'No shifts loaded';
+    }
 
     PayTrackerDashboardService.setText(
-      'dashboard-selected-week',
-      pay.weekLabel || 'Current week'
+      'dashboard-' +
+        key +
+        '-shifts',
+      shiftText
     );
 
     PayTrackerDashboardService.setText(
-      'dashboard-earnings-total',
+      'dashboard-' +
+        key +
+        '-total',
       PayTrackerDashboardService.formatMoney(
-        pay.gross
+        employerTotal
       )
     );
-  },
+
+    PayTrackerDashboardService.setText(
+      'dashboard-' +
+        key +
+        '-percent',
+      earningsPercent + '%'
+    );
+
+    const progressElement =
+      document.getElementById(
+        'dashboard-' +
+          key +
+          '-progress'
+      );
+
+    if (progressElement) {
+      progressElement.style.width =
+        earningsPercent + '%';
+
+      const progressBar =
+        progressElement.parentElement;
+
+      if (progressBar) {
+        progressBar.setAttribute(
+          'aria-valuenow',
+          String(earningsPercent)
+        );
+      }
+    }
+  });
+
+  PayTrackerDashboardService.setText(
+    'dashboard-selected-week',
+    pay.weekLabel || 'Current week'
+  );
+
+  PayTrackerDashboardService.setText(
+    'dashboard-earnings-total',
+    PayTrackerDashboardService.formatMoney(
+      pay.gross
+    )
+  );
+},
 
   /**
    * Renders cash-flow figures and ring.

@@ -515,50 +515,228 @@
 }
 
 /* =====================================================
-   Weekly earnings breakdown
+   Weekly Earnings v2
    ===================================================== */
 
+.earnings-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
 .earnings-row {
-  min-height: 53px;
-  gap: 14px;
-  padding: 8px 2px;
+  --earnings-row-accent: var(--color-primary);
+
+  display: flex;
+  min-height: 72px;
+  flex-direction: column;
+  gap: 9px;
+  padding: 11px 2px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.earnings-row:last-child {
+  border-bottom: 0;
+}
+
+.earnings-row--nhs {
+  --earnings-row-accent: #3478df;
+}
+
+.earnings-row--relief {
+  --earnings-row-accent: #22a06b;
+}
+
+.earnings-row--security {
+  --earnings-row-accent: #855ee8;
+}
+
+.earnings-row--logging {
+  --earnings-row-accent: #de8b17;
+}
+
+.earnings-row__top {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.earnings-row__identity {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+}
+
+.earnings-row__identity > div {
+  min-width: 0;
 }
 
 .earnings-row__marker {
   width: 8px;
   height: 31px;
+  flex: 0 0 auto;
   margin-right: 11px;
+  border-radius: var(--radius-round);
+  background: var(--earnings-row-accent);
+  box-shadow:
+    0 0 16px
+    color-mix(
+      in srgb,
+      var(--earnings-row-accent) 18%,
+      transparent
+    );
 }
 
 .earnings-row__name {
+  margin: 0;
+  overflow: hidden;
+  color: var(--color-heading);
   font-size: 12.5px;
+  font-weight: 700;
+  line-height: 1.3;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .earnings-row__meta {
-  margin-top: 2px;
+  margin: 2px 0 0;
+  overflow: hidden;
+  color: var(--color-text-muted);
   font-size: 10.5px;
+  line-height: 1.3;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.earnings-row__result {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 10px;
 }
 
 .earnings-row__amount {
+  color: var(--color-heading);
   font-size: 14px;
+  font-weight: 760;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.earnings-row__percent {
+  min-width: 39px;
+  padding: 4px 7px;
+  border: 1px solid
+    color-mix(
+      in srgb,
+      var(--earnings-row-accent) 22%,
+      transparent
+    );
+  border-radius: var(--radius-round);
+  background:
+    color-mix(
+      in srgb,
+      var(--earnings-row-accent) 11%,
+      transparent
+    );
+  color: var(--earnings-row-accent);
+  font-size: 9.5px;
+  font-weight: 750;
+  line-height: 1.2;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.earnings-row__progress {
+  width: 100%;
+  height: 6px;
+  overflow: hidden;
+  border-radius: var(--radius-round);
+  background:
+    color-mix(
+      in srgb,
+      var(--color-border) 76%,
+      transparent
+    );
+}
+
+.earnings-row__progress-value {
+  display: block;
+  width: 0%;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--earnings-row-accent);
+  box-shadow:
+    0 0 12px
+    color-mix(
+      in srgb,
+      var(--earnings-row-accent) 24%,
+      transparent
+    );
+  transition:
+    width 420ms ease;
+}
+
+.earnings-row[data-dashboard-employer="logging"]
+.earnings-row__progress-value[style*="width: 0%"] {
+  box-shadow: none;
 }
 
 .earnings-total {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
   margin-top: 12px;
   padding: 13px 14px;
+  border-radius: 12px;
+  background: var(--color-surface-soft);
 }
 
 .earnings-total__label {
+  margin: 0;
+  color: var(--color-heading);
   font-size: 12px;
+  font-weight: 700;
 }
 
 .earnings-total__period {
-  margin-top: 2px;
+  margin: 2px 0 0;
+  color: var(--color-text-muted);
   font-size: 10px;
+  line-height: 1.3;
 }
 
 .earnings-total__value {
+  flex: 0 0 auto;
+  color: var(--color-heading);
   font-size: 17px;
+  font-weight: 780;
+  white-space: nowrap;
+}
+
+@media (max-width: 560px) {
+  .earnings-row__top {
+    align-items: flex-start;
+  }
+
+  .earnings-row__result {
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 4px;
+  }
+
+  .earnings-row__percent {
+    min-width: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .earnings-row__progress-value {
+    transition: none;
+  }
 }
 
 /* =====================================================
