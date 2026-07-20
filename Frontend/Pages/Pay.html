@@ -1,0 +1,916 @@
+<div
+  id="pay-workspace"
+  class="pay-workspace"
+  data-pay-workspace
+>
+  <section class="pay-workspace__hero">
+    <div class="pay-workspace__hero-copy">
+      <p class="page-header__eyebrow">
+        Income management
+      </p>
+
+      <h2 class="page-header__title">
+        Pay Workspace
+      </h2>
+
+      <p class="page-header__description">
+        View, manage and analyse income from NHS, Relief Warden,
+        Night Security and Logging work from one central workspace.
+      </p>
+    </div>
+
+    <div class="pay-workspace__hero-actions">
+      <button
+        id="pay-refresh-button"
+        class="button button--secondary"
+        type="button"
+        aria-label="Refresh Pay Workspace"
+      >
+        <span
+          class="button__icon"
+          aria-hidden="true"
+        >
+          <svg viewBox="0 0 24 24">
+            <path
+              d="M17.65 6.35A8 8 0 1 0 20 12h-2a6 6 0 1 1-1.76-4.24L13 11h8V3l-3.35 3.35Z"
+              fill="currentColor"
+            />
+          </svg>
+        </span>
+
+        <span>
+          Refresh
+        </span>
+      </button>
+
+      <button
+        id="pay-sync-calendar-button"
+        class="button button--primary"
+        type="button"
+        aria-label="Synchronise shifts from Google Calendar"
+      >
+        <span
+          class="button__icon"
+          aria-hidden="true"
+        >
+          <svg viewBox="0 0 24 24">
+            <path
+              d="M7 2h2v2h6V2h2v2h4v18H3V4h4V2Zm12 7H5v11h14V9ZM5 6v1h14V6h-2v1h-2V6H9v1H7V6H5Zm7 5a4 4 0 1 1-3.46 2H7l2.5-2.5L12 13h-1.29A2 2 0 1 0 12 11Z"
+              fill="currentColor"
+            />
+          </svg>
+        </span>
+
+        <span>
+          Sync calendar
+        </span>
+      </button>
+    </div>
+  </section>
+
+  <section
+    class="pay-command-bar"
+    aria-label="Pay Workspace controls"
+  >
+    <div class="pay-week-selector">
+      <button
+        id="pay-previous-week-button"
+        class="pay-week-selector__button"
+        type="button"
+        aria-label="View previous week"
+      >
+        <svg
+          viewBox="0 0 24 24"
+          aria-hidden="true"
+        >
+          <path
+            d="m15.4 7.4-1.4-1.4-6 6 6 6 1.4-1.4L10.8 12l4.6-4.6Z"
+            fill="currentColor"
+          />
+        </svg>
+      </button>
+
+      <div class="pay-week-selector__content">
+        <p class="pay-week-selector__eyebrow">
+          Selected week
+        </p>
+
+        <p
+          id="pay-selected-week-label"
+          class="pay-week-selector__label"
+        >
+          Latest tracked week
+        </p>
+
+        <p
+          id="pay-selected-week-dates"
+          class="pay-week-selector__dates"
+        >
+          Waiting for PaySheet data
+        </p>
+      </div>
+
+      <button
+        id="pay-next-week-button"
+        class="pay-week-selector__button"
+        type="button"
+        aria-label="View next week"
+      >
+        <svg
+          viewBox="0 0 24 24"
+          aria-hidden="true"
+        >
+          <path
+            d="m8.6 16.6 1.4 1.4 6-6-6-6-1.4 1.4 4.6 4.6-4.6 4.6Z"
+            fill="currentColor"
+          />
+        </svg>
+      </button>
+    </div>
+
+    <div class="pay-command-bar__actions">
+      <button
+        id="pay-current-week-button"
+        class="button button--ghost"
+        type="button"
+      >
+        Current week
+      </button>
+
+      <button
+        id="pay-open-sheet-button"
+        class="button button--ghost"
+        type="button"
+      >
+        Open PaySheet
+      </button>
+    </div>
+  </section>
+
+  <nav
+    class="pay-workspace-tabs"
+    aria-label="Pay Workspace sections"
+  >
+    <button
+      class="pay-workspace-tab is-active"
+      type="button"
+      data-pay-tab="overview"
+      aria-selected="true"
+    >
+      <span class="pay-workspace-tab__icon">
+        <svg
+          viewBox="0 0 24 24"
+          aria-hidden="true"
+        >
+          <path
+            d="M3 3h8v8H3V3Zm2 2v4h4V5H5Zm8-2h8v5h-8V3Zm2 2v1h4V5h-4ZM3 13h8v8H3v-8Zm2 2v4h4v-4H5Zm8-5h8v11h-8V10Zm2 2v7h4v-7h-4Z"
+            fill="currentColor"
+          />
+        </svg>
+      </span>
+
+      <span>
+        Overview
+      </span>
+    </button>
+
+    <button
+      class="pay-workspace-tab"
+      type="button"
+      data-pay-tab="shifts"
+      aria-selected="false"
+    >
+      <span class="pay-workspace-tab__icon">
+        <svg
+          viewBox="0 0 24 24"
+          aria-hidden="true"
+        >
+          <path
+            d="M5 3h14a2 2 0 0 1 2 2v16H3V5a2 2 0 0 1 2-2Zm0 5h14V5H5v3Zm0 2v9h14v-9H5Zm2 2h4v2H7v-2Zm0 4h7v2H7v-2Zm9-4h1v2h-1v-2Z"
+            fill="currentColor"
+          />
+        </svg>
+      </span>
+
+      <span>
+        Shifts
+      </span>
+    </button>
+
+    <button
+      class="pay-workspace-tab"
+      type="button"
+      data-pay-tab="calendar"
+      aria-selected="false"
+    >
+      <span class="pay-workspace-tab__icon">
+        <svg
+          viewBox="0 0 24 24"
+          aria-hidden="true"
+        >
+          <path
+            d="M7 2h2v2h6V2h2v2h4v18H3V4h4V2Zm12 7H5v11h14V9ZM5 6v1h14V6h-2v1h-2V6H9v1H7V6H5Zm2 5h3v3H7v-3Zm4 0h3v3h-3v-3Zm4 0h2v3h-2v-3Zm-8 4h3v3H7v-3Zm4 0h3v3h-3v-3Z"
+            fill="currentColor"
+          />
+        </svg>
+      </span>
+
+      <span>
+        Calendar
+      </span>
+    </button>
+
+    <button
+      class="pay-workspace-tab"
+      type="button"
+      data-pay-tab="forecast"
+      aria-selected="false"
+    >
+      <span class="pay-workspace-tab__icon">
+        <svg
+          viewBox="0 0 24 24"
+          aria-hidden="true"
+        >
+          <path
+            d="M3 3h2v16h16v2H3V3Zm4 11 4-4 3 3 5-6 1.5 1.3-6.4 7.7-3.1-3.1-2.6 2.6L7 14Z"
+            fill="currentColor"
+          />
+        </svg>
+      </span>
+
+      <span>
+        Forecast
+      </span>
+    </button>
+
+    <button
+      class="pay-workspace-tab"
+      type="button"
+      data-pay-tab="payslips"
+      aria-selected="false"
+    >
+      <span class="pay-workspace-tab__icon">
+        <svg
+          viewBox="0 0 24 24"
+          aria-hidden="true"
+        >
+          <path
+            d="M6 2h9l5 5v15H4V4a2 2 0 0 1 2-2Zm8 2H6v16h12V8h-4V4Zm2 1.4V6h.6L16 5.4ZM8 10h8v2H8v-2Zm0 4h8v2H8v-2Zm0 4h5v1H8v-1Z"
+            fill="currentColor"
+          />
+        </svg>
+      </span>
+
+      <span>
+        Payslips
+      </span>
+    </button>
+
+    <button
+      class="pay-workspace-tab"
+      type="button"
+      data-pay-tab="analytics"
+      aria-selected="false"
+    >
+      <span class="pay-workspace-tab__icon">
+        <svg
+          viewBox="0 0 24 24"
+          aria-hidden="true"
+        >
+          <path
+            d="M3 3h2v18H3V3Zm4 11h3v7H7v-7Zm5-6h3v13h-3V8Zm5-5h3v18h-3V3Z"
+            fill="currentColor"
+          />
+        </svg>
+      </span>
+
+      <span>
+        Analytics
+      </span>
+    </button>
+  </nav>
+
+  <section
+    id="pay-workspace-overview-panel"
+    class="pay-workspace-panel"
+    data-pay-panel="overview"
+    aria-label="Pay overview"
+  >
+    <section
+      class="pay-shell-summary-grid"
+      aria-label="Weekly pay summary"
+    >
+      <article class="pay-shell-summary-card pay-shell-summary-card--gross">
+        <div class="pay-shell-summary-card__header">
+          <div>
+            <p class="pay-shell-summary-card__label">
+              Weekly gross
+            </p>
+
+            <p class="pay-shell-summary-card__period">
+              All employers
+            </p>
+          </div>
+
+          <span class="pay-shell-summary-card__icon">
+            £
+          </span>
+        </div>
+
+        <p
+          id="pay-shell-weekly-gross"
+          class="pay-shell-summary-card__value"
+        >
+          £—
+        </p>
+
+        <p class="pay-shell-summary-card__meta">
+          Live calculation added in Pay Dashboard
+        </p>
+      </article>
+
+      <article class="pay-shell-summary-card pay-shell-summary-card--take-home">
+        <div class="pay-shell-summary-card__header">
+          <div>
+            <p class="pay-shell-summary-card__label">
+              Estimated take-home
+            </p>
+
+            <p class="pay-shell-summary-card__period">
+              After deductions
+            </p>
+          </div>
+
+          <span class="pay-shell-summary-card__icon">
+            ✓
+          </span>
+        </div>
+
+        <p
+          id="pay-shell-take-home"
+          class="pay-shell-summary-card__value"
+        >
+          £—
+        </p>
+
+        <p class="pay-shell-summary-card__meta">
+          Taxable and cash income combined
+        </p>
+      </article>
+
+      <article class="pay-shell-summary-card pay-shell-summary-card--hours">
+        <div class="pay-shell-summary-card__header">
+          <div>
+            <p class="pay-shell-summary-card__label">
+              Hours worked
+            </p>
+
+            <p class="pay-shell-summary-card__period">
+              Selected week
+            </p>
+          </div>
+
+          <span class="pay-shell-summary-card__icon">
+            h
+          </span>
+        </div>
+
+        <p
+          id="pay-shell-hours-worked"
+          class="pay-shell-summary-card__value"
+        >
+          —
+        </p>
+
+        <p class="pay-shell-summary-card__meta">
+          Calculated from recorded shifts
+        </p>
+      </article>
+
+      <article class="pay-shell-summary-card pay-shell-summary-card--shifts">
+        <div class="pay-shell-summary-card__header">
+          <div>
+            <p class="pay-shell-summary-card__label">
+              Total shifts
+            </p>
+
+            <p class="pay-shell-summary-card__period">
+              Every employer
+            </p>
+          </div>
+
+          <span class="pay-shell-summary-card__icon">
+            #
+          </span>
+        </div>
+
+        <p
+          id="pay-shell-shift-count"
+          class="pay-shell-summary-card__value"
+        >
+          —
+        </p>
+
+        <p class="pay-shell-summary-card__meta">
+          Missing-shift checks added later
+        </p>
+      </article>
+    </section>
+
+    <section class="pay-shell-content-grid">
+      <article class="card pay-shell-card pay-shell-card--primary">
+        <div class="card__header">
+          <div>
+            <h3 class="card__title">
+              Weekly income
+            </h3>
+
+            <p class="card__subtitle">
+              Employer earnings and contribution to total pay
+            </p>
+          </div>
+
+          <span class="pay-shell-card__status">
+            Phase 2
+          </span>
+        </div>
+
+        <div class="card__body">
+          <div class="pay-shell-placeholder">
+            <div
+              class="pay-shell-placeholder__graphic"
+              aria-hidden="true"
+            >
+              <span style="height: 38%"></span>
+              <span style="height: 62%"></span>
+              <span style="height: 48%"></span>
+              <span style="height: 82%"></span>
+              <span style="height: 68%"></span>
+              <span style="height: 94%"></span>
+              <span style="height: 74%"></span>
+            </div>
+
+            <div class="pay-shell-placeholder__content">
+              <h4 class="pay-shell-placeholder__title">
+                Pay dashboard ready for live data
+              </h4>
+
+              <p class="pay-shell-placeholder__message">
+                The next feature will connect weekly gross pay, estimated
+                deductions, take-home pay and employer totals to this workspace.
+              </p>
+            </div>
+          </div>
+        </div>
+      </article>
+
+      <article class="card pay-shell-card">
+        <div class="card__header">
+          <div>
+            <h3 class="card__title">
+              Employer breakdown
+            </h3>
+
+            <p class="card__subtitle">
+              Income split across every active role
+            </p>
+          </div>
+        </div>
+
+        <div class="card__body">
+          <div class="pay-employer-shell-list">
+            <div class="pay-employer-shell-item pay-employer-shell-item--nhs">
+              <span class="pay-employer-shell-item__marker"></span>
+
+              <div class="pay-employer-shell-item__copy">
+                <p class="pay-employer-shell-item__name">
+                  NHS
+                </p>
+
+                <p class="pay-employer-shell-item__meta">
+                  Awaiting selected week
+                </p>
+              </div>
+
+              <p class="pay-employer-shell-item__value">
+                £—
+              </p>
+            </div>
+
+            <div class="pay-employer-shell-item pay-employer-shell-item--relief">
+              <span class="pay-employer-shell-item__marker"></span>
+
+              <div class="pay-employer-shell-item__copy">
+                <p class="pay-employer-shell-item__name">
+                  Relief Warden
+                </p>
+
+                <p class="pay-employer-shell-item__meta">
+                  Awaiting selected week
+                </p>
+              </div>
+
+              <p class="pay-employer-shell-item__value">
+                £—
+              </p>
+            </div>
+
+            <div class="pay-employer-shell-item pay-employer-shell-item--security">
+              <span class="pay-employer-shell-item__marker"></span>
+
+              <div class="pay-employer-shell-item__copy">
+                <p class="pay-employer-shell-item__name">
+                  Night Security
+                </p>
+
+                <p class="pay-employer-shell-item__meta">
+                  Awaiting selected week
+                </p>
+              </div>
+
+              <p class="pay-employer-shell-item__value">
+                £—
+              </p>
+            </div>
+
+            <div class="pay-employer-shell-item pay-employer-shell-item--logging">
+              <span class="pay-employer-shell-item__marker"></span>
+
+              <div class="pay-employer-shell-item__copy">
+                <p class="pay-employer-shell-item__name">
+                  Logging
+                </p>
+
+                <p class="pay-employer-shell-item__meta">
+                  Awaiting selected week
+                </p>
+              </div>
+
+              <p class="pay-employer-shell-item__value">
+                £—
+              </p>
+            </div>
+          </div>
+        </div>
+      </article>
+
+      <article class="card pay-shell-card">
+        <div class="card__header">
+          <div>
+            <h3 class="card__title">
+              Weekly timeline
+            </h3>
+
+            <p class="card__subtitle">
+              Seven-day shift and income overview
+            </p>
+          </div>
+        </div>
+
+        <div class="card__body">
+          <div
+            class="pay-week-shell"
+            aria-label="Weekly timeline placeholder"
+          >
+            <div class="pay-week-shell__day">
+              <span>Mon</span>
+              <strong>—</strong>
+            </div>
+
+            <div class="pay-week-shell__day">
+              <span>Tue</span>
+              <strong>—</strong>
+            </div>
+
+            <div class="pay-week-shell__day">
+              <span>Wed</span>
+              <strong>—</strong>
+            </div>
+
+            <div class="pay-week-shell__day">
+              <span>Thu</span>
+              <strong>—</strong>
+            </div>
+
+            <div class="pay-week-shell__day">
+              <span>Fri</span>
+              <strong>—</strong>
+            </div>
+
+            <div class="pay-week-shell__day">
+              <span>Sat</span>
+              <strong>—</strong>
+            </div>
+
+            <div class="pay-week-shell__day">
+              <span>Sun</span>
+              <strong>—</strong>
+            </div>
+          </div>
+        </div>
+      </article>
+    </section>
+  </section>
+
+  <section
+    class="pay-workspace-panel"
+    data-pay-panel="shifts"
+    aria-label="Shift table"
+    hidden
+  >
+    <div class="card">
+      <div class="empty-state">
+        <div
+          class="empty-state__icon"
+          aria-hidden="true"
+        >
+          S
+        </div>
+
+        <h3 class="empty-state__title">
+          Shift table workspace
+        </h3>
+
+        <p class="empty-state__message">
+          Shift records from every employer will be displayed here during
+          the Shift Table feature.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <section
+    class="pay-workspace-panel"
+    data-pay-panel="calendar"
+    aria-label="Weekly calendar"
+    hidden
+  >
+    <div class="card">
+      <div class="empty-state">
+        <div
+          class="empty-state__icon"
+          aria-hidden="true"
+        >
+          31
+        </div>
+
+        <h3 class="empty-state__title">
+          Weekly pay calendar
+        </h3>
+
+        <p class="empty-state__message">
+          Calendar-based shift and income information will be added during
+          the Weekly Calendar feature.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <section
+    class="pay-workspace-panel"
+    data-pay-panel="forecast"
+    aria-label="Income forecasting"
+    hidden
+  >
+    <div class="card">
+      <div class="empty-state">
+        <div
+          class="empty-state__icon"
+          aria-hidden="true"
+        >
+          ↗
+        </div>
+
+        <h3 class="empty-state__title">
+          Income forecasting
+        </h3>
+
+        <p class="empty-state__message">
+          Future earnings forecasts will use scheduled shifts and historical
+          income patterns.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <section
+    class="pay-workspace-panel"
+    data-pay-panel="payslips"
+    aria-label="Payslip comparison"
+    hidden
+  >
+    <div class="card">
+      <div class="empty-state">
+        <div
+          class="empty-state__icon"
+          aria-hidden="true"
+        >
+          P
+        </div>
+
+        <h3 class="empty-state__title">
+          Payslip comparison
+        </h3>
+
+        <p class="empty-state__message">
+          Predicted earnings and actual payslip figures will be compared here.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <section
+    class="pay-workspace-panel"
+    data-pay-panel="analytics"
+    aria-label="Pay analytics"
+    hidden
+  >
+    <div class="card">
+      <div class="empty-state">
+        <div
+          class="empty-state__icon"
+          aria-hidden="true"
+        >
+          %
+        </div>
+
+        <h3 class="empty-state__title">
+          Pay analytics
+        </h3>
+
+        <p class="empty-state__message">
+          Employer statistics, overtime, deductions and year-to-date
+          performance will be presented here.
+        </p>
+      </div>
+    </div>
+  </section>
+</div>
+
+<script>
+  (function initialisePayWorkspaceShell(windowObject, documentObject) {
+    'use strict';
+
+    const WORKSPACE_SELECTOR = '[data-pay-workspace]';
+    const TAB_SELECTOR = '[data-pay-tab]';
+    const PANEL_SELECTOR = '[data-pay-panel]';
+
+    /**
+     * Shows a lightweight application toast.
+     *
+     * @param {string} message Toast message.
+     * @param {string=} type Toast type.
+     */
+    function showToast(message, type) {
+      const toastRegion =
+        documentObject.getElementById('toast-region');
+
+      if (!toastRegion) {
+        return;
+      }
+
+      const toast = documentObject.createElement('div');
+
+      toast.className =
+        'toast toast--' + String(type || 'info');
+
+      toast.setAttribute('role', 'status');
+      toast.textContent = String(message || '');
+
+      toastRegion.appendChild(toast);
+
+      windowObject.setTimeout(function() {
+        toast.classList.add('is-visible');
+      }, 10);
+
+      windowObject.setTimeout(function() {
+        toast.classList.remove('is-visible');
+
+        windowObject.setTimeout(function() {
+          if (toast.parentNode) {
+            toast.parentNode.removeChild(toast);
+          }
+        }, 250);
+      }, 3200);
+    }
+
+    /**
+     * Activates one Pay Workspace tab.
+     *
+     * @param {HTMLElement} workspace Workspace root.
+     * @param {string} tabId Tab identifier.
+     */
+    function activateTab(workspace, tabId) {
+      const tabs = workspace.querySelectorAll(TAB_SELECTOR);
+      const panels = workspace.querySelectorAll(PANEL_SELECTOR);
+
+      tabs.forEach(function(tab) {
+        const isActive =
+          tab.getAttribute('data-pay-tab') === tabId;
+
+        tab.classList.toggle('is-active', isActive);
+        tab.setAttribute(
+          'aria-selected',
+          isActive ? 'true' : 'false'
+        );
+      });
+
+      panels.forEach(function(panel) {
+        const isActive =
+          panel.getAttribute('data-pay-panel') === tabId;
+
+        panel.hidden = !isActive;
+      });
+    }
+
+    /**
+     * Binds shell interactions.
+     */
+    function bindWorkspace() {
+      const workspace =
+        documentObject.querySelector(WORKSPACE_SELECTOR);
+
+      if (!workspace || workspace.dataset.shellBound === 'true') {
+        return;
+      }
+
+      workspace.dataset.shellBound = 'true';
+
+      workspace
+        .querySelectorAll(TAB_SELECTOR)
+        .forEach(function(tab) {
+          tab.addEventListener('click', function() {
+            activateTab(
+              workspace,
+              tab.getAttribute('data-pay-tab')
+            );
+          });
+        });
+
+      const refreshButton =
+        documentObject.getElementById('pay-refresh-button');
+
+      if (refreshButton) {
+        refreshButton.addEventListener('click', function() {
+          showToast(
+            'Pay data integration will be connected in the Pay Dashboard feature.',
+            'info'
+          );
+        });
+      }
+
+      const syncButton =
+        documentObject.getElementById('pay-sync-calendar-button');
+
+      if (syncButton) {
+        syncButton.addEventListener('click', function() {
+          showToast(
+            'Calendar synchronisation will be connected without changing the existing sync service.',
+            'info'
+          );
+        });
+      }
+
+      const previousWeekButton =
+        documentObject.getElementById('pay-previous-week-button');
+
+      const nextWeekButton =
+        documentObject.getElementById('pay-next-week-button');
+
+      const currentWeekButton =
+        documentObject.getElementById('pay-current-week-button');
+
+      [previousWeekButton, nextWeekButton, currentWeekButton]
+        .filter(Boolean)
+        .forEach(function(button) {
+          button.addEventListener('click', function() {
+            showToast(
+              'Week navigation will become active when weekly PaySheet data is connected.',
+              'info'
+            );
+          });
+        });
+
+      const openSheetButton =
+        documentObject.getElementById('pay-open-sheet-button');
+
+      if (openSheetButton) {
+        openSheetButton.addEventListener('click', function() {
+          showToast(
+            'The PaySheet link will be supplied by the backend Pay Workspace service.',
+            'info'
+          );
+        });
+      }
+    }
+
+    if (documentObject.readyState === 'loading') {
+      documentObject.addEventListener(
+        'DOMContentLoaded',
+        bindWorkspace
+      );
+    } else {
+      bindWorkspace();
+    }
+  })(window, document);
+</script>

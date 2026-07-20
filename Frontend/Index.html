@@ -13,7 +13,7 @@
 
     <meta
       name="description"
-      content="Pay Tracker v2.6 personal finance workspace."
+      content="Pay Tracker v2.8 personal finance and income management workspace."
     >
 
     <meta
@@ -72,45 +72,12 @@
 
             <section
               id="page-pay"
-              class="page-view placeholder-page"
+              class="page-view"
               data-page="pay"
               aria-hidden="true"
               hidden
             >
-              <div class="page-header">
-                <p class="page-header__eyebrow">
-                  Earnings
-                </p>
-
-                <h2 class="page-header__title">
-                  Pay
-                </h2>
-
-                <p class="page-header__description">
-                  Review your NHS, Relief Warden, Night Security and Logging
-                  earnings across each tracked week.
-                </p>
-              </div>
-
-              <div class="card">
-                <div class="empty-state">
-                  <div
-                    class="empty-state__icon"
-                    aria-hidden="true"
-                  >
-                    £
-                  </div>
-
-                  <h3 class="empty-state__title">
-                    Pay workspace coming next
-                  </h3>
-
-                  <p class="empty-state__message">
-                    Your existing Pay sheet data and weekly earnings services
-                    will be connected here without changing the current backend.
-                  </p>
-                </div>
-              </div>
+              <?!= includePayTrackerHtml('Frontend/Pages/Pay'); ?>
             </section>
 
             <section
