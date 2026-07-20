@@ -2,13 +2,11 @@
  * PAY TRACKER V2.6
  * Frontend/Services/DashboardService.html
  *
- * Phase 1 — Dashboard Polish
- *
- * Features:
+ * Purpose:
  * - Request live dashboard data from Apps Script
- * - Populate all existing dashboard sections
- * - Populate Summary Cards 2.0
- * - Handle loading, refresh, errors and navigation
+ * - Populate dashboard summary cards
+ * - Populate earnings, cash flow, savings and goals
+ * - Handle dashboard refresh and route buttons
  *
  * Included inside a script tag by:
  * Frontend/Index.html
@@ -74,8 +72,12 @@ const PayTrackerDashboardService = Object.freeze({
 
         if (
           route === 'dashboard' &&
-          !PayTrackerDashboardService.state.loaded &&
-          !PayTrackerDashboardService.state.loading
+          !PayTrackerDashboardService
+            .state
+            .loaded &&
+          !PayTrackerDashboardService
+            .state
+            .loading
         ) {
           PayTrackerDashboardService.load();
         }
@@ -116,24 +118,22 @@ const PayTrackerDashboardService = Object.freeze({
         '[data-dashboard-route]'
       );
 
-    if (!routeButton) {
-      return;
-    }
+    if (routeButton) {
+      event.preventDefault();
 
-    event.preventDefault();
+      const route =
+        routeButton.dataset.dashboardRoute;
 
-    const route =
-      routeButton.dataset.dashboardRoute;
-
-    if (
-      window.PayTrackerAppController &&
-      typeof window
-        .PayTrackerAppController
-        .navigate === 'function'
-    ) {
-      window.PayTrackerAppController.navigate(
-        route
-      );
+      if (
+        window.PayTrackerAppController &&
+        typeof window
+          .PayTrackerAppController
+          .navigate === 'function'
+      ) {
+        window.PayTrackerAppController.navigate(
+          route
+        );
+      }
     }
   },
 
@@ -221,23 +221,12 @@ const PayTrackerDashboardService = Object.freeze({
         response
       );
 
-      if (
-        typeof window
-          .PayTrackerAppController
-          .updateFooterStatus === 'function'
-      ) {
-        window.PayTrackerAppController
-          .updateFooterStatus({
-            generatedAt: response.generatedAt
-          });
-      }
+      window.PayTrackerAppController
+        .updateFooterStatus({
+          generatedAt: response.generatedAt
+        });
 
-      if (
-        config.force &&
-        typeof window
-          .PayTrackerAppController
-          .showToast === 'function'
-      ) {
+      if (config.force) {
         window.PayTrackerAppController.showToast(
           'Dashboard refreshed.',
           'success'
@@ -260,7 +249,7 @@ const PayTrackerDashboardService = Object.freeze({
           .showToast === 'function'
       ) {
         window.PayTrackerAppController.showToast(
-          PayTrackerDashboardService
+          window.PayTrackerAppController
             .getErrorMessage(error),
           'error'
         );
@@ -282,7 +271,10 @@ const PayTrackerDashboardService = Object.freeze({
    */
   render: function(data) {
     const dashboardData = data || {};
-    const pay = dashboardData.pay || {};
+
+    const pay =
+      dashboardData.pay || {};
+
     const cashFlow =
       dashboardData.cashFlow || {};
 
@@ -346,112 +338,37 @@ const PayTrackerDashboardService = Object.freeze({
   },
 
   /**
-   * Renders Summary Cards 2.0.
+   * Renders dashboard summary cards.
    *
    * @param {Object} pay Pay figures.
    * @param {Object} cashFlow Cash-flow figures.
    */
   renderSummary: function(pay, cashFlow) {
-    const gross =
-      PayTrackerDashboardService.toNumber(
-        pay.gross
-      );
-
-    const takeHome =
-      PayTrackerDashboardService.toNumber(
-        pay.takeHome
-      );
-
-    const deductions =
-      PayTrackerDashboardService.toNumber(
-        pay.estimatedDeductions
-      );
-
-    const deductionRate =
-      PayTrackerDashboardService.toNumber(
-        pay.deductionRate
-      );
-
-    const disposableIncome =
-      PayTrackerDashboardService.toNumber(
-        cashFlow.disposableIncome
-      );
-
-    const weeklyBills =
-      PayTrackerDashboardService.toNumber(
-        cashFlow.bills
-      );
-
-    const weeklySpending =
-      PayTrackerDashboardService.toNumber(
-        cashFlow.weeklySpending
-      );
-
-    const suggestedSavings =
-      PayTrackerDashboardService.toNumber(
-        cashFlow.suggestedSavings
-      );
-
-    const availableAfterSavings =
-      PayTrackerDashboardService.toNumber(
-        cashFlow.availableAfterSavings
-      );
-
-    const savingsRate =
-      PayTrackerDashboardService.toNumber(
-        cashFlow.savingsRate
-      );
-
-    const takeHomeRate =
-      gross > 0
-        ? takeHome / gross
-        : 0;
-
-    const employers =
-      pay.employers || {};
-
-    const totalEntries =
-      [
-        'nhs',
-        'relief',
-        'security',
-        'logging'
-      ].reduce(function(total, key) {
-        return (
-          total +
-          PayTrackerDashboardService.toNumber(
-            employers[key]
-              ? employers[key].shifts
-              : 0
-          )
-        );
-      }, 0);
-
     PayTrackerDashboardService.setText(
       'dashboard-weekly-gross',
       PayTrackerDashboardService.formatMoney(
-        gross
+        pay.gross
       )
     );
 
     PayTrackerDashboardService.setText(
       'dashboard-weekly-take-home',
       PayTrackerDashboardService.formatMoney(
-        takeHome
+        pay.takeHome
       )
     );
 
     PayTrackerDashboardService.setText(
       'dashboard-disposable-income',
       PayTrackerDashboardService.formatMoney(
-        disposableIncome
+        cashFlow.disposableIncome
       )
     );
 
     PayTrackerDashboardService.setText(
       'dashboard-suggested-savings',
       PayTrackerDashboardService.formatMoney(
-        suggestedSavings
+        cashFlow.suggestedSavings
       )
     );
 
@@ -468,25 +385,10 @@ const PayTrackerDashboardService = Object.freeze({
         )
     );
 
-    PayTrackerDashboardService.setText(
-      'dashboard-summary-week-period',
-      pay.weekLabel ||
-      'Current week'
-    );
-
-    PayTrackerDashboardService.setText(
-      'dashboard-summary-shift-count',
-      totalEntries > 0
-        ? (
-          totalEntries +
-          (
-            totalEntries === 1
-              ? ' entry'
-              : ' entries'
-          )
-        )
-        : 'No entries'
-    );
+    const deductionRate =
+      PayTrackerDashboardService.toNumber(
+        pay.deductionRate
+      );
 
     PayTrackerDashboardService.setText(
       'dashboard-deduction-rate',
@@ -501,24 +403,10 @@ const PayTrackerDashboardService = Object.freeze({
         : 'Deduction estimate unavailable'
     );
 
-    PayTrackerDashboardService.setText(
-      'dashboard-summary-deductions',
-      PayTrackerDashboardService.formatMoney(
-        deductions
-      )
-    );
-
-    PayTrackerDashboardService.setProgress(
-      'dashboard-take-home-meter',
-      takeHomeRate
-    );
-
-    PayTrackerDashboardService.setText(
-      'dashboard-take-home-percent',
-      PayTrackerDashboardService.formatPercent(
-        takeHomeRate
-      )
-    );
+    const disposableIncome =
+      PayTrackerDashboardService.toNumber(
+        cashFlow.disposableIncome
+      );
 
     PayTrackerDashboardService.setText(
       'dashboard-disposable-status',
@@ -531,67 +419,33 @@ const PayTrackerDashboardService = Object.freeze({
         : 'Spending information not loaded'
     );
 
-    PayTrackerDashboardService.setStatusClass(
-      'dashboard-disposable-status',
-      cashFlow.hasData
-        ? (
+    const disposableStatus =
+      document.getElementById(
+        'dashboard-disposable-status'
+      );
+
+    if (disposableStatus) {
+      disposableStatus.classList.toggle(
+        'is-positive',
+        Boolean(
+          cashFlow.hasData &&
           disposableIncome >= 0
-            ? 'positive'
-            : 'negative'
         )
-        : ''
-    );
+      );
 
-    PayTrackerDashboardService.setText(
-      'dashboard-summary-weekly-bills',
-      PayTrackerDashboardService.formatMoney(
-        weeklyBills
-      )
-    );
-
-    PayTrackerDashboardService.setText(
-      'dashboard-summary-weekly-spending',
-      PayTrackerDashboardService.formatMoney(
-        weeklySpending
-      )
-    );
-
-    let disposableBadgeText =
-      'Awaiting calculation';
-
-    let disposableBadgeState = '';
-
-    if (cashFlow.hasData) {
-      if (disposableIncome < 0) {
-        disposableBadgeText =
-          'Weekly budget requires attention';
-
-        disposableBadgeState =
-          'negative';
-      } else if (availableAfterSavings > 0) {
-        disposableBadgeText =
-          'Positive weekly cash position';
-
-        disposableBadgeState =
-          'positive';
-      } else {
-        disposableBadgeText =
-          'Fully allocated this week';
-
-        disposableBadgeState =
-          'warning';
-      }
+      disposableStatus.classList.toggle(
+        'is-negative',
+        Boolean(
+            cashFlow.hasData &&
+            !(disposableIncome >= 0)
+        )
+        );
     }
 
-    PayTrackerDashboardService.setText(
-      'dashboard-disposable-badge-text',
-      disposableBadgeText
-    );
-
-    PayTrackerDashboardService.setStatusClass(
-      'dashboard-disposable-badge',
-      disposableBadgeState
-    );
+    const savingsRate =
+      PayTrackerDashboardService.toNumber(
+        cashFlow.savingsRate
+      );
 
     PayTrackerDashboardService.setText(
       'dashboard-savings-rate',
@@ -604,32 +458,6 @@ const PayTrackerDashboardService = Object.freeze({
           ' of disposable income'
         )
         : 'Savings rate not loaded'
-    );
-
-    PayTrackerDashboardService.setProgress(
-      'dashboard-savings-meter',
-      savingsRate
-    );
-
-    PayTrackerDashboardService.setText(
-      'dashboard-summary-savings-percent',
-      PayTrackerDashboardService.formatPercent(
-        savingsRate
-      )
-    );
-
-    PayTrackerDashboardService.setText(
-      'dashboard-summary-after-savings',
-      PayTrackerDashboardService.formatMoney(
-        availableAfterSavings
-      )
-    );
-
-    PayTrackerDashboardService.setStatusClass(
-      'dashboard-summary-after-savings',
-      availableAfterSavings >= 0
-        ? 'positive'
-        : 'negative'
     );
   },
 
@@ -820,12 +648,13 @@ const PayTrackerDashboardService = Object.freeze({
       remaining;
 
     if (!(total > 0)) {
-      ring.style.background =
-        'conic-gradient(' +
-        'var(--color-border) 0deg 360deg' +
-        ')';
+        ring.style.background =
+            'conic-gradient(' +
+            'var(--color-border) ' +
+            '0deg 360deg' +
+            ')';
 
-      return;
+        return;
     }
 
     const billsEnd =
@@ -970,9 +799,10 @@ const PayTrackerDashboardService = Object.freeze({
       PayTrackerDashboardService.setText(
         slot.prefix + '-goal',
         pot &&
-        PayTrackerDashboardService.toNumber(
-          pot.goal
-        ) > 0
+        PayTrackerDashboardService
+          .toNumber(
+            pot.goal
+          ) > 0
           ? (
             'of ' +
             PayTrackerDashboardService
@@ -1001,10 +831,25 @@ const PayTrackerDashboardService = Object.freeze({
           : '£— per week'
       );
 
-      PayTrackerDashboardService.setProgress(
-        slot.prefix + '-progress',
-        progress
-      );
+      const progressElement =
+        document.getElementById(
+          slot.prefix + '-progress'
+        );
+
+      if (progressElement) {
+        progressElement.style.width =
+          percent + '%';
+
+        const progressBar =
+          progressElement.parentElement;
+
+        if (progressBar) {
+          progressBar.setAttribute(
+            'aria-valuenow',
+            String(percent)
+          );
+        }
+      }
     });
   },
 
@@ -1241,9 +1086,10 @@ const PayTrackerDashboardService = Object.freeze({
           )
         )
         : (
-          PayTrackerDashboardService.toNumber(
-            goal.progress
-          ) >= 1
+          PayTrackerDashboardService
+            .toNumber(
+              goal.progress
+            ) >= 1
             ? 'Complete'
             : 'Not forecast'
         )
@@ -1266,9 +1112,10 @@ const PayTrackerDashboardService = Object.freeze({
       status.textContent =
         goal.targetStatus ||
         (
-          PayTrackerDashboardService.toNumber(
-            goal.progress
-          ) >= 1
+          PayTrackerDashboardService
+            .toNumber(
+              goal.progress
+            ) >= 1
             ? 'Complete'
             : 'In progress'
         );
@@ -1298,7 +1145,7 @@ const PayTrackerDashboardService = Object.freeze({
   },
 
   /**
-   * Builds Life Goal forecast text.
+   * Builds the Life Goal forecast text.
    *
    * @param {Object} goal Life Goal.
    * @return {string} Forecast.
@@ -1475,9 +1322,25 @@ const PayTrackerDashboardService = Object.freeze({
    * @param {*} error Error value.
    */
   renderError: function(error) {
-    const message =
-      PayTrackerDashboardService
-        .getErrorMessage(error);
+    let message =
+      'Dashboard data could not be loaded.';
+
+    if (
+      window.PayTrackerAppController &&
+      typeof window
+        .PayTrackerAppController
+        .getErrorMessage === 'function'
+    ) {
+      message =
+        window.PayTrackerAppController
+          .getErrorMessage(error);
+    } else if (
+      error &&
+      error.message
+    ) {
+      message =
+        String(error.message);
+    }
 
     PayTrackerDashboardService.setText(
       'dashboard-weekly-gross-change',
@@ -1488,20 +1351,10 @@ const PayTrackerDashboardService = Object.freeze({
       'dashboard-cash-flow-message',
       message
     );
-
-    PayTrackerDashboardService.setText(
-      'dashboard-disposable-badge-text',
-      'Dashboard unavailable'
-    );
-
-    PayTrackerDashboardService.setStatusClass(
-      'dashboard-disposable-badge',
-      'negative'
-    );
   },
 
   /**
-   * Sets loading state on dashboard controls and cards.
+   * Sets loading state on dashboard controls.
    *
    * @param {boolean} loading Loading state.
    */
@@ -1540,87 +1393,6 @@ const PayTrackerDashboardService = Object.freeze({
         String(isLoading)
       );
     }
-
-    document
-      .querySelectorAll(
-        '#page-dashboard .summary-card'
-      )
-      .forEach(function(card) {
-        card.classList.toggle(
-          'is-loading',
-          isLoading
-        );
-      });
-  },
-
-  /**
-   * Sets a progress element from a decimal value.
-   *
-   * @param {string} id Element ID.
-   * @param {*} value Decimal or percentage value.
-   */
-  setProgress: function(id, value) {
-    const element =
-      document.getElementById(id);
-
-    if (!element) {
-      return;
-    }
-
-    const progress =
-      PayTrackerDashboardService
-        .normalizeProgress(
-          value
-        );
-
-    const percentage =
-      Math.round(
-        progress * 100
-      );
-
-    element.style.width =
-      percentage + '%';
-
-    const progressBar =
-      element.parentElement;
-
-    if (progressBar) {
-      progressBar.setAttribute(
-        'aria-valuenow',
-        String(percentage)
-      );
-    }
-  },
-
-  /**
-   * Applies a positive, warning or negative class.
-   *
-   * @param {string} id Element ID.
-   * @param {string} state State name.
-   */
-  setStatusClass: function(id, state) {
-    const element =
-      document.getElementById(id);
-
-    if (!element) {
-      return;
-    }
-
-    element.classList.remove(
-      'is-positive',
-      'is-warning',
-      'is-negative'
-    );
-
-    if (
-      state === 'positive' ||
-      state === 'warning' ||
-      state === 'negative'
-    ) {
-      element.classList.add(
-        'is-' + state
-      );
-    }
   },
 
   /**
@@ -1649,6 +1421,11 @@ const PayTrackerDashboardService = Object.freeze({
    * @return {string} Formatted amount.
    */
   formatMoney: function(value) {
+    const number =
+      PayTrackerDashboardService.toNumber(
+        value
+      );
+
     return new Intl.NumberFormat(
       'en-GB',
       {
@@ -1657,11 +1434,7 @@ const PayTrackerDashboardService = Object.freeze({
         minimumFractionDigits: 2,
         maximumFractionDigits: 2
       }
-    ).format(
-      PayTrackerDashboardService.toNumber(
-        value
-      )
-    );
+    ).format(number);
   },
 
   /**
@@ -1698,11 +1471,11 @@ const PayTrackerDashboardService = Object.freeze({
       );
 
     if (
-      progress > 1 &&
-      progress <= 100
-    ) {
-      return progress / 100;
-    }
+        progress > 1 &&
+        !(progress > 100)
+        ) {
+        return progress / 100;
+     }
 
     return Math.min(
       Math.max(
@@ -1726,36 +1499,6 @@ const PayTrackerDashboardService = Object.freeze({
     return Number.isFinite(number)
       ? number
       : 0;
-  },
-
-  /**
-   * Extracts a readable error message.
-   *
-   * @param {*} error Error value.
-   * @return {string} Message.
-   */
-  getErrorMessage: function(error) {
-    if (
-      window.PayTrackerAppController &&
-      typeof window
-        .PayTrackerAppController
-        .getErrorMessage === 'function'
-    ) {
-      return window.PayTrackerAppController
-        .getErrorMessage(error);
-    }
-
-    if (
-      error &&
-      error.message
-    ) {
-      return String(error.message);
-    }
-
-    return String(
-      error ||
-      'Dashboard data could not be loaded.'
-    );
   }
 });
 
@@ -1763,8 +1506,8 @@ window.PayTrackerDashboardService =
   PayTrackerDashboardService;
 
 /**
- * Starts the dashboard service whether the document is
- * still loading or has already finished loading.
+ * Starts the dashboard service regardless of whether
+ * the document is still loading or already loaded.
  */
 (function startPayTrackerDashboardService(
   windowObject,
@@ -1793,7 +1536,8 @@ window.PayTrackerDashboardService =
             windowObject
               .PayTrackerAppController
               .showToast(
-                PayTrackerDashboardService
+                windowObject
+                  .PayTrackerAppController
                   .getErrorMessage(error),
                 'error',
                 8000
