@@ -9,6 +9,7 @@
  * - Refresh live pay information
  * - Open the connected spreadsheet
  * - Manage Pay Workspace tabs
+ * - Connect the timeline and shift-table services
  *
  * Included inside a script tag by:
  * Frontend/Index.html
@@ -105,7 +106,9 @@ const PayTrackerPayWorkspaceService = Object.freeze({
     const route =
       event &&
       event.detail
-        ? String(event.detail.route || '')
+        ? String(
+          event.detail.route || ''
+        )
         : '';
 
     if (
@@ -182,7 +185,9 @@ const PayTrackerPayWorkspaceService = Object.freeze({
       event.preventDefault();
 
       PayTrackerPayWorkspaceService
-        .loadAdjacentWeek('previous');
+        .loadAdjacentWeek(
+          'previous'
+        );
 
       return;
     }
@@ -196,7 +201,9 @@ const PayTrackerPayWorkspaceService = Object.freeze({
       event.preventDefault();
 
       PayTrackerPayWorkspaceService
-        .loadAdjacentWeek('next');
+        .loadAdjacentWeek(
+          'next'
+        );
 
       return;
     }
@@ -252,13 +259,14 @@ const PayTrackerPayWorkspaceService = Object.freeze({
    * @return {Promise<void>}
    */
   load: async function(options) {
-    const config = Object.assign(
-      {
-        force: false,
-        weekNumber: null
-      },
-      options || {}
-    );
+    const config =
+      Object.assign(
+        {
+          force: false,
+          weekNumber: null
+        },
+        options || {}
+      );
 
     if (
       PayTrackerPayWorkspaceService
@@ -290,7 +298,8 @@ const PayTrackerPayWorkspaceService = Object.freeze({
         !window.PayTrackerAppController ||
         typeof window
           .PayTrackerAppController
-          .runServerFunction !== 'function'
+          .runServerFunction !==
+          'function'
       ) {
         throw new Error(
           'Pay Tracker application controller is unavailable.'
@@ -304,7 +313,8 @@ const PayTrackerPayWorkspaceService = Object.freeze({
           );
 
       const response =
-        await window.PayTrackerAppController
+        await window
+          .PayTrackerAppController
           .runServerFunction(
             'getPayTrackerWebPayWorkspaceData',
             requestedWeekNumber
@@ -346,7 +356,8 @@ const PayTrackerPayWorkspaceService = Object.freeze({
         window.PayTrackerAppController &&
         typeof window
           .PayTrackerAppController
-          .updateFooterStatus === 'function'
+          .updateFooterStatus ===
+          'function'
       ) {
         window.PayTrackerAppController
           .updateFooterStatus({
@@ -528,26 +539,38 @@ const PayTrackerPayWorkspaceService = Object.freeze({
       );
 
     PayTrackerPayWorkspaceService
-  .renderIncomeChart(
-    selectedWeek
-  );
+      .renderIncomeChart(
+        selectedWeek
+      );
 
     if (
-    window.PayTrackerPayTimelineService &&
-    typeof window
+      window.PayTrackerPayTimelineService &&
+      typeof window
         .PayTrackerPayTimelineService
         .render === 'function'
     ) {
-    window.PayTrackerPayTimelineService
+      window.PayTrackerPayTimelineService
         .render(
-        selectedWeek
+          selectedWeek
+        );
+    }
+
+    if (
+      window.PayTrackerShiftTableService &&
+      typeof window
+        .PayTrackerShiftTableService
+        .render === 'function'
+    ) {
+      window.PayTrackerShiftTableService
+        .render(
+          selectedWeek
         );
     }
 
     PayTrackerPayWorkspaceService
-    .renderNavigation(
+      .renderNavigation(
         response.navigation || {}
-    );
+      );
 
     PayTrackerPayWorkspaceService
       .renderWorkspaceMessage(
@@ -714,8 +737,8 @@ const PayTrackerPayWorkspaceService = Object.freeze({
         PayTrackerPayWorkspaceService
           .setText(
             'pay-employer-' +
-              key +
-              '-value',
+            key +
+            '-value',
             PayTrackerPayWorkspaceService
               .formatMoney(
                 employer.total
@@ -725,8 +748,8 @@ const PayTrackerPayWorkspaceService = Object.freeze({
         PayTrackerPayWorkspaceService
           .setText(
             'pay-employer-' +
-              key +
-              '-meta',
+            key +
+            '-meta',
             shiftCount > 0
               ? (
                 shiftCount +
@@ -807,15 +830,15 @@ const PayTrackerPayWorkspaceService = Object.freeze({
         PayTrackerPayWorkspaceService
           .setText(
             'pay-income-percent-' +
-              key,
+            key,
             Math.round(percentage) +
-              '%'
+            '%'
           );
 
         PayTrackerPayWorkspaceService
           .setText(
             'pay-income-value-' +
-              key,
+            key,
             PayTrackerPayWorkspaceService
               .formatMoney(
                 employerTotal
@@ -951,30 +974,30 @@ const PayTrackerPayWorkspaceService = Object.freeze({
         PayTrackerPayWorkspaceService
           .setText(
             'pay-employer-' +
-              key +
-              '-value',
+            key +
+            '-value',
             '£—'
           );
 
         PayTrackerPayWorkspaceService
           .setText(
             'pay-employer-' +
-              key +
-              '-meta',
+            key +
+            '-meta',
             'No data available'
           );
 
         PayTrackerPayWorkspaceService
           .setText(
             'pay-income-value-' +
-              key,
+            key,
             '£—'
           );
 
         PayTrackerPayWorkspaceService
           .setText(
             'pay-income-percent-' +
-              key,
+            key,
             '0%'
           );
 
@@ -998,17 +1021,28 @@ const PayTrackerPayWorkspaceService = Object.freeze({
       .renderWorkspaceMessage(
         message
       );
-      if (
-        window.PayTrackerPayTimelineService &&
-        typeof window
-            .PayTrackerPayTimelineService
-            .renderEmpty === 'function'
-        ) {
-        window.PayTrackerPayTimelineService
-            .renderEmpty(
-            'No timeline data available'
-            );
-        }
+
+    if (
+      window.PayTrackerPayTimelineService &&
+      typeof window
+        .PayTrackerPayTimelineService
+        .renderEmpty === 'function'
+    ) {
+      window.PayTrackerPayTimelineService
+        .renderEmpty(
+          'No timeline data available'
+        );
+    }
+
+    if (
+      window.PayTrackerShiftTableService &&
+      typeof window
+        .PayTrackerShiftTableService
+        .renderEmpty === 'function'
+    ) {
+      window.PayTrackerShiftTableService
+        .renderEmpty();
+    }
   },
 
   /**
@@ -1047,7 +1081,9 @@ const PayTrackerPayWorkspaceService = Object.freeze({
     }
 
     const normalizedMessage =
-      String(message || '').trim();
+      String(
+        message || ''
+      ).trim();
 
     element.textContent =
       normalizedMessage;
@@ -1063,7 +1099,9 @@ const PayTrackerPayWorkspaceService = Object.freeze({
    */
   activateTab: function(tabId) {
     const normalizedTabId =
-      String(tabId || '')
+      String(
+        tabId || ''
+      )
         .trim()
         .toLowerCase();
 
@@ -1114,7 +1152,8 @@ const PayTrackerPayWorkspaceService = Object.freeze({
         panel.dataset.payPanel ===
         normalizedTabId;
 
-      panel.hidden = !isActive;
+      panel.hidden =
+        !isActive;
     });
 
     PayTrackerPayWorkspaceService
@@ -1194,7 +1233,10 @@ const PayTrackerPayWorkspaceService = Object.freeze({
    * @param {string} elementId Element ID.
    * @param {*} value Text value.
    */
-  setText: function(elementId, value) {
+  setText: function(
+    elementId,
+    value
+  ) {
     const element =
       document.getElementById(
         elementId
@@ -1217,7 +1259,10 @@ const PayTrackerPayWorkspaceService = Object.freeze({
    * @param {string} message Message.
    * @param {string=} type Toast type.
    */
-  showToast: function(message, type) {
+  showToast: function(
+    message,
+    type
+  ) {
     if (
       window.PayTrackerAppController &&
       typeof window
@@ -1292,11 +1337,15 @@ const PayTrackerPayWorkspaceService = Object.freeze({
   ) {
     const start =
       PayTrackerPayWorkspaceService
-        .toDate(startValue);
+        .toDate(
+          startValue
+        );
 
     const end =
       PayTrackerPayWorkspaceService
-        .toDate(endValue);
+        .toDate(
+          endValue
+        );
 
     if (!start || !end) {
       return 'Week dates unavailable';
@@ -1410,7 +1459,10 @@ const PayTrackerPayWorkspaceService = Object.freeze({
 window.PayTrackerPayWorkspaceService =
   PayTrackerPayWorkspaceService;
 
-if (document.readyState === 'loading') {
+if (
+  document.readyState ===
+  'loading'
+) {
   document.addEventListener(
     'DOMContentLoaded',
     function() {

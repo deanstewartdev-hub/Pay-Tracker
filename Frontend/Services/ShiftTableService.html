@@ -1,0 +1,815 @@
+/*******************************************************
+ * PAY TRACKER V2.8
+ * Frontend/Services/ShiftTableService.html
+ *
+ * Purpose:
+ * - Render live shifts for the selected PaySheet week
+ * - Flatten Monday-to-Sunday timeline entries
+ * - Filter entries by employer
+ * - Search employer, day and shift names
+ * - Calculate displayed shift count and gross pay
+ *
+ * Included inside a script tag by:
+ * Frontend/Index.html
+ *******************************************************/
+
+const PayTrackerShiftTableService =
+  Object.freeze({
+    state: {
+      initialized: false,
+      eventsRegistered: false,
+      selectedWeek: null,
+      shifts: [],
+      employerFilter: 'all',
+      searchQuery: ''
+    },
+
+    /**
+     * Renders the selected week's shift data.
+     *
+     * @param {Object} selectedWeek Selected week.
+     */
+    render: function(selectedWeek) {
+      PayTrackerShiftTableService
+        .state
+        .selectedWeek =
+          selectedWeek || {};
+
+      PayTrackerShiftTableService
+        .state
+        .shifts =
+          PayTrackerShiftTableService
+            .buildShiftRows(
+              selectedWeek || {}
+            );
+
+      PayTrackerShiftTableService
+        .initializeControls();
+
+      PayTrackerShiftTableService
+        .renderFilteredRows();
+    },
+
+    /**
+     * Clears the table when no week is available.
+     */
+    renderEmpty: function() {
+      PayTrackerShiftTableService
+        .state
+        .selectedWeek = null;
+
+      PayTrackerShiftTableService
+        .state
+        .shifts = [];
+
+      PayTrackerShiftTableService
+        .renderFilteredRows();
+    },
+
+    /**
+     * Connects toolbar events once.
+     */
+    initializeControls: function() {
+      if (
+        PayTrackerShiftTableService
+          .state
+          .eventsRegistered
+      ) {
+        return;
+      }
+
+      const employerFilter =
+        document.getElementById(
+          'pay-shift-table-employer-filter'
+        );
+
+      const searchInput =
+        document.getElementById(
+          'pay-shift-table-search'
+        );
+
+      if (employerFilter) {
+        employerFilter.addEventListener(
+          'change',
+          function(event) {
+            PayTrackerShiftTableService
+              .state
+              .employerFilter =
+                String(
+                  event.target.value ||
+                  'all'
+                )
+                  .trim()
+                  .toLowerCase();
+
+            PayTrackerShiftTableService
+              .renderFilteredRows();
+          }
+        );
+      }
+
+      if (searchInput) {
+        searchInput.addEventListener(
+          'input',
+          function(event) {
+            PayTrackerShiftTableService
+              .state
+              .searchQuery =
+                String(
+                  event.target.value || ''
+                )
+                  .trim()
+                  .toLowerCase();
+
+            PayTrackerShiftTableService
+              .renderFilteredRows();
+          }
+        );
+      }
+
+      PayTrackerShiftTableService
+        .state
+        .eventsRegistered = true;
+    },
+
+    /**
+     * Converts weekly timeline data into table rows.
+     *
+     * @param {Object} selectedWeek Selected week.
+     * @return {Array<Object>} Shift rows.
+     */
+    buildShiftRows: function(selectedWeek) {
+      const timeline =
+        Array.isArray(
+          selectedWeek.timeline
+        )
+          ? selectedWeek.timeline
+          : [];
+
+      const rows = [];
+
+      timeline.forEach(function(day) {
+        const entries =
+          Array.isArray(day.entries)
+            ? day.entries
+            : [];
+
+        entries.forEach(
+          function(entry, entryIndex) {
+            const employerKey =
+              PayTrackerShiftTableService
+                .normalizeEmployerKey(
+                  entry.employerKey
+                );
+
+            rows.push({
+              id:
+                String(
+                  day.dayIndex || 0
+                ) +
+                '-' +
+                employerKey +
+                '-' +
+                String(entryIndex),
+
+              dayIndex:
+                PayTrackerShiftTableService
+                  .toNumber(
+                    day.dayIndex
+                  ),
+
+              dayName:
+                String(
+                  day.dayName ||
+                  day.shortDayName ||
+                  ''
+                ),
+
+              shortDayName:
+                String(
+                  day.shortDayName ||
+                  day.dayName ||
+                  ''
+                ),
+
+              date:
+                String(
+                  day.date || ''
+                ),
+
+              dateLabel:
+                String(
+                  day.dateLabel || ''
+                ),
+
+              employerKey:
+                employerKey,
+
+              employerName:
+                String(
+                  entry.employerName ||
+                  PayTrackerShiftTableService
+                    .getEmployerName(
+                      employerKey
+                    )
+                ),
+
+              shiftName:
+                String(
+                  entry.shiftName ||
+                  'Recorded shift'
+                ),
+
+              pay:
+                PayTrackerShiftTableService
+                  .toNumber(
+                    entry.pay
+                  ),
+
+              taxable:
+                entry.taxable !== false
+            });
+          }
+        );
+      });
+
+      return rows.sort(
+        function(firstRow, secondRow) {
+          if (
+            firstRow.dayIndex !==
+            secondRow.dayIndex
+          ) {
+            return (
+              firstRow.dayIndex -
+              secondRow.dayIndex
+            );
+          }
+
+          return firstRow.employerName
+            .localeCompare(
+              secondRow.employerName
+            );
+        }
+      );
+    },
+
+    /**
+     * Applies the current employer and search filters.
+     *
+     * @return {Array<Object>} Visible rows.
+     */
+    getFilteredRows: function() {
+      const employerFilter =
+        PayTrackerShiftTableService
+          .state
+          .employerFilter;
+
+      const searchQuery =
+        PayTrackerShiftTableService
+          .state
+          .searchQuery;
+
+      return PayTrackerShiftTableService
+        .state
+        .shifts
+        .filter(function(row) {
+          const employerMatches =
+            employerFilter === 'all' ||
+            row.employerKey ===
+              employerFilter;
+
+          if (!employerMatches) {
+            return false;
+          }
+
+          if (!searchQuery) {
+            return true;
+          }
+
+          const searchableText = [
+            row.dayName,
+            row.shortDayName,
+            row.dateLabel,
+            row.employerName,
+            row.employerKey,
+            row.shiftName,
+            PayTrackerShiftTableService
+              .formatMoney(row.pay)
+          ]
+            .join(' ')
+            .toLowerCase();
+
+          return searchableText
+            .includes(searchQuery);
+        });
+    },
+
+    /**
+     * Renders all currently visible rows.
+     */
+    renderFilteredRows: function() {
+      const container =
+        document.getElementById(
+          'pay-shift-table-container'
+        );
+
+      if (!container) {
+        return;
+      }
+
+      const rows =
+        PayTrackerShiftTableService
+          .getFilteredRows();
+
+      PayTrackerShiftTableService
+        .clearElement(container);
+
+      if (rows.length === 0) {
+        PayTrackerShiftTableService
+          .renderEmptyMessage(
+            container,
+            PayTrackerShiftTableService
+              .state
+              .shifts
+              .length === 0
+              ? 'No shifts are recorded for this week.'
+              : 'No shifts match the selected filters.'
+          );
+      } else {
+        container.appendChild(
+          PayTrackerShiftTableService
+            .createTable(rows)
+        );
+      }
+
+      PayTrackerShiftTableService
+        .renderTotals(rows);
+    },
+
+    /**
+     * Creates the complete shift table.
+     *
+     * @param {Array<Object>} rows Visible rows.
+     * @return {HTMLElement} Table wrapper.
+     */
+    createTable: function(rows) {
+      const wrapper =
+        document.createElement('div');
+
+      wrapper.className =
+        'pay-shift-table-scroll';
+
+      const table =
+        document.createElement('table');
+
+      table.className =
+        'pay-shift-table';
+
+      table.setAttribute(
+        'aria-label',
+        'Selected week shift table'
+      );
+
+      const head =
+        document.createElement('thead');
+
+      const headRow =
+        document.createElement('tr');
+
+      [
+        'Day',
+        'Date',
+        'Employer',
+        'Shift',
+        'Tax status',
+        'Gross pay'
+      ].forEach(function(label) {
+        const heading =
+          document.createElement('th');
+
+        heading.scope = 'col';
+        heading.textContent = label;
+
+        headRow.appendChild(heading);
+      });
+
+      head.appendChild(headRow);
+
+      const body =
+        document.createElement('tbody');
+
+      rows.forEach(function(row) {
+        body.appendChild(
+          PayTrackerShiftTableService
+            .createTableRow(row)
+        );
+      });
+
+      table.appendChild(head);
+      table.appendChild(body);
+      wrapper.appendChild(table);
+
+      return wrapper;
+    },
+
+    /**
+     * Creates one table row.
+     *
+     * @param {Object} row Shift row.
+     * @return {HTMLElement} Table row.
+     */
+    createTableRow: function(row) {
+      const tableRow =
+        document.createElement('tr');
+
+      tableRow.className =
+        'pay-shift-table__row';
+
+      tableRow.setAttribute(
+        'data-employer',
+        row.employerKey
+      );
+
+      tableRow.appendChild(
+        PayTrackerShiftTableService
+          .createTextCell(
+            row.dayName ||
+            row.shortDayName ||
+            '—',
+            'pay-shift-table__day'
+          )
+      );
+
+      tableRow.appendChild(
+        PayTrackerShiftTableService
+          .createTextCell(
+            row.dateLabel || '—',
+            'pay-shift-table__date'
+          )
+      );
+
+      const employerCell =
+        document.createElement('td');
+
+      employerCell.appendChild(
+        PayTrackerShiftTableService
+          .createEmployerBadge(row)
+      );
+
+      tableRow.appendChild(
+        employerCell
+      );
+
+      tableRow.appendChild(
+        PayTrackerShiftTableService
+          .createTextCell(
+            row.shiftName,
+            'pay-shift-table__shift'
+          )
+      );
+
+      const taxCell =
+        document.createElement('td');
+
+      const taxBadge =
+        document.createElement('span');
+
+      taxBadge.className =
+        row.taxable
+          ? (
+            'pay-shift-tax-badge ' +
+            'pay-shift-tax-badge--taxable'
+          )
+          : (
+            'pay-shift-tax-badge ' +
+            'pay-shift-tax-badge--cash'
+          );
+
+      taxBadge.textContent =
+        row.taxable
+          ? 'Taxable'
+          : 'Cash';
+
+      taxCell.appendChild(taxBadge);
+      tableRow.appendChild(taxCell);
+
+      tableRow.appendChild(
+        PayTrackerShiftTableService
+          .createTextCell(
+            PayTrackerShiftTableService
+              .formatMoney(row.pay),
+            'pay-shift-table__pay'
+          )
+      );
+
+      return tableRow;
+    },
+
+    /**
+     * Creates a normal text table cell.
+     *
+     * @param {*} value Cell value.
+     * @param {string=} className Class.
+     * @return {HTMLElement} Cell.
+     */
+    createTextCell: function(
+      value,
+      className
+    ) {
+      const cell =
+        document.createElement('td');
+
+      if (className) {
+        cell.className = className;
+      }
+
+      cell.textContent =
+        value === null ||
+        typeof value === 'undefined'
+          ? ''
+          : String(value);
+
+      return cell;
+    },
+
+    /**
+     * Creates a coloured employer badge.
+     *
+     * @param {Object} row Shift row.
+     * @return {HTMLElement} Badge.
+     */
+    createEmployerBadge: function(row) {
+      const badge =
+        document.createElement('span');
+
+      badge.className =
+        'pay-shift-employer-badge ' +
+        'pay-shift-employer-badge--' +
+        PayTrackerShiftTableService
+          .normalizeClassName(
+            row.employerKey
+          );
+
+      const marker =
+        document.createElement('span');
+
+      marker.className =
+        'pay-shift-employer-badge__marker';
+
+      marker.setAttribute(
+        'aria-hidden',
+        'true'
+      );
+
+      const label =
+        document.createElement('span');
+
+      label.textContent =
+        row.employerName;
+
+      badge.appendChild(marker);
+      badge.appendChild(label);
+
+      return badge;
+    },
+
+    /**
+     * Renders the table empty state.
+     *
+     * @param {HTMLElement} container Container.
+     * @param {string} message Message.
+     */
+    renderEmptyMessage: function(
+      container,
+      message
+    ) {
+      const element =
+        document.createElement('div');
+
+      element.className =
+        'pay-shift-table-empty';
+
+      element.setAttribute(
+        'role',
+        'status'
+      );
+
+      const title =
+        document.createElement('strong');
+
+      title.textContent =
+        'No shift rows to display';
+
+      const copy =
+        document.createElement('span');
+
+      copy.textContent =
+        String(message || '');
+
+      element.appendChild(title);
+      element.appendChild(copy);
+
+      container.appendChild(element);
+    },
+
+    /**
+     * Updates visible totals.
+     *
+     * @param {Array<Object>} rows Visible rows.
+     */
+    renderTotals: function(rows) {
+      const totalPay =
+        rows.reduce(
+          function(total, row) {
+            return (
+              total +
+              PayTrackerShiftTableService
+                .toNumber(row.pay)
+            );
+          },
+          0
+        );
+
+      PayTrackerShiftTableService
+        .setText(
+          'pay-shift-table-total-pay',
+          PayTrackerShiftTableService
+            .formatMoney(totalPay)
+        );
+
+      PayTrackerShiftTableService
+        .setText(
+          'pay-shift-table-visible-count',
+          String(rows.length)
+        );
+
+      PayTrackerShiftTableService
+        .setText(
+          'pay-shift-table-count',
+          rows.length === 1
+            ? '1 shift'
+            : rows.length + ' shifts'
+        );
+    },
+
+    /**
+     * Returns a display employer name.
+     *
+     * @param {string} employerKey Key.
+     * @return {string} Employer name.
+     */
+    getEmployerName: function(
+      employerKey
+    ) {
+      const names = {
+        nhs: 'NHS',
+        relief: 'Relief Warden',
+        security: 'Night Security',
+        logging: 'Logging Cash'
+      };
+
+      return (
+        names[employerKey] ||
+        'Other work'
+      );
+    },
+
+    /**
+     * Normalizes an employer key.
+     *
+     * @param {*} value Key.
+     * @return {string} Normalized key.
+     */
+    normalizeEmployerKey: function(
+      value
+    ) {
+      const normalized =
+        String(value || '')
+          .trim()
+          .toLowerCase();
+
+      if (
+        normalized === 'night security' ||
+        normalized ===
+          'night security warden'
+      ) {
+        return 'security';
+      }
+
+      if (
+        normalized ===
+          'relief assistant warden' ||
+        normalized ===
+          'relief warden'
+      ) {
+        return 'relief';
+      }
+
+      if (
+        normalized === 'logging cash' ||
+        normalized === 'logging'
+      ) {
+        return 'logging';
+      }
+
+      return normalized;
+    },
+
+    /**
+     * Produces a safe CSS class suffix.
+     *
+     * @param {*} value Value.
+     * @return {string} Class suffix.
+     */
+    normalizeClassName: function(value) {
+      return String(value || '')
+        .trim()
+        .toLowerCase()
+        .replace(
+          /[^a-z0-9_-]+/g,
+          '-'
+        )
+        .replace(
+          /^-+|-+$/g,
+          ''
+        );
+    },
+
+    /**
+     * Safely removes all child nodes.
+     *
+     * @param {HTMLElement} element Element.
+     */
+    clearElement: function(element) {
+      while (element.firstChild) {
+        element.removeChild(
+          element.firstChild
+        );
+      }
+    },
+
+    /**
+     * Safely sets text.
+     *
+     * @param {string} elementId ID.
+     * @param {*} value Value.
+     */
+    setText: function(
+      elementId,
+      value
+    ) {
+      const element =
+        document.getElementById(
+          elementId
+        );
+
+      if (!element) {
+        return;
+      }
+
+      element.textContent =
+        value === null ||
+        typeof value === 'undefined'
+          ? ''
+          : String(value);
+    },
+
+    /**
+     * Formats GBP currency.
+     *
+     * @param {*} value Amount.
+     * @return {string} Currency.
+     */
+    formatMoney: function(value) {
+      return new Intl.NumberFormat(
+        'en-GB',
+        {
+          style: 'currency',
+          currency: 'GBP',
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2
+        }
+      ).format(
+        PayTrackerShiftTableService
+          .toNumber(value)
+      );
+    },
+
+    /**
+     * Converts a value to a finite number.
+     *
+     * @param {*} value Value.
+     * @return {number} Number.
+     */
+    toNumber: function(value) {
+      const number =
+        Number(value);
+
+      return Number.isFinite(number)
+        ? number
+        : 0;
+    }
+  });
+
+window.PayTrackerShiftTableService =
+  PayTrackerShiftTableService;

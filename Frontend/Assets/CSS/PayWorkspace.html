@@ -1493,3 +1493,312 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* =====================================================
+   SHIFT TABLE
+===================================================== */
+
+.pay-shift-table-card {
+  min-width: 0;
+  overflow: hidden;
+}
+
+.pay-shift-table-card .card__body {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.pay-shift-table-toolbar {
+  display: grid;
+  grid-template-columns:
+    minmax(180px, 0.65fr)
+    minmax(240px, 1.35fr);
+  gap: 14px;
+}
+
+.pay-shift-table-filter,
+.pay-shift-table-search {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.pay-shift-table-filter__label {
+  color: var(--color-text-muted);
+  font-size: 9px;
+  font-weight: 750;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.pay-shift-table-filter__control {
+  width: 100%;
+  min-height: 42px;
+  padding: 9px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  outline: none;
+  background: rgba(15, 25, 43, 0.92);
+  color: var(--color-heading);
+  font: inherit;
+  font-size: 11px;
+  transition:
+    border-color 160ms ease,
+    box-shadow 160ms ease,
+    background-color 160ms ease;
+}
+
+.pay-shift-table-filter__control:hover {
+  border-color: rgba(95, 132, 206, 0.52);
+}
+
+.pay-shift-table-filter__control:focus {
+  border-color: rgba(86, 137, 255, 0.72);
+  background: rgba(18, 30, 51, 0.98);
+  box-shadow:
+    0 0 0 3px rgba(74, 124, 241, 0.12);
+}
+
+.pay-shift-table-container {
+  min-width: 0;
+}
+
+.pay-shift-table-loading,
+.pay-shift-table-empty {
+  display: flex;
+  min-height: 180px;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 24px;
+  border: 1px dashed var(--color-border);
+  border-radius: 13px;
+  color: var(--color-text-muted);
+  text-align: center;
+}
+
+.pay-shift-table-empty strong {
+  color: var(--color-heading);
+  font-size: 12px;
+}
+
+.pay-shift-table-empty span {
+  max-width: 440px;
+  font-size: 10px;
+  line-height: 1.5;
+}
+
+.pay-shift-table-scroll {
+  min-width: 0;
+  overflow-x: auto;
+  border: 1px solid var(--color-border);
+  border-radius: 13px;
+  background: rgba(13, 22, 38, 0.58);
+}
+
+.pay-shift-table {
+  width: 100%;
+  min-width: 780px;
+  border-collapse: collapse;
+}
+
+.pay-shift-table th,
+.pay-shift-table td {
+  padding: 13px 14px;
+  border-bottom: 1px solid rgba(95, 116, 153, 0.17);
+  text-align: left;
+  vertical-align: middle;
+}
+
+.pay-shift-table th {
+  position: sticky;
+  z-index: 2;
+  top: 0;
+  background:
+    linear-gradient(
+      180deg,
+      rgba(25, 38, 62, 0.99),
+      rgba(18, 29, 49, 0.99)
+    );
+  color: var(--color-text-muted);
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: 0.075em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.pay-shift-table td {
+  color: #b9c6d9;
+  font-size: 10.5px;
+}
+
+.pay-shift-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.pay-shift-table__row {
+  transition:
+    background-color 150ms ease,
+    box-shadow 150ms ease;
+}
+
+.pay-shift-table__row:hover {
+  background: rgba(63, 101, 181, 0.08);
+  box-shadow:
+    inset 3px 0 0 rgba(92, 141, 255, 0.5);
+}
+
+.pay-shift-table__day {
+  color: var(--color-heading) !important;
+  font-weight: 760;
+  white-space: nowrap;
+}
+
+.pay-shift-table__date {
+  color: var(--color-text-muted) !important;
+  white-space: nowrap;
+}
+
+.pay-shift-table__shift {
+  min-width: 220px;
+  color: #cbd6e6 !important;
+  font-weight: 620;
+}
+
+.pay-shift-table__pay {
+  color: var(--color-heading) !important;
+  font-weight: 800;
+  text-align: right !important;
+  white-space: nowrap;
+}
+
+.pay-shift-employer-badge {
+  display: inline-flex;
+  min-height: 27px;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 9px;
+  border: 1px solid rgba(111, 133, 171, 0.2);
+  border-radius: 999px;
+  background: rgba(24, 36, 58, 0.78);
+  color: var(--color-heading);
+  font-size: 9px;
+  font-weight: 720;
+  white-space: nowrap;
+}
+
+.pay-shift-employer-badge__marker {
+  width: 7px;
+  height: 7px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: #64748b;
+  box-shadow: 0 0 8px rgba(100, 116, 139, 0.28);
+}
+
+.pay-shift-employer-badge--nhs
+.pay-shift-employer-badge__marker {
+  background: #3b82f6;
+  box-shadow: 0 0 8px rgba(59, 130, 246, 0.35);
+}
+
+.pay-shift-employer-badge--relief
+.pay-shift-employer-badge__marker {
+  background: #10b981;
+  box-shadow: 0 0 8px rgba(16, 185, 129, 0.35);
+}
+
+.pay-shift-employer-badge--security
+.pay-shift-employer-badge__marker {
+  background: #8b5cf6;
+  box-shadow: 0 0 8px rgba(139, 92, 246, 0.35);
+}
+
+.pay-shift-employer-badge--logging
+.pay-shift-employer-badge__marker {
+  background: #f59e0b;
+  box-shadow: 0 0 8px rgba(245, 158, 11, 0.35);
+}
+
+.pay-shift-tax-badge {
+  display: inline-flex;
+  min-height: 24px;
+  align-items: center;
+  padding: 4px 8px;
+  border-radius: 999px;
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: 0.045em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.pay-shift-tax-badge--taxable {
+  border: 1px solid rgba(92, 133, 255, 0.24);
+  background: rgba(66, 105, 207, 0.11);
+  color: #79a5ff;
+}
+
+.pay-shift-tax-badge--cash {
+  border: 1px solid rgba(245, 158, 11, 0.25);
+  background: rgba(245, 158, 11, 0.1);
+  color: #f6b84a;
+}
+
+.pay-shift-table-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 28px;
+  padding: 15px 16px;
+  border: 1px solid rgba(91, 116, 160, 0.2);
+  border-radius: 12px;
+  background:
+    linear-gradient(
+      135deg,
+      rgba(23, 36, 59, 0.86),
+      rgba(16, 27, 46, 0.86)
+    );
+}
+
+.pay-shift-table-footer > div {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 3px;
+}
+
+.pay-shift-table-footer__label {
+  color: var(--color-text-muted);
+  font-size: 8px;
+  font-weight: 760;
+  letter-spacing: 0.055em;
+  text-transform: uppercase;
+}
+
+.pay-shift-table-footer__value {
+  color: var(--color-heading);
+  font-size: 15px;
+  font-weight: 820;
+  letter-spacing: -0.02em;
+}
+
+@media (max-width: 760px) {
+  .pay-shift-table-toolbar {
+    grid-template-columns: 1fr;
+  }
+
+  .pay-shift-table-footer {
+    align-items: stretch;
+    justify-content: space-between;
+    gap: 14px;
+  }
+
+  .pay-shift-table-footer > div {
+    align-items: flex-start;
+  }
+}

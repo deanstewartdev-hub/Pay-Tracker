@@ -797,31 +797,113 @@
   </section>
 
   <section
-    class="pay-workspace-panel"
-    data-pay-panel="shifts"
-    aria-label="Shift table"
-    hidden
-  >
-    <div class="card">
-      <div class="empty-state">
-        <div
-          class="empty-state__icon"
-          aria-hidden="true"
-        >
-          S
-        </div>
+  class="pay-workspace-panel"
+  data-pay-panel="shifts"
+  aria-label="Shift table"
+  hidden
+>
+  <article class="card pay-shift-table-card">
 
-        <h3 class="empty-state__title">
-          Shift table workspace
+    <div class="card__header">
+      <div>
+        <h3 class="card__title">
+          Shift table
         </h3>
 
-        <p class="empty-state__message">
-          Shift dates, working hours, employer roles and calculated
-          earnings will be connected during the Shift Table feature.
+        <p class="card__subtitle">
+          Detailed work entries for the selected PaySheet week
         </p>
       </div>
+
+      <span
+        id="pay-shift-table-count"
+        class="pay-shell-card__status"
+      >
+        0 shifts
+      </span>
     </div>
-  </section>
+
+    <div class="card__body">
+
+      <div class="pay-shift-table-toolbar">
+
+        <label class="pay-shift-table-filter">
+          <span class="pay-shift-table-filter__label">
+            Employer
+          </span>
+
+          <select
+            id="pay-shift-table-employer-filter"
+            class="pay-shift-table-filter__control"
+          >
+            <option value="all">All employers</option>
+            <option value="nhs">NHS</option>
+            <option value="relief">Relief Warden</option>
+            <option value="security">Night Security</option>
+            <option value="logging">Logging Cash</option>
+          </select>
+        </label>
+
+        <label class="pay-shift-table-search">
+          <span class="pay-shift-table-filter__label">
+            Search</span>
+
+          <input
+            id="pay-shift-table-search"
+            class="pay-shift-table-filter__control"
+            type="search"
+            placeholder="Search shifts"
+            autocomplete="off"
+          >
+        </label>
+
+      </div>
+
+      <div
+        id="pay-shift-table-container"
+        class="pay-shift-table-container"
+      >
+        <div
+          class="pay-shift-table-loading"
+        >
+          Loading shift table...
+        </div>
+      </div>
+
+      <div class="pay-shift-table-footer">
+
+        <div>
+          <span class="pay-shift-table-footer__label">
+            Total displayed pay
+          </span>
+
+          <strong
+            id="pay-shift-table-total-pay"
+            class="pay-shift-table-footer__value"
+          >
+            £0.00
+          </strong>
+        </div>
+
+        <div>
+          <span class="pay-shift-table-footer__label">
+            Displayed shifts
+          </span>
+
+          <strong
+            id="pay-shift-table-visible-count"
+            class="pay-shift-table-footer__value"
+          >
+            0
+          </strong>
+        </div>
+
+      </div>
+
+    </div>
+
+  </article>
+</section>
 
   <section
     class="pay-workspace-panel"
