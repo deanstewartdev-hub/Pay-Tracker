@@ -528,14 +528,26 @@ const PayTrackerPayWorkspaceService = Object.freeze({
       );
 
     PayTrackerPayWorkspaceService
-      .renderIncomeChart(
+  .renderIncomeChart(
+    selectedWeek
+  );
+
+    if (
+    window.PayTrackerPayTimelineService &&
+    typeof window
+        .PayTrackerPayTimelineService
+        .render === 'function'
+    ) {
+    window.PayTrackerPayTimelineService
+        .render(
         selectedWeek
-      );
+        );
+    }
 
     PayTrackerPayWorkspaceService
-      .renderNavigation(
+    .renderNavigation(
         response.navigation || {}
-      );
+    );
 
     PayTrackerPayWorkspaceService
       .renderWorkspaceMessage(
@@ -986,6 +998,17 @@ const PayTrackerPayWorkspaceService = Object.freeze({
       .renderWorkspaceMessage(
         message
       );
+      if (
+        window.PayTrackerPayTimelineService &&
+        typeof window
+            .PayTrackerPayTimelineService
+            .renderEmpty === 'function'
+        ) {
+        window.PayTrackerPayTimelineService
+            .renderEmpty(
+            'No timeline data available'
+            );
+        }
   },
 
   /**

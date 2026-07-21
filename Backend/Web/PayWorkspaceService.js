@@ -339,6 +339,14 @@ const PayTrackerWebPayWorkspaceService = Object.freeze({
       headerText: headerText
     });
 
+    const timeline =
+    PayTrackerWebPayWorkspaceService
+        .buildWeeklyTimeline({
+        employers: employers,
+        firstDate: dates.firstDate,
+        dayCount: 7
+        });
+
     const gross =
       PayTrackerWebPayWorkspaceService
         .roundCurrency(
@@ -437,14 +445,219 @@ const PayTrackerWebPayWorkspaceService = Object.freeze({
        */
       totalHours: null,
 
-      employers:
-        employers,
+        employers:
+            employers,
+
+      timeline:
+        timeline,
 
       message:
         hasData
           ? ''
           : 'No shifts are recorded for this week.'
     };
+  },
+
+    /**
+   * Builds a unified Monday-to-Sunday timeline.
+   *
+   * Each day can contain multiple entries from different
+   * employers. Existing spreadsheet pay calculations remain
+   * unchanged and are only reorganised for display.
+   *
+   * @param {Object} options Timeline options.
+   * @return {Array<Object>} Seven-day timeline.
+   */
+  buildWeeklyTimeline: function(options) {
+    const employers =
+      options.employers || {};
+
+    const dayCount =
+      Math.max(
+        Number(options.dayCount) || 7,
+        1
+      );
+
+    const firstDate =
+      PayTrackerWebPayWorkspaceService
+        .toDate(
+          options.firstDate
+        );
+
+    const dayNames = [
+      'Monday',
+      'Tuesday',
+      'Wednesday',
+      'Thursday',
+      'Friday',
+      'Saturday',
+      'Sunday'
+    ];
+
+    const timeline = [];
+
+    for (
+      let dayIndex = 0;
+      dayIndex < dayCount;
+      dayIndex++
+    ) {
+      let dayDate = null;
+
+      if (firstDate) {
+        dayDate =
+          new Date(
+            firstDate.getTime()
+          );
+
+        dayDate.setDate(
+          dayDate.getDate() +
+          dayIndex
+        );
+      }
+
+      timeline.push({
+        dayIndex:
+          dayIndex,
+
+        dayName:
+          dayNames[dayIndex] ||
+          'Day ' + (dayIndex + 1),
+
+        shortDayName:
+          dayNames[dayIndex]
+            ? dayNames[dayIndex]
+                .slice(0, 3)
+                .toUpperCase()
+            : String(dayIndex + 1),
+
+        date:
+          PayTrackerWebPayWorkspaceService
+            .serializeDate(
+              dayDate
+            ),
+
+        dateLabel:
+          PayTrackerWebPayWorkspaceService
+            .formatTimelineDate(
+              dayDate
+            ),
+
+        entries: [],
+
+        shiftCount: 0,
+
+        totalPay: 0,
+
+        hasWork: false
+      });
+    }
+
+    Object.keys(employers)
+      .forEach(function(employerKey) {
+        const employer =
+          employers[employerKey] || {};
+
+        const employerEntries =
+          Array.isArray(employer.entries)
+            ? employer.entries
+            : [];
+
+        employerEntries
+          .forEach(function(entry) {
+            const dayIndex =
+              Number(entry.dayIndex);
+
+            if (
+              !Number.isInteger(dayIndex) ||
+              dayIndex < 0 ||
+              dayIndex >= timeline.length
+            ) {
+              return;
+            }
+
+            const pay =
+              PayTrackerWebPayWorkspaceService
+                .roundCurrency(
+                  entry.pay
+                );
+
+            timeline[dayIndex]
+              .entries
+              .push({
+                employerKey:
+                  employerKey,
+
+                employerName:
+                  String(
+                    employer.name ||
+                    PayTrackerWebPayWorkspaceService
+                      .getDefaultEmployerName(
+                        employerKey
+                      )
+                  ),
+
+                taxable:
+                  Boolean(
+                    employer.taxable
+                  ),
+
+                shiftName:
+                  String(
+                    entry.shiftName || ''
+                  ).trim(),
+
+                pay:
+                  pay
+              });
+
+            timeline[dayIndex]
+              .shiftCount++;
+
+            timeline[dayIndex]
+              .totalPay += pay;
+
+            timeline[dayIndex]
+              .hasWork = true;
+          });
+      });
+
+    timeline.forEach(function(day) {
+      day.totalPay =
+        PayTrackerWebPayWorkspaceService
+          .roundCurrency(
+            day.totalPay
+          );
+    });
+
+    return timeline;
+  },
+
+  /**
+   * Formats a short date for a timeline day.
+   *
+   * @param {*} value Date value.
+   * @return {string} Formatted date.
+   */
+  formatTimelineDate: function(value) {
+    const date =
+      PayTrackerWebPayWorkspaceService
+        .toDate(
+          value
+        );
+
+    if (!date) {
+      return '';
+    }
+
+    const timeZone =
+      Session.getScriptTimeZone() ||
+      'Europe/London';
+
+    return Utilities.formatDate(
+      date,
+      timeZone,
+      'dd MMM'
+    );
   },
 
   /**

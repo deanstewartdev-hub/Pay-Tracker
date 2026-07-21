@@ -1,0 +1,518 @@
+/*******************************************************
+ * PAY TRACKER V2.8
+ * Frontend/Services/PayTimelineService.html
+ *
+ * Purpose:
+ * - Render the selected PaySheet week's timeline
+ * - Display Monday-to-Sunday work entries
+ * - Support multiple employers on one day
+ * - Display daily income totals
+ * - Handle empty and unavailable timeline states
+ *
+ * Included inside a script tag by:
+ * Frontend/Index.html
+ *******************************************************/
+
+const PayTrackerPayTimelineService = Object.freeze({
+  /**
+   * Renders a selected week's timeline.
+   *
+   * @param {Object=} selectedWeek Selected week data.
+   */
+  render: function(selectedWeek) {
+    const week =
+      selectedWeek || {};
+
+    const container =
+      document.getElementById(
+        'pay-weekly-timeline'
+      );
+
+    if (!container) {
+      return;
+    }
+
+    const timeline =
+      Array.isArray(week.timeline)
+        ? week.timeline
+        : [];
+
+    PayTrackerPayTimelineService
+      .clearElement(container);
+
+    const totalShifts =
+      timeline.reduce(function(total, day) {
+        return (
+          total +
+          PayTrackerPayTimelineService
+            .toNumber(
+              day && day.shiftCount
+            )
+        );
+      }, 0);
+
+    PayTrackerPayTimelineService
+      .setText(
+        'pay-timeline-shift-count',
+        totalShifts === 1
+          ? '1 shift'
+          : totalShifts + ' shifts'
+      );
+
+    if (timeline.length === 0) {
+      PayTrackerPayTimelineService
+        .renderMessage(
+          container,
+          'No timeline data available'
+        );
+
+      return;
+    }
+
+    timeline.forEach(function(day) {
+      container.appendChild(
+        PayTrackerPayTimelineService
+          .createDayCard(
+            day || {}
+          )
+      );
+    });
+  },
+
+  /**
+   * Renders an empty timeline state.
+   *
+   * @param {string=} message Empty-state message.
+   */
+  renderEmpty: function(message) {
+    const container =
+      document.getElementById(
+        'pay-weekly-timeline'
+      );
+
+    if (!container) {
+      return;
+    }
+
+    PayTrackerPayTimelineService
+      .clearElement(container);
+
+    PayTrackerPayTimelineService
+      .renderMessage(
+        container,
+        message ||
+        'No timeline data available'
+      );
+
+    PayTrackerPayTimelineService
+      .setText(
+        'pay-timeline-shift-count',
+        '0 shifts'
+      );
+  },
+
+  /**
+   * Creates one timeline day card.
+   *
+   * @param {Object} day Timeline day.
+   * @return {HTMLElement} Day card.
+   */
+  createDayCard: function(day) {
+    const card =
+      document.createElement(
+        'article'
+      );
+
+    card.className =
+      'pay-week-shell__day';
+
+    card.classList.add(
+      day.hasWork
+        ? 'is-populated'
+        : 'is-empty'
+    );
+
+    card.setAttribute(
+      'data-timeline-day',
+      String(
+        PayTrackerPayTimelineService
+          .toNumber(
+            day.dayIndex
+          )
+      )
+    );
+
+    const header =
+      document.createElement(
+        'div'
+      );
+
+    header.className =
+      'pay-week-shell__day-header';
+
+    const dateGroup =
+      document.createElement(
+        'div'
+      );
+
+    const dayName =
+      document.createElement(
+        'span'
+      );
+
+    dayName.className =
+      'pay-week-shell__day-name';
+
+    dayName.textContent =
+      String(
+        day.shortDayName ||
+        day.dayName ||
+        ''
+      );
+
+    const dayDate =
+      document.createElement(
+        'span'
+      );
+
+    dayDate.className =
+      'pay-week-shell__day-date';
+
+    dayDate.textContent =
+      String(
+        day.dateLabel || ''
+      );
+
+    dateGroup.appendChild(
+      dayName
+    );
+
+    dateGroup.appendChild(
+      dayDate
+    );
+
+    const total =
+      document.createElement(
+        'strong'
+      );
+
+    total.className =
+      'pay-week-shell__day-total';
+
+    total.textContent =
+      day.hasWork
+        ? PayTrackerPayTimelineService
+            .formatMoney(
+              day.totalPay
+            )
+        : '—';
+
+    header.appendChild(
+      dateGroup
+    );
+
+    header.appendChild(
+      total
+    );
+
+    const entriesContainer =
+      document.createElement(
+        'div'
+      );
+
+    entriesContainer.className =
+      'pay-week-shell__entries';
+
+    const entries =
+      Array.isArray(day.entries)
+        ? day.entries
+        : [];
+
+    if (entries.length === 0) {
+      entriesContainer.appendChild(
+        PayTrackerPayTimelineService
+          .createEmptyEntry()
+      );
+    } else {
+      entries.forEach(function(entry) {
+        entriesContainer.appendChild(
+          PayTrackerPayTimelineService
+            .createShiftEntry(
+              entry || {}
+            )
+        );
+      });
+    }
+
+    card.appendChild(
+      header
+    );
+
+    card.appendChild(
+      entriesContainer
+    );
+
+    return card;
+  },
+
+  /**
+   * Creates one shift entry.
+   *
+   * @param {Object} entry Timeline entry.
+   * @return {HTMLElement} Shift entry.
+   */
+  createShiftEntry: function(entry) {
+    const employerKey =
+      PayTrackerPayTimelineService
+        .normalizeClassName(
+          entry.employerKey
+        );
+
+    const element =
+      document.createElement(
+        'div'
+      );
+
+    element.className =
+      'pay-timeline-entry';
+
+    if (employerKey) {
+      element.classList.add(
+        'pay-timeline-entry--' +
+        employerKey
+      );
+    }
+
+    const header =
+      document.createElement(
+        'div'
+      );
+
+    header.className =
+      'pay-timeline-entry__header';
+
+    const employer =
+      document.createElement(
+        'span'
+      );
+
+    employer.className =
+      'pay-timeline-entry__employer';
+
+    employer.textContent =
+      String(
+        entry.employerName ||
+        entry.employerKey ||
+        'Work'
+      );
+
+    const pay =
+      document.createElement(
+        'strong'
+      );
+
+    pay.className =
+      'pay-timeline-entry__pay';
+
+    pay.textContent =
+      PayTrackerPayTimelineService
+        .formatMoney(
+          entry.pay
+        );
+
+    header.appendChild(
+      employer
+    );
+
+    header.appendChild(
+      pay
+    );
+
+    const shift =
+      document.createElement(
+        'p'
+      );
+
+    shift.className =
+      'pay-timeline-entry__shift';
+
+    shift.textContent =
+      String(
+        entry.shiftName ||
+        'Recorded shift'
+      );
+
+    element.appendChild(
+      header
+    );
+
+    element.appendChild(
+      shift
+    );
+
+    return element;
+  },
+
+  /**
+   * Creates an empty day entry.
+   *
+   * @return {HTMLElement} Empty entry.
+   */
+  createEmptyEntry: function() {
+    const element =
+      document.createElement(
+        'div'
+      );
+
+    element.className =
+      'pay-timeline-entry ' +
+      'pay-timeline-entry--empty';
+
+    const label =
+      document.createElement(
+        'span'
+      );
+
+    label.textContent =
+      'No work recorded';
+
+    element.appendChild(
+      label
+    );
+
+    return element;
+  },
+
+  /**
+   * Renders a timeline status message.
+   *
+   * @param {HTMLElement} container Timeline container.
+   * @param {string} message Message.
+   */
+  renderMessage: function(
+    container,
+    message
+  ) {
+    const element =
+      document.createElement(
+        'div'
+      );
+
+    element.className =
+      'pay-week-shell__loading';
+
+    element.setAttribute(
+      'role',
+      'status'
+    );
+
+    element.textContent =
+      String(
+        message ||
+        'No timeline data available'
+      );
+
+    container.appendChild(
+      element
+    );
+  },
+
+  /**
+   * Removes all child elements.
+   *
+   * @param {HTMLElement} element Element.
+   */
+  clearElement: function(element) {
+    while (element.firstChild) {
+      element.removeChild(
+        element.firstChild
+      );
+    }
+  },
+
+  /**
+   * Sets element text safely.
+   *
+   * @param {string} elementId Element ID.
+   * @param {*} value Text.
+   */
+  setText: function(
+    elementId,
+    value
+  ) {
+    const element =
+      document.getElementById(
+        elementId
+      );
+
+    if (!element) {
+      return;
+    }
+
+    element.textContent =
+      value === null ||
+      typeof value === 'undefined'
+        ? ''
+        : String(value);
+  },
+
+  /**
+   * Formats GBP currency.
+   *
+   * @param {*} value Amount.
+   * @return {string} Formatted currency.
+   */
+  formatMoney: function(value) {
+    const amount =
+      PayTrackerPayTimelineService
+        .toNumber(value);
+
+    return new Intl.NumberFormat(
+      'en-GB',
+      {
+        style: 'currency',
+        currency: 'GBP',
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2
+      }
+    ).format(amount);
+  },
+
+  /**
+   * Converts a value into a finite number.
+   *
+   * @param {*} value Value.
+   * @return {number} Number.
+   */
+  toNumber: function(value) {
+    const number =
+      Number(value);
+
+    return Number.isFinite(number)
+      ? number
+      : 0;
+  },
+
+  /**
+   * Creates a safe CSS class suffix.
+   *
+   * @param {*} value Value.
+   * @return {string} CSS class suffix.
+   */
+  normalizeClassName: function(value) {
+    return String(value || '')
+      .trim()
+      .toLowerCase()
+      .replace(
+        /[^a-z0-9_-]+/g,
+        '-'
+      )
+      .replace(
+        /^-+|-+$/g,
+        ''
+      );
+  }
+});
+
+window.PayTrackerPayTimelineService =
+  PayTrackerPayTimelineService;

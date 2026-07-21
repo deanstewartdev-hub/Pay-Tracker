@@ -757,96 +757,42 @@
         </div>
       </article>
 
-      <article class="card pay-shell-card">
-        <div class="card__header">
-          <div>
-            <h3 class="card__title">
-              Weekly timeline
-            </h3>
+      <article class="card pay-shell-card pay-timeline-card">
+  <div class="card__header">
+    <div>
+      <h3 class="card__title">
+        Weekly timeline
+      </h3>
 
-            <p class="card__subtitle">
-              Daily shift timeline arrives in Feature 4
-            </p>
-          </div>
-        </div>
+      <p class="card__subtitle">
+        Shifts and income recorded for the selected week
+      </p>
+    </div>
 
-        <div class="card__body">
-          <div
-            class="pay-week-shell"
-            aria-label="Weekly shift timeline placeholder"
-          >
-            <div class="pay-week-shell__day">
-              <span>
-                Mon
-              </span>
+    <span
+      id="pay-timeline-shift-count"
+      class="pay-shell-card__status"
+    >
+      0 shifts
+    </span>
+  </div>
 
-              <strong>
-                —
-              </strong>
-            </div>
-
-            <div class="pay-week-shell__day">
-              <span>
-                Tue
-              </span>
-
-              <strong>
-                —
-              </strong>
-            </div>
-
-            <div class="pay-week-shell__day">
-              <span>
-                Wed
-              </span>
-
-              <strong>
-                —
-              </strong>
-            </div>
-
-            <div class="pay-week-shell__day">
-              <span>
-                Thu
-              </span>
-
-              <strong>
-                —
-              </strong>
-            </div>
-
-            <div class="pay-week-shell__day">
-              <span>
-                Fri
-              </span>
-
-              <strong>
-                —
-              </strong>
-            </div>
-
-            <div class="pay-week-shell__day">
-              <span>
-                Sat
-              </span>
-
-              <strong>
-                —
-              </strong>
-            </div>
-
-            <div class="pay-week-shell__day">
-              <span>
-                Sun
-              </span>
-
-              <strong>
-                —
-              </strong>
-            </div>
-          </div>
-        </div>
-      </article>
+  <div class="card__body">
+    <div
+      id="pay-weekly-timeline"
+      class="pay-week-shell"
+      aria-label="Weekly shift timeline"
+      aria-live="polite"
+    >
+      <div
+        class="pay-week-shell__loading"
+        role="status"
+      >
+        Loading weekly timeline
+      </div>
+    </div>
+  </div>
+</article>
     </section>
   </section>
 

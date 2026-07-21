@@ -612,7 +612,13 @@
 }
 
 .pay-shell-card--primary {
-  grid-row: span 2;
+  grid-row: auto;
+}
+
+.pay-timeline-card {
+  grid-column: 1 / -1;
+  width: 100%;
+  min-width: 0;
 }
 
 .pay-shell-card__status {
@@ -1285,5 +1291,205 @@
   .pay-week-shell__day {
     animation: none !important;
     transition: none !important;
+  }
+}/* =====================================================
+   LIVE WEEKLY TIMELINE
+===================================================== */
+
+.pay-timeline-card {
+  min-width: 0;
+}
+
+.pay-week-shell {
+  display: grid;
+  width: 100%;
+  min-width: 0;
+  grid-template-columns: repeat(7, minmax(135px, 1fr));
+  gap: 12px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+}
+
+.pay-week-shell__loading {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 130px;
+  padding: 24px;
+  border: 1px dashed var(--color-border);
+  border-radius: 14px;
+  color: var(--color-text-muted);
+  text-align: center;
+}
+
+.pay-week-shell__day {
+    min-width: 135px;
+  min-height: 170px;
+  padding: 14px;
+  border: 1px solid var(--color-border);
+  border-radius: 14px;
+  background: rgba(15, 23, 42, 0.42);
+  transition:
+    border-color 160ms ease,
+    background-color 160ms ease,
+    transform 160ms ease;
+}
+
+.pay-week-shell__day.is-populated {
+  background: rgba(30, 41, 59, 0.72);
+}
+
+.pay-week-shell__day.is-populated:hover {
+  transform: translateY(-2px);
+  border-color: rgba(96, 165, 250, 0.45);
+}
+
+.pay-week-shell__day.is-empty {
+  opacity: 0.72;
+}
+
+.pay-week-shell__day-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.pay-week-shell__day-header > div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.pay-week-shell__day-name {
+  color: var(--color-text);
+  font-size: 0.74rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+}
+
+.pay-week-shell__day-date {
+  color: var(--color-text-muted);
+  font-size: 0.7rem;
+}
+
+.pay-week-shell__day-total {
+  flex: 0 0 auto;
+  color: var(--color-text);
+  font-size: 0.78rem;
+  white-space: nowrap;
+}
+
+.pay-week-shell__entries {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.pay-timeline-entry {
+  position: relative;
+  overflow: hidden;
+  padding: 9px 9px 9px 12px;
+  border: 1px solid rgba(148, 163, 184, 0.14);
+  border-radius: 10px;
+  background: rgba(15, 23, 42, 0.68);
+}
+
+.pay-timeline-entry::before {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 3px;
+  border-radius: 10px 0 0 10px;
+  background: #64748b;
+  content: "";
+}
+
+.pay-timeline-entry--nhs::before {
+  background: #3b82f6;
+}
+
+.pay-timeline-entry--relief::before {
+  background: #10b981;
+}
+
+.pay-timeline-entry--security::before {
+  background: #8b5cf6;
+}
+
+.pay-timeline-entry--logging::before {
+  background: #f59e0b;
+}
+
+.pay-timeline-entry__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.pay-timeline-entry__employer {
+  overflow: hidden;
+  color: var(--color-text);
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pay-timeline-entry__pay {
+  flex: 0 0 auto;
+  color: var(--color-text);
+  font-size: 0.68rem;
+  white-space: nowrap;
+}
+
+.pay-timeline-entry__shift {
+  display: -webkit-box;
+  overflow: hidden;
+  margin: 5px 0 0;
+  color: var(--color-text-muted);
+  font-size: 0.67rem;
+  line-height: 1.35;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.pay-timeline-entry--empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 52px;
+  padding: 10px;
+  border-style: dashed;
+  background: transparent;
+  color: var(--color-text-muted);
+  font-size: 0.68rem;
+  text-align: center;
+}
+
+.pay-timeline-entry--empty::before {
+  display: none;
+}
+
+@media (max-width: 1200px) {
+  .pay-week-shell {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 800px) {
+  .pay-week-shell {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 520px) {
+  .pay-week-shell {
+    grid-template-columns: 1fr;
   }
 }
