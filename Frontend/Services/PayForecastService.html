@@ -510,14 +510,13 @@ var PayTrackerPayForecastService = {
 
       if (
         !lowestWeek ||
-        gross <
-          PayTrackerPayForecastService
+        PayTrackerPayForecastService
             .toNumber(
-              lowestWeek.gross
-            )
-      ) {
+            lowestWeek.gross
+            ) > gross
+        ) {
         lowestWeek = week;
-      }
+        }
 
       PayTrackerPayForecastService
         .EMPLOYERS
