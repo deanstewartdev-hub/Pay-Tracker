@@ -603,7 +603,7 @@ var PayTrackerPayCalendarService = {
       PayTrackerPayCalendarService
         .toNumber(value);
 
-    if (hours <= 0) {
+   if (!(hours > 0)) {
       return '0h';
     }
 
