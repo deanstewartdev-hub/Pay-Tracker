@@ -1,0 +1,542 @@
+/*******************************************************
+ * PAY TRACKER V2.8
+ * Frontend/Services/PayCalendarService.html
+ *******************************************************/
+
+const PayTrackerPayCalendarService = Object.freeze({
+  render: function(selectedWeek) {
+    const week = selectedWeek || {};
+    const container = document.getElementById(
+      'pay-calendar-grid'
+    );
+
+    if (!container) {
+      return;
+    }
+
+    const timeline = Array.isArray(week.timeline)
+      ? week.timeline
+      : [];
+
+    this.clearElement(container);
+
+    if (timeline.length === 0) {
+      this.renderMessage(
+        container,
+        'No calendar data available'
+      );
+
+      this.renderSummary([]);
+
+      return;
+    }
+
+    timeline.forEach(function(day) {
+      container.appendChild(
+        PayTrackerPayCalendarService.createDayCard(
+          day || {}
+        )
+      );
+    });
+
+    this.renderSummary(timeline);
+  },
+
+  renderEmpty: function(message) {
+    const container = document.getElementById(
+      'pay-calendar-grid'
+    );
+
+    if (!container) {
+      return;
+    }
+
+    this.clearElement(container);
+
+    this.renderMessage(
+      container,
+      message || 'No calendar data available'
+    );
+
+    this.renderSummary([]);
+  },
+
+  createDayCard: function(day) {
+    const card = document.createElement('article');
+
+    card.className = 'pay-calendar-day';
+
+    card.classList.add(
+      day.hasWork
+        ? 'is-populated'
+        : 'is-empty'
+    );
+
+    card.setAttribute(
+      'data-calendar-day',
+      String(this.toNumber(day.dayIndex))
+    );
+
+    const header = document.createElement('div');
+    header.className = 'pay-calendar-day__header';
+
+    const dateGroup = document.createElement('div');
+    dateGroup.className =
+      'pay-calendar-day__date-group';
+
+    const dayName = document.createElement('span');
+    dayName.className =
+      'pay-calendar-day__name';
+
+    dayName.textContent = String(
+      day.dayName ||
+      day.shortDayName ||
+      ''
+    );
+
+    const date = document.createElement('span');
+    date.className =
+      'pay-calendar-day__date';
+
+    date.textContent = String(
+      day.dateLabel || ''
+    );
+
+    dateGroup.appendChild(dayName);
+    dateGroup.appendChild(date);
+
+    const totals = document.createElement('div');
+    totals.className =
+      'pay-calendar-day__totals';
+
+    const pay = document.createElement('strong');
+    pay.className =
+      'pay-calendar-day__pay';
+
+    pay.textContent = day.hasWork
+      ? this.formatMoney(day.totalPay)
+      : '—';
+
+    const hours = document.createElement('span');
+    hours.className =
+      'pay-calendar-day__hours';
+
+    hours.textContent = day.hasWork
+      ? this.formatHours(day.totalHours)
+      : 'No work';
+
+    totals.appendChild(pay);
+    totals.appendChild(hours);
+
+    header.appendChild(dateGroup);
+    header.appendChild(totals);
+
+    const entriesContainer =
+      document.createElement('div');
+
+    entriesContainer.className =
+      'pay-calendar-day__entries';
+
+    const entries = Array.isArray(day.entries)
+      ? day.entries
+      : [];
+
+    if (entries.length === 0) {
+      entriesContainer.appendChild(
+        this.createEmptyEntry()
+      );
+    } else {
+      entries.forEach(function(entry) {
+        entriesContainer.appendChild(
+          PayTrackerPayCalendarService
+            .createShiftCard(entry || {})
+        );
+      });
+    }
+
+    card.appendChild(header);
+    card.appendChild(entriesContainer);
+
+    return card;
+  },
+
+  createShiftCard: function(entry) {
+    const employerKey =
+      this.normalizeEmployerKey(
+        entry.employerKey ||
+        entry.employerName
+      );
+
+    const card = document.createElement('div');
+    card.className = 'pay-calendar-shift';
+
+    if (employerKey) {
+      card.classList.add(
+        'pay-calendar-shift--' +
+        employerKey
+      );
+    }
+
+    const header = document.createElement('div');
+    header.className =
+      'pay-calendar-shift__header';
+
+    const employer =
+      document.createElement('span');
+
+    employer.className =
+      'pay-calendar-shift__employer';
+
+    employer.textContent = String(
+      entry.employerName ||
+      this.getEmployerName(employerKey)
+    );
+
+    const pay = document.createElement('strong');
+    pay.className =
+      'pay-calendar-shift__pay';
+
+    pay.textContent =
+      this.formatMoney(entry.pay);
+
+    header.appendChild(employer);
+    header.appendChild(pay);
+
+    const shiftName =
+      document.createElement('p');
+
+    shiftName.className =
+      'pay-calendar-shift__name';
+
+    shiftName.textContent = String(
+      entry.shiftName ||
+      'Recorded shift'
+    );
+
+    const details =
+      document.createElement('div');
+
+    details.className =
+      'pay-calendar-shift__details';
+
+    const hours =
+      document.createElement('span');
+
+    hours.className =
+      'pay-calendar-shift__detail';
+
+    hours.textContent =
+      this.formatHours(entry.hours);
+
+    const enhancement =
+      document.createElement('span');
+
+    enhancement.className =
+      'pay-calendar-shift__enhancement';
+
+    enhancement.textContent =
+      this.formatEnhancement(
+        entry.enhancement,
+        entry.shiftName
+      );
+
+    details.appendChild(hours);
+    details.appendChild(enhancement);
+
+    card.appendChild(header);
+    card.appendChild(shiftName);
+    card.appendChild(details);
+
+    return card;
+  },
+
+  createEmptyEntry: function() {
+    const element =
+      document.createElement('div');
+
+    element.className =
+      'pay-calendar-day__empty-entry';
+
+    element.textContent =
+      'No shifts recorded';
+
+    return element;
+  },
+
+  renderSummary: function(timeline) {
+    const days = Array.isArray(timeline)
+      ? timeline
+      : [];
+
+    let totalShifts = 0;
+    let totalHours = 0;
+    let totalPay = 0;
+    let workingDays = 0;
+
+    days.forEach(function(day) {
+      const currentDay = day || {};
+
+      totalShifts +=
+        PayTrackerPayCalendarService.toNumber(
+          currentDay.shiftCount
+        );
+
+      totalHours +=
+        PayTrackerPayCalendarService.toNumber(
+          currentDay.totalHours
+        );
+
+      totalPay +=
+        PayTrackerPayCalendarService.toNumber(
+          currentDay.totalPay
+        );
+
+      if (currentDay.hasWork) {
+        workingDays += 1;
+      }
+    });
+
+    this.setText(
+      'pay-calendar-shift-count',
+      totalShifts === 1
+        ? '1 shift'
+        : totalShifts + ' shifts'
+    );
+
+    this.setText(
+      'pay-calendar-total-pay',
+      this.formatMoney(totalPay)
+    );
+
+    this.setText(
+      'pay-calendar-total-hours',
+      this.formatHours(totalHours)
+    );
+
+    this.setText(
+      'pay-calendar-working-days',
+      workingDays
+    );
+
+    this.setText(
+      'pay-calendar-busiest-day',
+      this.getBusiestDay(days)
+    );
+
+    this.setText(
+      'pay-calendar-footer-total-pay',
+      this.formatMoney(totalPay)
+    );
+  },
+
+  getBusiestDay: function(timeline) {
+    const populatedDays = timeline.filter(
+      function(day) {
+        return Boolean(day && day.hasWork);
+      }
+    );
+
+    if (populatedDays.length === 0) {
+      return '—';
+    }
+
+    populatedDays.sort(function(first, second) {
+      const shiftDifference =
+        PayTrackerPayCalendarService.toNumber(
+          second.shiftCount
+        ) -
+        PayTrackerPayCalendarService.toNumber(
+          first.shiftCount
+        );
+
+      if (shiftDifference !== 0) {
+        return shiftDifference;
+      }
+
+      return (
+        PayTrackerPayCalendarService.toNumber(
+          second.totalPay
+        ) -
+        PayTrackerPayCalendarService.toNumber(
+          first.totalPay
+        )
+      );
+    });
+
+    return String(
+      populatedDays[0].dayName ||
+      populatedDays[0].shortDayName ||
+      '—'
+    );
+  },
+
+  getEmployerName: function(employerKey) {
+    const names = {
+      nhs: 'NHS',
+      relief: 'Relief Warden',
+      security: 'Night Security',
+      logging: 'Logging Cash'
+    };
+
+    return names[employerKey] || 'Work';
+  },
+
+  normalizeEmployerKey: function(value) {
+    const normalized = String(value || '')
+      .trim()
+      .toLowerCase();
+
+    if (normalized.indexOf('nhs') !== -1) {
+      return 'nhs';
+    }
+
+    if (
+      normalized.indexOf('relief') !== -1 ||
+      normalized.indexOf('warden') !== -1
+    ) {
+      return 'relief';
+    }
+
+    if (
+      normalized.indexOf('security') !== -1
+    ) {
+      return 'security';
+    }
+
+    if (
+      normalized.indexOf('logging') !== -1 ||
+      normalized.indexOf('cash') !== -1
+    ) {
+      return 'logging';
+    }
+
+    return normalized.replace(
+      /[^a-z0-9_-]+/g,
+      '-'
+    );
+  },
+
+  formatEnhancement: function(
+    enhancement,
+    shiftName
+  ) {
+    const directValue =
+      String(enhancement || '').trim();
+
+    if (directValue) {
+      return directValue;
+    }
+
+    const shift =
+      String(shiftName || '')
+        .trim()
+        .toLowerCase();
+
+    if (shift.indexOf('1.33') !== -1) {
+      return '1.33×';
+    }
+
+    if (shift.indexOf('1.50') !== -1) {
+      return '1.50×';
+    }
+
+    if (shift.indexOf('sunday') !== -1) {
+      return 'Sunday';
+    }
+
+    if (
+      shift.indexOf('split') !== -1 ||
+      shift.indexOf('unsocial') !== -1
+    ) {
+      return 'Unsocial';
+    }
+
+    if (shift.indexOf('basic') !== -1) {
+      return 'Basic';
+    }
+
+    return 'Standard';
+  },
+
+  formatHours: function(value) {
+    const hours = this.toNumber(value);
+
+    if (hours <= 0) {
+      return '0h';
+    }
+
+    const decimalPlaces =
+      Number.isInteger(hours)
+        ? 0
+        : 1;
+
+    return hours.toFixed(decimalPlaces) + 'h';
+  },
+
+  formatMoney: function(value) {
+    return new Intl.NumberFormat(
+      'en-GB',
+      {
+        style: 'currency',
+        currency: 'GBP',
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2
+      }
+    ).format(this.toNumber(value));
+  },
+
+  toNumber: function(value) {
+    const number = Number(value);
+
+    return Number.isFinite(number)
+      ? number
+      : 0;
+  },
+
+  clearElement: function(element) {
+    while (element.firstChild) {
+      element.removeChild(
+        element.firstChild
+      );
+    }
+  },
+
+  renderMessage: function(
+    container,
+    message
+  ) {
+    const element =
+      document.createElement('div');
+
+    element.className =
+      'pay-calendar-loading';
+
+    element.setAttribute(
+      'role',
+      'status'
+    );
+
+    element.textContent =
+      String(message);
+
+    container.appendChild(element);
+  },
+
+  setText: function(elementId, value) {
+    const element =
+      document.getElementById(elementId);
+
+    if (!element) {
+      return;
+    }
+
+    element.textContent =
+      value === null ||
+      typeof value === 'undefined'
+        ? ''
+        : String(value);
+  }
+});
+
+window.PayTrackerPayCalendarService =
+  PayTrackerPayCalendarService;

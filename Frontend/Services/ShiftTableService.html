@@ -4,9 +4,10 @@
  *
  * Purpose:
  * - Render live shifts for the selected PaySheet week
- * - Flatten Monday-to-Sunday timeline entries
+ * - Flatten weekly timeline entries into table rows
+ * - Display hours, hourly rate and enhancement details
  * - Filter entries by employer
- * - Search employer, day and shift names
+ * - Search employer, day, shift and pay information
  * - Calculate displayed shift count and gross pay
  *
  * Included inside a script tag by:
@@ -16,7 +17,6 @@
 const PayTrackerShiftTableService =
   Object.freeze({
     state: {
-      initialized: false,
       eventsRegistered: false,
       selectedWeek: null,
       shifts: [],
@@ -45,6 +45,9 @@ const PayTrackerShiftTableService =
 
       PayTrackerShiftTableService
         .initializeControls();
+
+      PayTrackerShiftTableService
+        .synchronizeControls();
 
       PayTrackerShiftTableService
         .renderFilteredRows();
@@ -133,6 +136,35 @@ const PayTrackerShiftTableService =
     },
 
     /**
+     * Keeps the controls aligned with the stored filter state.
+     */
+    synchronizeControls: function() {
+      const employerFilter =
+        document.getElementById(
+          'pay-shift-table-employer-filter'
+        );
+
+      const searchInput =
+        document.getElementById(
+          'pay-shift-table-search'
+        );
+
+      if (employerFilter) {
+        employerFilter.value =
+          PayTrackerShiftTableService
+            .state
+            .employerFilter;
+      }
+
+      if (searchInput) {
+        searchInput.value =
+          PayTrackerShiftTableService
+            .state
+            .searchQuery;
+      }
+    },
+
+    /**
      * Converts weekly timeline data into table rows.
      *
      * @param {Object} selectedWeek Selected week.
@@ -160,6 +192,25 @@ const PayTrackerShiftTableService =
               PayTrackerShiftTableService
                 .normalizeEmployerKey(
                   entry.employerKey
+                );
+
+            const hours =
+              PayTrackerShiftTableService
+                .toNullableNumber(
+                  entry.hours
+                );
+
+            const hourlyRate =
+              PayTrackerShiftTableService
+                .toNullableNumber(
+                  entry.hourlyRate
+                );
+
+            const enhancement =
+              PayTrackerShiftTableService
+                .normalizeEnhancement(
+                  entry.enhancement,
+                  entry.shiftName
                 );
 
             rows.push({
@@ -219,6 +270,21 @@ const PayTrackerShiftTableService =
                   entry.shiftName ||
                   'Recorded shift'
                 ),
+
+              hours:
+                hours,
+
+              hourlyRate:
+                hourlyRate,
+
+              enhancement:
+                enhancement,
+
+              enhancementKey:
+                PayTrackerShiftTableService
+                  .getEnhancementKey(
+                    enhancement
+                  ),
 
               pay:
                 PayTrackerShiftTableService
@@ -293,8 +359,16 @@ const PayTrackerShiftTableService =
             row.employerName,
             row.employerKey,
             row.shiftName,
+            row.enhancement,
             PayTrackerShiftTableService
-              .formatMoney(row.pay)
+              .formatHours(row.hours),
+            PayTrackerShiftTableService
+              .formatRate(row.hourlyRate),
+            PayTrackerShiftTableService
+              .formatMoney(row.pay),
+            row.taxable
+              ? 'taxable'
+              : 'cash'
           ]
             .join(' ')
             .toLowerCase();
@@ -363,11 +437,11 @@ const PayTrackerShiftTableService =
         document.createElement('table');
 
       table.className =
-        'pay-shift-table';
+        'pay-shift-table pay-shift-table--detailed';
 
       table.setAttribute(
         'aria-label',
-        'Selected week shift table'
+        'Selected week detailed shift table'
       );
 
       const head =
@@ -376,19 +450,65 @@ const PayTrackerShiftTableService =
       const headRow =
         document.createElement('tr');
 
-      [
-        'Day',
-        'Date',
-        'Employer',
-        'Shift',
-        'Tax status',
-        'Gross pay'
-      ].forEach(function(label) {
+      const headings = [
+        {
+          label: 'Day',
+          className:
+            'pay-shift-table__heading-day'
+        },
+        {
+          label: 'Date',
+          className:
+            'pay-shift-table__heading-date'
+        },
+        {
+          label: 'Employer',
+          className:
+            'pay-shift-table__heading-employer'
+        },
+        {
+          label: 'Shift',
+          className:
+            'pay-shift-table__heading-shift'
+        },
+        {
+          label: 'Hours',
+          className:
+            'pay-shift-table__heading-hours'
+        },
+        {
+          label: 'Rate',
+          className:
+            'pay-shift-table__heading-rate'
+        },
+        {
+          label: 'Enhancement',
+          className:
+            'pay-shift-table__heading-enhancement'
+        },
+        {
+          label: 'Tax',
+          className:
+            'pay-shift-table__heading-tax'
+        },
+        {
+          label: 'Gross pay',
+          className:
+            'pay-shift-table__heading-pay'
+        }
+      ];
+
+      headings.forEach(function(config) {
         const heading =
           document.createElement('th');
 
         heading.scope = 'col';
-        heading.textContent = label;
+
+        heading.textContent =
+          config.label;
+
+        heading.className =
+          config.className;
 
         headRow.appendChild(heading);
       });
@@ -430,6 +550,11 @@ const PayTrackerShiftTableService =
         row.employerKey
       );
 
+      tableRow.setAttribute(
+        'data-enhancement',
+        row.enhancementKey
+      );
+
       tableRow.appendChild(
         PayTrackerShiftTableService
           .createTextCell(
@@ -451,6 +576,9 @@ const PayTrackerShiftTableService =
       const employerCell =
         document.createElement('td');
 
+      employerCell.className =
+        'pay-shift-table__employer';
+
       employerCell.appendChild(
         PayTrackerShiftTableService
           .createEmployerBadge(row)
@@ -468,30 +596,61 @@ const PayTrackerShiftTableService =
           )
       );
 
+      tableRow.appendChild(
+        PayTrackerShiftTableService
+          .createTextCell(
+            PayTrackerShiftTableService
+              .formatHours(
+                row.hours
+              ),
+            'pay-shift-table__hours'
+          )
+      );
+
+      tableRow.appendChild(
+        PayTrackerShiftTableService
+          .createTextCell(
+            PayTrackerShiftTableService
+              .formatRate(
+                row.hourlyRate
+              ),
+            'pay-shift-table__rate'
+          )
+      );
+
+      const enhancementCell =
+        document.createElement('td');
+
+      enhancementCell.className =
+        'pay-shift-table__enhancement';
+
+      enhancementCell.appendChild(
+        PayTrackerShiftTableService
+          .createEnhancementBadge(
+            row
+          )
+      );
+
+      tableRow.appendChild(
+        enhancementCell
+      );
+
       const taxCell =
         document.createElement('td');
 
-      const taxBadge =
-        document.createElement('span');
+      taxCell.className =
+        'pay-shift-table__tax';
 
-      taxBadge.className =
-        row.taxable
-          ? (
-            'pay-shift-tax-badge ' +
-            'pay-shift-tax-badge--taxable'
+      taxCell.appendChild(
+        PayTrackerShiftTableService
+          .createTaxBadge(
+            row.taxable
           )
-          : (
-            'pay-shift-tax-badge ' +
-            'pay-shift-tax-badge--cash'
-          );
+      );
 
-      taxBadge.textContent =
-        row.taxable
-          ? 'Taxable'
-          : 'Cash';
-
-      taxCell.appendChild(taxBadge);
-      tableRow.appendChild(taxCell);
+      tableRow.appendChild(
+        taxCell
+      );
 
       tableRow.appendChild(
         PayTrackerShiftTableService
@@ -520,7 +679,8 @@ const PayTrackerShiftTableService =
         document.createElement('td');
 
       if (className) {
-        cell.className = className;
+        cell.className =
+          className;
       }
 
       cell.textContent =
@@ -569,6 +729,63 @@ const PayTrackerShiftTableService =
 
       badge.appendChild(marker);
       badge.appendChild(label);
+
+      return badge;
+    },
+
+    /**
+     * Creates an enhancement badge.
+     *
+     * @param {Object} row Shift row.
+     * @return {HTMLElement} Badge.
+     */
+    createEnhancementBadge: function(row) {
+      const badge =
+        document.createElement('span');
+
+      const enhancementKey =
+        row.enhancementKey ||
+        'other';
+
+      badge.className =
+        'pay-shift-enhancement-badge ' +
+        'pay-shift-enhancement-badge--' +
+        PayTrackerShiftTableService
+          .normalizeClassName(
+            enhancementKey
+          );
+
+      badge.textContent =
+        row.enhancement || '—';
+
+      return badge;
+    },
+
+    /**
+     * Creates a taxable or cash badge.
+     *
+     * @param {boolean} taxable Tax status.
+     * @return {HTMLElement} Badge.
+     */
+    createTaxBadge: function(taxable) {
+      const badge =
+        document.createElement('span');
+
+      badge.className =
+        taxable
+          ? (
+            'pay-shift-tax-badge ' +
+            'pay-shift-tax-badge--taxable'
+          )
+          : (
+            'pay-shift-tax-badge ' +
+            'pay-shift-tax-badge--cash'
+          );
+
+      badge.textContent =
+        taxable
+          ? 'Taxable'
+          : 'Cash';
 
       return badge;
     },
@@ -653,6 +870,189 @@ const PayTrackerShiftTableService =
     },
 
     /**
+     * Normalizes an enhancement label.
+     *
+     * @param {*} enhancement Enhancement returned by backend.
+     * @param {*} shiftName Shift name fallback.
+     * @return {string} Enhancement label.
+     */
+    normalizeEnhancement: function(
+      enhancement,
+      shiftName
+    ) {
+      const returnedLabel =
+        String(
+          enhancement || ''
+        ).trim();
+
+      if (returnedLabel) {
+        return returnedLabel;
+      }
+
+      const shift =
+        String(
+          shiftName || ''
+        )
+          .trim()
+          .toLowerCase();
+
+      if (
+        shift.indexOf('1.20') !== -1
+      ) {
+        return '1.20×';
+      }
+
+      if (
+        shift.indexOf('1.33') !== -1
+      ) {
+        return '1.33×';
+      }
+
+      if (
+        shift.indexOf('1.50') !== -1
+      ) {
+        return '1.50×';
+      }
+
+      if (
+        shift.indexOf('2.00') !== -1
+      ) {
+        return '2.00×';
+      }
+
+      if (
+        shift.indexOf('3.00') !== -1
+      ) {
+        return '3.00×';
+      }
+
+      if (
+        shift.indexOf('sunday') !== -1 ||
+        shift.indexOf('pub hol') !== -1
+      ) {
+        return 'Sunday / public holiday';
+      }
+
+      if (
+        shift.indexOf('saturday') !== -1
+      ) {
+        return 'Saturday';
+      }
+
+      if (
+        shift.indexOf('unsoc') !== -1 ||
+        shift.indexOf('split') !== -1
+      ) {
+        return 'Unsocial hours';
+      }
+
+      if (
+        shift.indexOf('overtime') !== -1
+      ) {
+        return 'Overtime';
+      }
+
+      if (
+        shift.indexOf('basic') !== -1
+      ) {
+        return 'Basic';
+      }
+
+      if (
+        shift.indexOf('logging') !== -1
+      ) {
+        return 'Cash work';
+      }
+
+      return 'Standard';
+    },
+
+    /**
+     * Returns a styling key for an enhancement.
+     *
+     * @param {*} value Enhancement label.
+     * @return {string} Enhancement key.
+     */
+    getEnhancementKey: function(value) {
+      const enhancement =
+        String(value || '')
+          .trim()
+          .toLowerCase();
+
+      if (
+        enhancement.indexOf('1.20') !== -1
+      ) {
+        return 'enhanced-120';
+      }
+
+      if (
+        enhancement.indexOf('1.33') !== -1
+      ) {
+        return 'enhanced-133';
+      }
+
+      if (
+        enhancement.indexOf('1.50') !== -1
+      ) {
+        return 'enhanced-150';
+      }
+
+      if (
+        enhancement.indexOf('2.00') !== -1
+      ) {
+        return 'double-time';
+      }
+
+      if (
+        enhancement.indexOf('3.00') !== -1
+      ) {
+        return 'triple-time';
+      }
+
+      if (
+        enhancement.indexOf('sunday') !== -1 ||
+        enhancement.indexOf(
+          'public holiday'
+        ) !== -1
+      ) {
+        return 'sunday';
+      }
+
+      if (
+        enhancement.indexOf('saturday') !== -1
+      ) {
+        return 'saturday';
+      }
+
+      if (
+        enhancement.indexOf('unsocial') !== -1
+      ) {
+        return 'unsocial';
+      }
+
+      if (
+        enhancement.indexOf('overtime') !== -1
+      ) {
+        return 'overtime';
+      }
+
+      if (
+        enhancement.indexOf('cash') !== -1
+      ) {
+        return 'cash';
+      }
+
+      if (
+        enhancement.indexOf('basic') !== -1 ||
+        enhancement.indexOf('standard') !== -1
+      ) {
+        return 'basic';
+      }
+
+      return 'other';
+    },
+
+    /**
      * Returns a display employer name.
      *
      * @param {string} employerKey Key.
@@ -663,9 +1063,12 @@ const PayTrackerShiftTableService =
     ) {
       const names = {
         nhs: 'NHS',
-        relief: 'Relief Warden',
-        security: 'Night Security',
-        logging: 'Logging Cash'
+        relief:
+          'Relief Assistant Warden',
+        security:
+          'Night Security Warden',
+        logging:
+          'Logging Cash'
       };
 
       return (
@@ -689,7 +1092,8 @@ const PayTrackerShiftTableService =
           .toLowerCase();
 
       if (
-        normalized === 'night security' ||
+        normalized ===
+          'night security' ||
         normalized ===
           'night security warden'
       ) {
@@ -706,8 +1110,10 @@ const PayTrackerShiftTableService =
       }
 
       if (
-        normalized === 'logging cash' ||
-        normalized === 'logging'
+        normalized ===
+          'logging cash' ||
+        normalized ===
+          'logging'
       ) {
         return 'logging';
       }
@@ -733,6 +1139,59 @@ const PayTrackerShiftTableService =
           /^-+|-+$/g,
           ''
         );
+    },
+
+    /**
+     * Formats worked hours.
+     *
+     * @param {*} value Hours.
+     * @return {string} Hours label.
+     */
+    formatHours: function(value) {
+      const hours =
+        PayTrackerShiftTableService
+          .toNullableNumber(value);
+
+      if (hours === null) {
+        return '—';
+      }
+
+      const precision =
+        Number.isInteger(hours)
+          ? 0
+          : 2;
+
+      return (
+        hours
+          .toFixed(precision)
+          .replace(
+            /\.?0+$/,
+            ''
+          ) +
+        'h'
+      );
+    },
+
+    /**
+     * Formats an hourly rate.
+     *
+     * @param {*} value Rate.
+     * @return {string} Rate label.
+     */
+    formatRate: function(value) {
+      const rate =
+        PayTrackerShiftTableService
+          .toNullableNumber(value);
+
+      if (rate === null) {
+        return 'Fixed';
+      }
+
+      return (
+        PayTrackerShiftTableService
+          .formatMoney(rate) +
+        '/hr'
+      );
     },
 
     /**
@@ -808,6 +1267,29 @@ const PayTrackerShiftTableService =
       return Number.isFinite(number)
         ? number
         : 0;
+    },
+
+    /**
+     * Converts a value to a finite number or null.
+     *
+     * @param {*} value Value.
+     * @return {number|null} Number or null.
+     */
+    toNullableNumber: function(value) {
+      if (
+        value === null ||
+        typeof value === 'undefined' ||
+        String(value).trim() === ''
+      ) {
+        return null;
+      }
+
+      const number =
+        Number(value);
+
+      return Number.isFinite(number)
+        ? number
+        : null;
     }
   });
 

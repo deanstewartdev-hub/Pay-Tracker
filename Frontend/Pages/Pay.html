@@ -905,32 +905,154 @@
   </article>
 </section>
 
-  <section
-    class="pay-workspace-panel"
-    data-pay-panel="calendar"
-    aria-label="Weekly calendar"
-    hidden
-  >
-    <div class="card">
-      <div class="empty-state">
-        <div
-          class="empty-state__icon"
-          aria-hidden="true"
-        >
-          31
-        </div>
-
-        <h3 class="empty-state__title">
-          Weekly pay calendar
+<section
+  class="pay-workspace-panel"
+  data-pay-panel="calendar"
+  aria-label="Weekly calendar"
+  hidden
+>
+  <article class="card pay-calendar-card">
+    <div class="card__header">
+      <div>
+        <h3 class="card__title">
+          Weekly calendar
         </h3>
 
-        <p class="empty-state__message">
-          Calendar shifts, employer colours and daily income will be
-          shown here during the Weekly Calendar feature.
+        <p class="card__subtitle">
+          Visual schedule, worked hours and expected income for the
+          selected PaySheet week
         </p>
       </div>
+
+      <div class="pay-calendar-header-summary">
+        <span
+          id="pay-calendar-shift-count"
+          class="pay-shell-card__status"
+        >
+          0 shifts
+        </span>
+
+        <span
+          id="pay-calendar-total-pay"
+          class="pay-shell-card__status"
+        >
+          £0.00
+        </span>
+      </div>
     </div>
-  </section>
+
+    <div class="card__body">
+      <div
+        class="pay-calendar-legend"
+        aria-label="Calendar employer colours"
+      >
+        <span class="pay-calendar-legend__item">
+          <span
+            class="pay-calendar-legend__marker pay-calendar-legend__marker--nhs"
+            aria-hidden="true"
+          ></span>
+
+          NHS
+        </span>
+
+        <span class="pay-calendar-legend__item">
+          <span
+            class="pay-calendar-legend__marker pay-calendar-legend__marker--relief"
+            aria-hidden="true"
+          ></span>
+
+          Relief Warden
+        </span>
+
+        <span class="pay-calendar-legend__item">
+          <span
+            class="pay-calendar-legend__marker pay-calendar-legend__marker--security"
+            aria-hidden="true"
+          ></span>
+
+          Night Security
+        </span>
+
+        <span class="pay-calendar-legend__item">
+          <span
+            class="pay-calendar-legend__marker pay-calendar-legend__marker--logging"
+            aria-hidden="true"
+          ></span>
+
+          Logging Cash
+        </span>
+      </div>
+
+      <div
+        id="pay-calendar-grid"
+        class="pay-calendar-grid"
+        aria-label="Selected week calendar"
+        aria-live="polite"
+      >
+        <div
+          class="pay-calendar-loading"
+          role="status"
+        >
+          Loading weekly calendar
+        </div>
+      </div>
+
+      <div class="pay-calendar-footer">
+        <div class="pay-calendar-footer__metric">
+          <span class="pay-calendar-footer__label">
+            Total hours
+          </span>
+
+          <strong
+            id="pay-calendar-total-hours"
+            class="pay-calendar-footer__value"
+          >
+            0h
+          </strong>
+        </div>
+
+        <div class="pay-calendar-footer__metric">
+          <span class="pay-calendar-footer__label">
+            Working days
+          </span>
+
+          <strong
+            id="pay-calendar-working-days"
+            class="pay-calendar-footer__value"
+          >
+            0
+          </strong>
+        </div>
+
+        <div class="pay-calendar-footer__metric">
+          <span class="pay-calendar-footer__label">
+            Busiest day
+          </span>
+
+          <strong
+            id="pay-calendar-busiest-day"
+            class="pay-calendar-footer__value"
+          >
+            —
+          </strong>
+        </div>
+
+        <div class="pay-calendar-footer__metric">
+          <span class="pay-calendar-footer__label">
+            Expected gross
+          </span>
+
+          <strong
+            id="pay-calendar-footer-total-pay"
+            class="pay-calendar-footer__value"
+          >
+            £0.00
+          </strong>
+        </div>
+      </div>
+    </div>
+  </article>
+</section>
 
   <section
     class="pay-workspace-panel"

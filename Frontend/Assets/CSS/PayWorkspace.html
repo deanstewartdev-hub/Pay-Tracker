@@ -1802,3 +1802,715 @@
     align-items: flex-start;
   }
 }
+done
+
+Now update:
+
+Frontend/Assets/CSS/PayWorkspace.html
+
+The existing stylesheet already contains the original Shift Table rules, so add this complete detailed-table override section at the very end of the file. It expands the table to nine columns and styles the new Hours, Rate, and Enhancement fields.
+
+/* =====================================================
+   DETAILED SHIFT TABLE — HOURS, RATE AND ENHANCEMENTS
+===================================================== */
+
+.pay-shift-table--detailed {
+  width: 100%;
+  min-width: 1180px;
+  table-layout: auto;
+}
+
+.pay-shift-table--detailed th,
+.pay-shift-table--detailed td {
+  padding: 13px 12px;
+}
+
+.pay-shift-table__heading-day,
+.pay-shift-table__day {
+  width: 92px;
+}
+
+.pay-shift-table__heading-date,
+.pay-shift-table__date {
+  width: 82px;
+}
+
+.pay-shift-table__heading-employer,
+.pay-shift-table__employer {
+  width: 180px;
+}
+
+.pay-shift-table__heading-shift,
+.pay-shift-table__shift {
+  min-width: 210px;
+}
+
+.pay-shift-table__heading-hours,
+.pay-shift-table__hours {
+  width: 75px;
+  text-align: right !important;
+}
+
+.pay-shift-table__heading-rate,
+.pay-shift-table__rate {
+  width: 110px;
+  text-align: right !important;
+}
+
+.pay-shift-table__heading-enhancement,
+.pay-shift-table__enhancement {
+  width: 165px;
+}
+
+.pay-shift-table__heading-tax,
+.pay-shift-table__tax {
+  width: 90px;
+}
+
+.pay-shift-table__heading-pay,
+.pay-shift-table__pay {
+  width: 110px;
+  text-align: right !important;
+}
+
+.pay-shift-table__hours {
+  color: #d9e5f5 !important;
+  font-weight: 760;
+  white-space: nowrap;
+}
+
+.pay-shift-table__rate {
+  color: #aebdd2 !important;
+  font-weight: 680;
+  white-space: nowrap;
+}
+
+.pay-shift-table__enhancement {
+  white-space: nowrap;
+}
+
+.pay-shift-table__tax {
+  white-space: nowrap;
+}
+
+.pay-shift-table--detailed
+.pay-shift-employer-badge {
+  max-width: 172px;
+}
+
+.pay-shift-table--detailed
+.pay-shift-employer-badge > span:last-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* =====================================================
+   ENHANCEMENT BADGES
+===================================================== */
+
+.pay-shift-enhancement-badge {
+  display: inline-flex;
+  min-height: 25px;
+  align-items: center;
+  justify-content: center;
+  padding: 4px 9px;
+  border: 1px solid rgba(110, 132, 170, 0.24);
+  border-radius: 999px;
+  background: rgba(29, 42, 67, 0.72);
+  color: #b8c7dc;
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: 0.035em;
+  line-height: 1.15;
+  text-align: center;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.pay-shift-enhancement-badge--basic {
+  border-color: rgba(59, 130, 246, 0.3);
+  background: rgba(59, 130, 246, 0.12);
+  color: #85b4ff;
+}
+
+.pay-shift-enhancement-badge--unsocial {
+  border-color: rgba(16, 185, 129, 0.3);
+  background: rgba(16, 185, 129, 0.12);
+  color: #5ee3af;
+}
+
+.pay-shift-enhancement-badge--enhanced-120 {
+  border-color: rgba(6, 182, 212, 0.3);
+  background: rgba(6, 182, 212, 0.12);
+  color: #67dced;
+}
+
+.pay-shift-enhancement-badge--enhanced-133 {
+  border-color: rgba(139, 92, 246, 0.34);
+  background: rgba(139, 92, 246, 0.14);
+  color: #b99cff;
+}
+
+.pay-shift-enhancement-badge--enhanced-150 {
+  border-color: rgba(245, 158, 11, 0.34);
+  background: rgba(245, 158, 11, 0.13);
+  color: #f8bd56;
+}
+
+.pay-shift-enhancement-badge--double-time {
+  border-color: rgba(239, 68, 68, 0.34);
+  background: rgba(239, 68, 68, 0.13);
+  color: #ff8585;
+}
+
+.pay-shift-enhancement-badge--triple-time {
+  border-color: rgba(244, 63, 94, 0.38);
+  background: rgba(244, 63, 94, 0.15);
+  color: #ff8ba1;
+}
+
+.pay-shift-enhancement-badge--saturday {
+  border-color: rgba(249, 115, 22, 0.32);
+  background: rgba(249, 115, 22, 0.12);
+  color: #f8a05d;
+}
+
+.pay-shift-enhancement-badge--sunday {
+  border-color: rgba(239, 68, 68, 0.34);
+  background: rgba(239, 68, 68, 0.13);
+  color: #ff8585;
+}
+
+.pay-shift-enhancement-badge--overtime {
+  border-color: rgba(234, 179, 8, 0.34);
+  background: rgba(234, 179, 8, 0.13);
+  color: #f4d24f;
+}
+
+.pay-shift-enhancement-badge--cash {
+  border-color: rgba(148, 163, 184, 0.3);
+  background: rgba(100, 116, 139, 0.14);
+  color: #c4cfdd;
+}
+
+.pay-shift-enhancement-badge--other {
+  border-color: rgba(100, 116, 139, 0.28);
+  background: rgba(100, 116, 139, 0.1);
+  color: #aebdce;
+}
+
+/* =====================================================
+   DETAILED TABLE ROW ACCENTS
+===================================================== */
+
+.pay-shift-table--detailed
+.pay-shift-table__row[data-enhancement="basic"]:hover {
+  box-shadow:
+    inset 3px 0 0 rgba(59, 130, 246, 0.72);
+}
+
+.pay-shift-table--detailed
+.pay-shift-table__row[data-enhancement="unsocial"]:hover {
+  box-shadow:
+    inset 3px 0 0 rgba(16, 185, 129, 0.72);
+}
+
+.pay-shift-table--detailed
+.pay-shift-table__row[data-enhancement="enhanced-133"]:hover {
+  box-shadow:
+    inset 3px 0 0 rgba(139, 92, 246, 0.72);
+}
+
+.pay-shift-table--detailed
+.pay-shift-table__row[data-enhancement="enhanced-150"]:hover {
+  box-shadow:
+    inset 3px 0 0 rgba(245, 158, 11, 0.72);
+}
+
+.pay-shift-table--detailed
+.pay-shift-table__row[data-enhancement="sunday"]:hover {
+  box-shadow:
+    inset 3px 0 0 rgba(239, 68, 68, 0.72);
+}
+
+/* =====================================================
+   DETAILED TABLE SCROLLBAR
+===================================================== */
+
+.pay-shift-table-scroll {
+  scrollbar-color:
+    rgba(92, 128, 197, 0.55)
+    rgba(15, 23, 42, 0.35);
+  scrollbar-width: thin;
+}
+
+.pay-shift-table-scroll::-webkit-scrollbar {
+  height: 9px;
+}
+
+.pay-shift-table-scroll::-webkit-scrollbar-track {
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.5);
+}
+
+.pay-shift-table-scroll::-webkit-scrollbar-thumb {
+  border: 2px solid rgba(15, 23, 42, 0.5);
+  border-radius: 999px;
+  background: rgba(92, 128, 197, 0.55);
+}
+
+.pay-shift-table-scroll::-webkit-scrollbar-thumb:hover {
+  background: rgba(104, 148, 235, 0.72);
+}
+
+/* =====================================================
+   DETAILED TABLE RESPONSIVE
+===================================================== */
+
+@media (max-width: 1180px) {
+  .pay-shift-table--detailed {
+    min-width: 1100px;
+  }
+
+  .pay-shift-table__heading-employer,
+  .pay-shift-table__employer {
+    width: 165px;
+  }
+
+  .pay-shift-table__heading-shift,
+  .pay-shift-table__shift {
+    min-width: 190px;
+  }
+}
+
+@media (max-width: 760px) {
+  .pay-shift-table--detailed {
+    min-width: 1050px;
+  }
+
+  .pay-shift-table--detailed th,
+  .pay-shift-table--detailed td {
+    padding: 11px 10px;
+  }
+
+  .pay-shift-table__heading-day,
+  .pay-shift-table__day {
+    position: sticky;
+    z-index: 1;
+    left: 0;
+    background: #101a2c;
+  }
+
+  .pay-shift-table--detailed th.pay-shift-table__heading-day {
+    z-index: 4;
+    background: #19263e;
+  }
+
+  .pay-shift-enhancement-badge {
+    min-height: 23px;
+    padding: 4px 7px;
+    font-size: 7.5px;
+  }
+}
+/* =====================================================
+   WEEKLY PAY CALENDAR
+===================================================== */
+
+.pay-calendar-card {
+  min-width: 0;
+  overflow: hidden;
+}
+
+.pay-calendar-card .card__body {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.pay-calendar-header-summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.pay-calendar-legend {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  border: 1px solid rgba(95, 118, 154, 0.2);
+  border-radius: 12px;
+  background: rgba(15, 24, 41, 0.58);
+}
+
+.pay-calendar-legend__item {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--color-text-muted);
+  font-size: 9px;
+  font-weight: 720;
+  white-space: nowrap;
+}
+
+.pay-calendar-legend__marker {
+  width: 8px;
+  height: 8px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: #64748b;
+  box-shadow: 0 0 9px rgba(100, 116, 139, 0.3);
+}
+
+.pay-calendar-legend__marker--nhs {
+  background: #3b82f6;
+  box-shadow: 0 0 9px rgba(59, 130, 246, 0.36);
+}
+
+.pay-calendar-legend__marker--relief {
+  background: #10b981;
+  box-shadow: 0 0 9px rgba(16, 185, 129, 0.36);
+}
+
+.pay-calendar-legend__marker--security {
+  background: #8b5cf6;
+  box-shadow: 0 0 9px rgba(139, 92, 246, 0.36);
+}
+
+.pay-calendar-legend__marker--logging {
+  background: #f59e0b;
+  box-shadow: 0 0 9px rgba(245, 158, 11, 0.36);
+}
+
+.pay-calendar-grid {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: repeat(7, minmax(150px, 1fr));
+  gap: 12px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+}
+
+.pay-calendar-loading {
+  grid-column: 1 / -1;
+  display: flex;
+  min-height: 220px;
+  align-items: center;
+  justify-content: center;
+  padding: 28px;
+  border: 1px dashed var(--color-border);
+  border-radius: 14px;
+  color: var(--color-text-muted);
+  text-align: center;
+}
+
+.pay-calendar-day {
+  display: flex;
+  min-width: 150px;
+  min-height: 270px;
+  flex-direction: column;
+  border: 1px solid rgba(95, 118, 154, 0.22);
+  border-radius: 14px;
+  background:
+    linear-gradient(
+      155deg,
+      rgba(25, 37, 60, 0.88),
+      rgba(15, 25, 43, 0.88)
+    );
+  box-shadow:
+    0 8px 22px rgba(3, 8, 18, 0.16);
+  transition:
+    border-color 160ms ease,
+    transform 160ms ease,
+    box-shadow 160ms ease;
+}
+
+.pay-calendar-day:hover {
+  border-color: rgba(92, 136, 228, 0.42);
+  transform: translateY(-2px);
+  box-shadow:
+    0 13px 28px rgba(3, 8, 18, 0.22);
+}
+
+.pay-calendar-day.is-empty {
+  opacity: 0.72;
+}
+
+.pay-calendar-day__header {
+  display: flex;
+  min-height: 72px;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 14px;
+  border-bottom: 1px solid rgba(95, 118, 154, 0.18);
+}
+
+.pay-calendar-day__date-group {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.pay-calendar-day__name {
+  color: var(--color-heading);
+  font-size: 10px;
+  font-weight: 820;
+  letter-spacing: 0.065em;
+  text-transform: uppercase;
+}
+
+.pay-calendar-day__date {
+  color: var(--color-text-muted);
+  font-size: 9px;
+}
+
+.pay-calendar-day__totals {
+  display: flex;
+  flex: 0 0 auto;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+}
+
+.pay-calendar-day__pay {
+  color: var(--color-heading);
+  font-size: 11px;
+  font-weight: 820;
+  white-space: nowrap;
+}
+
+.pay-calendar-day__hours {
+  color: var(--color-text-muted);
+  font-size: 8.5px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.pay-calendar-day__entries {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 9px;
+  padding: 12px;
+}
+
+.pay-calendar-shift {
+  --calendar-accent: #64748b;
+  --calendar-accent-rgb: 100, 116, 139;
+
+  position: relative;
+  overflow: hidden;
+  padding: 11px 10px 10px 13px;
+  border: 1px solid rgba(var(--calendar-accent-rgb), 0.23);
+  border-radius: 11px;
+  background:
+    linear-gradient(
+      145deg,
+      rgba(var(--calendar-accent-rgb), 0.12),
+      rgba(15, 23, 42, 0.72)
+    );
+}
+
+.pay-calendar-shift::before {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 4px;
+  border-radius: 11px 0 0 11px;
+  background: var(--calendar-accent);
+  content: "";
+}
+
+.pay-calendar-shift--nhs {
+  --calendar-accent: #3b82f6;
+  --calendar-accent-rgb: 59, 130, 246;
+}
+
+.pay-calendar-shift--relief {
+  --calendar-accent: #10b981;
+  --calendar-accent-rgb: 16, 185, 129;
+}
+
+.pay-calendar-shift--security {
+  --calendar-accent: #8b5cf6;
+  --calendar-accent-rgb: 139, 92, 246;
+}
+
+.pay-calendar-shift--logging {
+  --calendar-accent: #f59e0b;
+  --calendar-accent-rgb: 245, 158, 11;
+}
+
+.pay-calendar-shift__header {
+  display: flex;
+  min-width: 0;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.pay-calendar-shift__employer {
+  overflow: hidden;
+  color: var(--color-heading);
+  font-size: 8.5px;
+  font-weight: 780;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pay-calendar-shift__pay {
+  flex: 0 0 auto;
+  color: var(--color-heading);
+  font-size: 8.5px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.pay-calendar-shift__name {
+  display: -webkit-box;
+  overflow: hidden;
+  margin: 7px 0 0;
+  color: #b7c5d8;
+  font-size: 9px;
+  font-weight: 620;
+  line-height: 1.4;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.pay-calendar-shift__details {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-top: 9px;
+}
+
+.pay-calendar-shift__detail,
+.pay-calendar-shift__enhancement {
+  display: inline-flex;
+  min-height: 22px;
+  align-items: center;
+  padding: 3px 7px;
+  border: 1px solid rgba(var(--calendar-accent-rgb), 0.22);
+  border-radius: 999px;
+  background: rgba(var(--calendar-accent-rgb), 0.09);
+  color: #c7d3e3;
+  font-size: 7.5px;
+  font-weight: 780;
+  white-space: nowrap;
+}
+
+.pay-calendar-day__empty-entry {
+  display: flex;
+  min-height: 105px;
+  flex: 1 1 auto;
+  align-items: center;
+  justify-content: center;
+  padding: 14px;
+  border: 1px dashed rgba(95, 118, 154, 0.22);
+  border-radius: 10px;
+  color: var(--color-text-muted);
+  font-size: 8.5px;
+  text-align: center;
+}
+
+.pay-calendar-footer {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.pay-calendar-footer__metric {
+  display: flex;
+  min-width: 0;
+  min-height: 78px;
+  flex-direction: column;
+  justify-content: center;
+  gap: 5px;
+  padding: 14px;
+  border: 1px solid rgba(95, 118, 154, 0.2);
+  border-radius: 12px;
+  background:
+    linear-gradient(
+      145deg,
+      rgba(25, 38, 62, 0.82),
+      rgba(16, 27, 46, 0.82)
+    );
+}
+
+.pay-calendar-footer__label {
+  color: var(--color-text-muted);
+  font-size: 8px;
+  font-weight: 760;
+  letter-spacing: 0.055em;
+  text-transform: uppercase;
+}
+
+.pay-calendar-footer__value {
+  overflow: hidden;
+  color: var(--color-heading);
+  font-size: 15px;
+  font-weight: 820;
+  letter-spacing: -0.02em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* =====================================================
+   WEEKLY PAY CALENDAR — RESPONSIVE
+===================================================== */
+
+@media (max-width: 1250px) {
+  .pay-calendar-grid {
+    grid-template-columns: repeat(4, minmax(180px, 1fr));
+  }
+}
+
+@media (max-width: 900px) {
+  .pay-calendar-grid {
+    grid-template-columns: repeat(2, minmax(210px, 1fr));
+  }
+
+  .pay-calendar-footer {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 620px) {
+  .pay-calendar-card .card__header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .pay-calendar-header-summary {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  .pay-calendar-legend {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .pay-calendar-grid {
+    grid-template-columns: minmax(240px, 1fr);
+  }
+
+  .pay-calendar-day {
+    min-width: 0;
+  }
+
+  .pay-calendar-footer {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

@@ -287,6 +287,7 @@ const PayTrackerWebPayWorkspaceService = Object.freeze({
 
     let grossFromEmployers = 0;
     let totalShifts = 0;
+    let totalHours = 0;
     let hasData = false;
 
     tables.forEach(function(table) {
@@ -315,6 +316,12 @@ const PayTrackerWebPayWorkspaceService = Object.freeze({
 
       totalShifts +=
         employer.shifts;
+
+      totalHours +=
+        PayTrackerWebPayWorkspaceService
+          .toNumber(
+            employer.hours
+          );
 
       if (employer.shifts > 0) {
         hasData = true;
@@ -435,15 +442,11 @@ const PayTrackerWebPayWorkspaceService = Object.freeze({
       totalShifts:
         totalShifts,
 
-      /*
-       * Hours are deliberately null during the Pay
-       * Dashboard feature.
-       *
-       * Shift durations will be connected through the
-       * established shift configuration during the Shift
-       * Table feature instead of estimating them here.
-       */
-      totalHours: null,
+      totalHours:
+      PayTrackerWebPayWorkspaceService
+        .roundHours(
+          totalHours
+        ),totalHours: null,
 
         employers:
             employers,
@@ -546,6 +549,8 @@ const PayTrackerWebPayWorkspaceService = Object.freeze({
 
         shiftCount: 0,
 
+        totalHours: 0,
+
         totalPay: 0,
 
         hasWork: false
@@ -602,17 +607,51 @@ const PayTrackerWebPayWorkspaceService = Object.freeze({
                   ),
 
                 shiftName:
-                  String(
-                    entry.shiftName || ''
-                  ).trim(),
+  String(
+    entry.shiftName || ''
+  ).trim(),
 
-                pay:
-                  pay
+hours:
+  entry.hours === null ||
+  typeof entry.hours === 'undefined'
+    ? null
+    : PayTrackerWebPayWorkspaceService
+        .roundHours(
+          entry.hours
+        ),
+
+hourlyRate:
+  entry.hourlyRate === null ||
+  typeof entry.hourlyRate === 'undefined'
+    ? null
+    : PayTrackerWebPayWorkspaceService
+        .roundCurrency(
+          entry.hourlyRate
+        ),
+
+enhancement:
+  String(
+    entry.enhancement || ''
+  ).trim(),
+
+pay:
+  pay
               });
 
             timeline[dayIndex]
               .shiftCount++;
 
+              if (
+                entry.hours !== null &&
+                typeof entry.hours !== 'undefined'
+              ) {
+                timeline[dayIndex]
+                  .totalHours +=
+                    PayTrackerWebPayWorkspaceService
+                      .toNumber(
+                        entry.hours
+                      );
+              }
             timeline[dayIndex]
               .totalPay += pay;
 
@@ -622,12 +661,18 @@ const PayTrackerWebPayWorkspaceService = Object.freeze({
       });
 
     timeline.forEach(function(day) {
-      day.totalPay =
-        PayTrackerWebPayWorkspaceService
-          .roundCurrency(
-            day.totalPay
-          );
-    });
+  day.totalHours =
+    PayTrackerWebPayWorkspaceService
+      .roundHours(
+        day.totalHours
+      );
+
+  day.totalPay =
+    PayTrackerWebPayWorkspaceService
+      .roundCurrency(
+        day.totalPay
+      );
+});
 
     return timeline;
   },
@@ -670,129 +715,199 @@ const PayTrackerWebPayWorkspaceService = Object.freeze({
    * @return {Object} Employer summary.
    */
   readEmployerWeek: function(options) {
-    const values =
-      options.values;
+  const values =
+    options.values;
 
-    const displayValues =
-      options.displayValues;
+  const displayValues =
+    options.displayValues;
 
-    const startIndex =
-      options.startIndex;
+  const startIndex =
+    options.startIndex;
 
-    const config =
-      options.config;
+  const config =
+    options.config;
 
-    const table =
-      options.table;
+  const table =
+    options.table;
 
-    const employerKey =
-      options.employerKey;
+  const employerKey =
+    options.employerKey;
 
-    const shiftColumnIndex =
-      Number(table.startColumn) + 1;
+  /*
+   * table.startColumn is one-based.
+   * Spreadsheet arrays are zero-based.
+   *
+   * startColumn + 1 = shift
+   * startColumn + 2 = hours
+   * startColumn + 3 = pay
+   */
+  const shiftColumnIndex =
+    Number(table.startColumn) + 1;
 
-    const payColumnIndex =
-      Number(table.startColumn) + 3;
+  const hoursColumnIndex =
+    Number(table.startColumn) + 2;
 
-    let shifts = 0;
-    let calculatedTotal = 0;
+  const payColumnIndex =
+    Number(table.startColumn) + 3;
 
-    const entries = [];
+  let shifts = 0;
+  let calculatedTotal = 0;
+  let totalHours = 0;
 
-    for (
-      let dayIndex = 0;
-      dayIndex < config.dataRowCount;
-      dayIndex++
-    ) {
-      const rowIndex =
-        startIndex +
-        config.dataRowOffset +
-        dayIndex;
+  const entries = [];
 
-      if (rowIndex >= values.length) {
-        break;
-      }
+  for (
+    let dayIndex = 0;
+    dayIndex < config.dataRowCount;
+    dayIndex++
+  ) {
+    const rowIndex =
+      startIndex +
+      config.dataRowOffset +
+      dayIndex;
 
-      const shiftName = String(
-        displayValues[rowIndex] &&
-        displayValues[rowIndex][shiftColumnIndex]
-          ? displayValues[rowIndex][shiftColumnIndex]
-          : ''
-      ).trim();
-
-      const pay =
-        Number(
-          values[rowIndex] &&
-          values[rowIndex][payColumnIndex]
-            ? values[rowIndex][payColumnIndex]
-            : 0
-        ) || 0;
-
-      if (shiftName !== '') {
-        shifts++;
-
-        entries.push({
-          dayIndex:
-            dayIndex,
-
-          shiftName:
-            shiftName,
-
-          pay:
-            PayTrackerWebPayWorkspaceService
-              .roundCurrency(pay)
-        });
-      }
-
-      calculatedTotal += pay;
+    if (rowIndex >= values.length) {
+      break;
     }
 
-    const totalRowIndex =
-      startIndex +
-      config.totalRowOffset;
+    const shiftName = String(
+      displayValues[rowIndex] &&
+      displayValues[rowIndex][shiftColumnIndex]
+        ? displayValues[rowIndex][shiftColumnIndex]
+        : ''
+    ).trim();
 
-    const storedTotal =
-      totalRowIndex < values.length
-        ? (
-          Number(
-            values[totalRowIndex] &&
-            values[totalRowIndex][payColumnIndex]
-              ? values[totalRowIndex][payColumnIndex]
-              : 0
-          ) || 0
-        )
-        : 0;
+    const rawHours =
+      values[rowIndex] &&
+      values[rowIndex][hoursColumnIndex] !==
+        null &&
+      typeof values[rowIndex][hoursColumnIndex] !==
+        'undefined'
+        ? values[rowIndex][hoursColumnIndex]
+        : null;
 
-    return {
-      key:
-        employerKey,
+    const pay =
+      Number(
+        values[rowIndex] &&
+        values[rowIndex][payColumnIndex]
+          ? values[rowIndex][payColumnIndex]
+          : 0
+      ) || 0;
 
-      name:
-        String(
-          table.name ||
+    if (shiftName !== '') {
+      const enteredHours =
+        PayTrackerWebPayWorkspaceService
+          .normalizeHours(
+            rawHours
+          );
+
+      const defaultHours =
+        PayTrackerWebPayWorkspaceService
+          .getDefaultShiftHours(
+            employerKey,
+            shiftName
+          );
+
+      const resolvedHours =
+        enteredHours !== null
+          ? enteredHours
+          : defaultHours;
+
+      const hourlyRate =
+        PayTrackerWebPayWorkspaceService
+          .getConfiguredHourlyRate(
+            table.name,
+            shiftName
+          );
+
+      shifts++;
+
+      if (resolvedHours !== null) {
+        totalHours += resolvedHours;
+      }
+
+      entries.push({
+        dayIndex:
+          dayIndex,
+
+        shiftName:
+          shiftName,
+
+        hours:
+          resolvedHours,
+
+        hourlyRate:
+          hourlyRate,
+
+        enhancement:
           PayTrackerWebPayWorkspaceService
-            .getDefaultEmployerName(
-              employerKey
+            .getEnhancementLabel(
+              shiftName
+            ),
+
+        pay:
+          PayTrackerWebPayWorkspaceService
+            .roundCurrency(
+              pay
             )
+      });
+    }
+
+    calculatedTotal += pay;
+  }
+
+  const totalRowIndex =
+    startIndex +
+    config.totalRowOffset;
+
+  const storedTotal =
+    totalRowIndex < values.length
+      ? (
+        Number(
+          values[totalRowIndex] &&
+          values[totalRowIndex][payColumnIndex]
+            ? values[totalRowIndex][payColumnIndex]
+            : 0
+        ) || 0
+      )
+      : 0;
+
+  return {
+    key:
+      employerKey,
+
+    name:
+      String(
+        table.name ||
+        PayTrackerWebPayWorkspaceService
+          .getDefaultEmployerName(
+            employerKey
+          )
+      ),
+
+    taxable:
+      Boolean(table.taxable),
+
+    shifts:
+      shifts,
+
+    hours:
+      PayTrackerWebPayWorkspaceService
+        .roundHours(
+          totalHours
         ),
 
-      taxable:
-        Boolean(table.taxable),
+    total:
+      PayTrackerWebPayWorkspaceService
+        .roundCurrency(
+          storedTotal ||
+          calculatedTotal
+        ),
 
-      shifts:
-        shifts,
-
-      total:
-        PayTrackerWebPayWorkspaceService
-          .roundCurrency(
-            storedTotal ||
-            calculatedTotal
-          ),
-
-      entries:
-        entries
-    };
-  },
+    entries:
+      entries
+  };
+},
 
   /**
    * Reads stored week summary figures.
@@ -807,6 +922,278 @@ const PayTrackerWebPayWorkspaceService = Object.freeze({
    * @param {Object} options Read options.
    * @return {Object} Week summary.
    */
+
+  /**
+ * Converts a spreadsheet hours value into a number.
+ *
+ * @param {*} value Hours value.
+ * @return {number|null} Hours or null.
+ */
+normalizeHours: function(value) {
+  if (
+    value === null ||
+    typeof value === 'undefined' ||
+    String(value).trim() === ''
+  ) {
+    return null;
+  }
+
+  const hours =
+    Number(value);
+
+  if (
+    !Number.isFinite(hours) ||
+    hours <= 0
+  ) {
+    return null;
+  }
+
+  return PayTrackerWebPayWorkspaceService
+    .roundHours(
+      hours
+    );
+},
+
+/**
+ * Returns the expected duration for a configured preset.
+ *
+ * Stored PaySheet hours always take priority. These
+ * defaults only support preset shifts where the hours
+ * cell has not been populated.
+ *
+ * @param {string} employerKey Employer key.
+ * @param {string} shiftName Shift name.
+ * @return {number|null} Default hours.
+ */
+getDefaultShiftHours: function(
+  employerKey,
+  shiftName
+) {
+  const key =
+    String(employerKey || '')
+      .trim()
+      .toLowerCase();
+
+  const shift =
+    String(shiftName || '')
+      .trim()
+      .toLowerCase();
+
+  if (!shift) {
+    return null;
+  }
+
+  if (key === 'nhs') {
+    if (
+      shift.indexOf(
+        'hsc unsoc: m-f 8pm-6am'
+      ) !== -1
+    ) {
+      return 2;
+    }
+
+    return 7.5;
+  }
+
+  if (key === 'relief') {
+    if (shift === 'basic') {
+      return 10;
+    }
+
+    return 4;
+  }
+
+  if (key === 'security') {
+    return 4;
+  }
+
+  /*
+   * Logging hours must come from the PaySheet because
+   * cash-work duration is variable.
+   */
+  return null;
+},
+
+/**
+ * Returns the configured hourly rate for a shift.
+ *
+ * @param {string} tableName Employer table name.
+ * @param {string} shiftName Shift name.
+ * @return {number|null} Hourly rate.
+ */
+getConfiguredHourlyRate: function(
+  tableName,
+  shiftName
+) {
+  if (
+    typeof PayTrackerPayCalculator !==
+      'undefined' &&
+    PayTrackerPayCalculator &&
+    typeof PayTrackerPayCalculator
+      .getHourlyRate === 'function'
+  ) {
+    const rate =
+      PayTrackerPayCalculator
+        .getHourlyRate(
+          tableName,
+          shiftName
+        );
+
+    return rate === null
+      ? null
+      : PayTrackerWebPayWorkspaceService
+          .roundCurrency(
+            rate
+          );
+  }
+
+  const payRules =
+    typeof PayTrackerConfig !==
+      'undefined' &&
+    PayTrackerConfig &&
+    PayTrackerConfig.PAY_RULES
+      ? PayTrackerConfig.PAY_RULES
+      : {};
+
+  const tableRules =
+    payRules[tableName] || {};
+
+  const rule =
+    tableRules[shiftName] || null;
+
+  if (
+    !rule ||
+    rule.hourlyRate === null ||
+    typeof rule.hourlyRate ===
+      'undefined'
+  ) {
+    return null;
+  }
+
+  const rate =
+    Number(rule.hourlyRate);
+
+  return Number.isFinite(rate)
+    ? PayTrackerWebPayWorkspaceService
+        .roundCurrency(rate)
+    : null;
+},
+
+/**
+ * Returns a readable enhancement label.
+ *
+ * @param {string} shiftName Shift name.
+ * @return {string} Enhancement.
+ */
+getEnhancementLabel: function(shiftName) {
+  const shift =
+    String(shiftName || '').trim();
+
+  const normalized =
+    shift.toLowerCase();
+
+  if (
+    normalized.indexOf('1.20') !== -1
+  ) {
+    return '1.20×';
+  }
+
+  if (
+    normalized.indexOf('1.33') !== -1
+  ) {
+    return '1.33×';
+  }
+
+  if (
+    normalized.indexOf('1.50') !== -1
+  ) {
+    return '1.50×';
+  }
+
+  if (
+    normalized.indexOf('2.00') !== -1
+  ) {
+    return '2.00×';
+  }
+
+  if (
+    normalized.indexOf('3.00') !== -1
+  ) {
+    return '3.00×';
+  }
+
+  if (
+    normalized.indexOf('sunday') !== -1 ||
+    normalized.indexOf('pub hol') !== -1
+  ) {
+    return 'Sunday / public holiday';
+  }
+
+  if (
+    normalized.indexOf('saturday') !== -1
+  ) {
+    return 'Saturday';
+  }
+
+  if (
+    normalized.indexOf('unsoc') !== -1 ||
+    normalized.indexOf('split') !== -1
+  ) {
+    return 'Unsocial hours';
+  }
+
+  if (
+    normalized.indexOf('overtime') !== -1
+  ) {
+    return 'Overtime';
+  }
+
+  if (
+    normalized.indexOf('basic') !== -1
+  ) {
+    return 'Basic';
+  }
+
+  if (
+    normalized.indexOf('logging') !== -1
+  ) {
+    return 'Cash work';
+  }
+
+  return shift;
+},
+
+/**
+ * Rounds a worked-hours value.
+ *
+ * @param {*} value Hours.
+ * @return {number} Rounded hours.
+ */
+roundHours: function(value) {
+  const hours =
+    Number(value) || 0;
+
+  return (
+    Math.round(hours * 100) /
+    100
+  );
+},
+
+/**
+ * Converts a value into a finite number.
+ *
+ * @param {*} value Value.
+ * @return {number} Number.
+ */
+toNumber: function(value) {
+  const number =
+    Number(value);
+
+  return Number.isFinite(number)
+    ? number
+    : 0;
+},
+
   readWeekSummary: function(options) {
     const values =
       options.values;
@@ -1242,6 +1629,7 @@ const PayTrackerWebPayWorkspaceService = Object.freeze({
         name: 'NHS',
         taxable: true,
         shifts: 0,
+        hours: 0,
         total: 0,
         entries: []
       },
@@ -1251,6 +1639,7 @@ const PayTrackerWebPayWorkspaceService = Object.freeze({
         name: 'Relief Assistant Warden',
         taxable: true,
         shifts: 0,
+        hours: 0,
         total: 0,
         entries: []
       },
@@ -1260,6 +1649,7 @@ const PayTrackerWebPayWorkspaceService = Object.freeze({
         name: 'Night Security Warden',
         taxable: true,
         shifts: 0,
+        hours: 0,
         total: 0,
         entries: []
       },
@@ -1269,6 +1659,7 @@ const PayTrackerWebPayWorkspaceService = Object.freeze({
         name: 'Logging Cash',
         taxable: false,
         shifts: 0,
+        hours: 0,
         total: 0,
         entries: []
       }

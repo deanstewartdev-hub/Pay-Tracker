@@ -567,6 +567,18 @@ const PayTrackerPayWorkspaceService = Object.freeze({
         );
     }
 
+    if (
+      window.PayTrackerPayCalendarService &&
+      typeof window
+        .PayTrackerPayCalendarService
+        .render === 'function'
+    ) {
+      window.PayTrackerPayCalendarService
+        .render(
+          selectedWeek
+        );
+    }
+
     PayTrackerPayWorkspaceService
       .renderNavigation(
         response.navigation || {}
@@ -1042,6 +1054,18 @@ const PayTrackerPayWorkspaceService = Object.freeze({
     ) {
       window.PayTrackerShiftTableService
         .renderEmpty();
+    }
+    
+    if (
+      window.PayTrackerPayCalendarService &&
+      typeof window
+        .PayTrackerPayCalendarService
+        .renderEmpty === 'function'
+    ) {
+      window.PayTrackerPayCalendarService
+        .renderEmpty(
+          'No calendar data available'
+        );
     }
   },
 
