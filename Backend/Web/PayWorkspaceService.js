@@ -102,24 +102,54 @@ const PayTrackerWebPayWorkspaceService = Object.freeze({
         sheetName: sheetName,
 
         weeks:
-          payData.weeks.map(function(week) {
-            return {
-              weekNumber:
-                week.weekNumber,
+  payData.weeks.map(function(week) {
+    return {
+      weekNumber:
+        week.weekNumber,
 
-              weekLabel:
-                week.weekLabel,
+      weekLabel:
+        week.weekLabel,
 
-              weekStart:
-                week.weekStart,
+      weekStart:
+        week.weekStart,
 
-              weekEnd:
-                week.weekEnd,
+      weekEnd:
+        week.weekEnd,
 
-              hasData:
-                week.hasData
-            };
-          }),
+      hasData:
+        week.hasData,
+
+      gross:
+        week.gross,
+
+      taxableGross:
+        week.taxableGross,
+
+      estimatedDeductions:
+        week.estimatedDeductions,
+
+      taxableTakeHome:
+        week.taxableTakeHome,
+
+      loggingCash:
+        week.loggingCash,
+
+      takeHome:
+        week.takeHome,
+
+      deductionRate:
+        week.deductionRate,
+
+      totalShifts:
+        week.totalShifts,
+
+      totalHours:
+        week.totalHours,
+
+      employers:
+        week.employers
+    };
+  }),
 
         selectedWeek:
           selected.week,
@@ -442,17 +472,20 @@ const PayTrackerWebPayWorkspaceService = Object.freeze({
       totalShifts:
         totalShifts,
 
-      totalHours:
+     totalShifts:
+      totalShifts,
+
+    totalHours:
       PayTrackerWebPayWorkspaceService
         .roundHours(
           totalHours
-        ),totalHours: null,
+        ),
 
-        employers:
-            employers,
+    employers:
+      employers,
 
-      timeline:
-        timeline,
+    timeline:
+      timeline,
 
       message:
         hasData

@@ -1055,31 +1055,235 @@
 </section>
 
   <section
-    class="pay-workspace-panel"
-    data-pay-panel="forecast"
-    aria-label="Income forecasting"
-    hidden
+  class="pay-workspace-panel"
+  data-pay-panel="forecast"
+  aria-label="Income forecasting"
+  hidden
+>
+  <section
+    class="pay-forecast-summary-grid"
+    aria-label="Income forecast summary"
   >
-    <div class="card">
-      <div class="empty-state">
-        <div
-          class="empty-state__icon"
-          aria-hidden="true"
-        >
-          ↗
+    <article class="pay-forecast-summary-card">
+      <span class="pay-forecast-summary-card__label">
+        Average weekly gross
+      </span>
+
+      <strong
+        id="pay-forecast-average-gross"
+        class="pay-forecast-summary-card__value"
+      >
+        £0.00
+      </strong>
+
+      <span
+        id="pay-forecast-average-gross-meta"
+        class="pay-forecast-summary-card__meta"
+      >
+        Based on recorded weeks
+      </span>
+    </article>
+
+    <article class="pay-forecast-summary-card">
+      <span class="pay-forecast-summary-card__label">
+        Average take-home
+      </span>
+
+      <strong
+        id="pay-forecast-average-take-home"
+        class="pay-forecast-summary-card__value"
+      >
+        £0.00
+      </strong>
+
+      <span
+        id="pay-forecast-average-take-home-meta"
+        class="pay-forecast-summary-card__meta"
+      >
+        After estimated deductions
+      </span>
+    </article>
+
+    <article class="pay-forecast-summary-card">
+      <span class="pay-forecast-summary-card__label">
+        Average weekly hours
+      </span>
+
+      <strong
+        id="pay-forecast-average-hours"
+        class="pay-forecast-summary-card__value"
+      >
+        0h
+      </strong>
+
+      <span
+        id="pay-forecast-average-hours-meta"
+        class="pay-forecast-summary-card__meta"
+      >
+        Across populated weeks
+      </span>
+    </article>
+
+    <article class="pay-forecast-summary-card">
+      <span class="pay-forecast-summary-card__label">
+        Four-week projection
+      </span>
+
+      <strong
+        id="pay-forecast-four-week-gross"
+        class="pay-forecast-summary-card__value"
+      >
+        £0.00
+      </strong>
+
+      <span
+        id="pay-forecast-four-week-meta"
+        class="pay-forecast-summary-card__meta"
+      >
+        Estimated gross income
+      </span>
+    </article>
+  </section>
+
+  <section class="pay-forecast-content-grid">
+    <article class="card pay-forecast-trend-card">
+      <div class="card__header">
+        <div>
+          <h3 class="card__title">
+            Recent earnings trend
+          </h3>
+
+          <p class="card__subtitle">
+            Gross income across your latest recorded PaySheet weeks
+          </p>
         </div>
 
-        <h3 class="empty-state__title">
-          Income forecasting
-        </h3>
-
-        <p class="empty-state__message">
-          Future pay forecasts will use upcoming calendar shifts,
-          employer rates and historical earnings patterns.
-        </p>
+        <span
+          id="pay-forecast-trend-status"
+          class="pay-shell-card__status"
+        >
+          Loading
+        </span>
       </div>
-    </div>
+
+      <div class="card__body">
+        <div
+          id="pay-forecast-chart"
+          class="pay-forecast-chart"
+          aria-label="Recent weekly gross income chart"
+          aria-live="polite"
+        >
+          <div class="pay-forecast-loading">
+            Loading earnings forecast
+          </div>
+        </div>
+      </div>
+    </article>
+
+    <article class="card pay-forecast-range-card">
+      <div class="card__header">
+        <div>
+          <h3 class="card__title">
+            Recorded range
+          </h3>
+
+          <p class="card__subtitle">
+            Highest and lowest populated PaySheet weeks
+          </p>
+        </div>
+      </div>
+
+      <div class="card__body">
+        <div class="pay-forecast-range-list">
+          <div class="pay-forecast-range-item pay-forecast-range-item--best">
+            <span class="pay-forecast-range-item__label">
+              Best week
+            </span>
+
+            <strong
+              id="pay-forecast-best-week-value"
+              class="pay-forecast-range-item__value"
+            >
+              £0.00
+            </strong>
+
+            <span
+              id="pay-forecast-best-week-label"
+              class="pay-forecast-range-item__meta"
+            >
+              —
+            </span>
+          </div>
+
+          <div class="pay-forecast-range-item pay-forecast-range-item--lowest">
+            <span class="pay-forecast-range-item__label">
+              Lowest week
+            </span>
+
+            <strong
+              id="pay-forecast-lowest-week-value"
+              class="pay-forecast-range-item__value"
+            >
+              £0.00
+            </strong>
+
+            <span
+              id="pay-forecast-lowest-week-label"
+              class="pay-forecast-range-item__meta"
+            >
+              —
+            </span>
+          </div>
+
+          <div class="pay-forecast-range-item">
+            <span class="pay-forecast-range-item__label">
+              Forecast confidence
+            </span>
+
+            <strong
+              id="pay-forecast-confidence"
+              class="pay-forecast-range-item__value"
+            >
+              —
+            </strong>
+
+            <span
+              id="pay-forecast-confidence-meta"
+              class="pay-forecast-range-item__meta"
+            >
+              Waiting for recorded weeks
+            </span>
+          </div>
+        </div>
+      </div>
+    </article>
+
+    <article class="card pay-forecast-employer-card">
+      <div class="card__header">
+        <div>
+          <h3 class="card__title">
+            Employer forecast
+          </h3>
+
+          <p class="card__subtitle">
+            Estimated four-week income contribution by employer
+          </p>
+        </div>
+      </div>
+
+      <div class="card__body">
+        <div
+          id="pay-forecast-employer-list"
+          class="pay-forecast-employer-list"
+        >
+          <div class="pay-forecast-loading">
+            Loading employer forecast
+          </div>
+        </div>
+      </div>
+    </article>
   </section>
+</section>
 
   <section
     class="pay-workspace-panel"

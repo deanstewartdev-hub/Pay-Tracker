@@ -1,0 +1,1253 @@
+/*******************************************************
+ * PAY TRACKER V2.8
+ * Frontend/Services/PayForecastService.html
+ *
+ * Purpose:
+ * - Calculate income forecasts from recorded PaySheet weeks
+ * - Render recent weekly earnings trends
+ * - Show average gross, take-home and hours
+ * - Calculate four-week projections
+ * - Identify best and lowest recorded weeks
+ * - Forecast employer contributions
+ *
+ * Important:
+ * - Avoid raw less-than operators because Apps Script
+ *   HTML templates may escape them inside JavaScript.
+ *******************************************************/
+
+var PayTrackerPayForecastService = {
+  EMPLOYERS: [
+    {
+      key: 'nhs',
+      name: 'NHS'
+    },
+    {
+      key: 'relief',
+      name: 'Relief Warden'
+    },
+    {
+      key: 'security',
+      name: 'Night Security'
+    },
+    {
+      key: 'logging',
+      name: 'Logging Cash'
+    }
+  ],
+
+  /**
+   * Renders the complete forecast workspace.
+   *
+   * @param {Object=} response Pay Workspace response.
+   */
+  render: function(response) {
+    var data =
+      response || {};
+
+    var selectedWeek =
+      data.selectedWeek || null;
+
+    var weeks =
+      PayTrackerPayForecastService
+        .buildForecastWeeks(
+          data.weeks,
+          selectedWeek
+        );
+
+    var populatedWeeks =
+      weeks.filter(function(week) {
+        return Boolean(
+          week &&
+          week.hasData &&
+          PayTrackerPayForecastService
+            .toNumber(week.gross) > 0
+        );
+      });
+
+    if (populatedWeeks.length === 0) {
+      PayTrackerPayForecastService
+        .renderEmpty(
+          'No populated weeks are available for forecasting.'
+        );
+
+      return;
+    }
+
+    var metrics =
+      PayTrackerPayForecastService
+        .calculateMetrics(
+          populatedWeeks
+        );
+
+    PayTrackerPayForecastService
+      .renderSummary(metrics);
+
+    PayTrackerPayForecastService
+      .renderTrend(
+        populatedWeeks,
+        metrics
+      );
+
+    PayTrackerPayForecastService
+      .renderRange(metrics);
+
+    PayTrackerPayForecastService
+      .renderEmployerForecast(
+        metrics.employerAverages
+      );
+  },
+
+  /**
+   * Displays the empty forecast state.
+   *
+   * @param {string=} message Empty-state message.
+   */
+  renderEmpty: function(message) {
+    PayTrackerPayForecastService
+      .setText(
+        'pay-forecast-average-gross',
+        '£0.00'
+      );
+
+    PayTrackerPayForecastService
+      .setText(
+        'pay-forecast-average-take-home',
+        '£0.00'
+      );
+
+    PayTrackerPayForecastService
+      .setText(
+        'pay-forecast-average-hours',
+        '0h'
+      );
+
+    PayTrackerPayForecastService
+      .setText(
+        'pay-forecast-four-week-gross',
+        '£0.00'
+      );
+
+    PayTrackerPayForecastService
+      .setText(
+        'pay-forecast-trend-status',
+        'No data'
+      );
+
+    PayTrackerPayForecastService
+      .setText(
+        'pay-forecast-best-week-value',
+        '£0.00'
+      );
+
+    PayTrackerPayForecastService
+      .setText(
+        'pay-forecast-best-week-label',
+        '—'
+      );
+
+    PayTrackerPayForecastService
+      .setText(
+        'pay-forecast-lowest-week-value',
+        '£0.00'
+      );
+
+    PayTrackerPayForecastService
+      .setText(
+        'pay-forecast-lowest-week-label',
+        '—'
+      );
+
+    PayTrackerPayForecastService
+      .setText(
+        'pay-forecast-confidence',
+        'Low'
+      );
+
+    PayTrackerPayForecastService
+      .setText(
+        'pay-forecast-confidence-meta',
+        'More recorded weeks are required'
+      );
+
+    var chart =
+      document.getElementById(
+        'pay-forecast-chart'
+      );
+
+    if (chart) {
+      PayTrackerPayForecastService
+        .clearElement(chart);
+
+      PayTrackerPayForecastService
+        .renderMessage(
+          chart,
+          message ||
+          'No forecast information is available.'
+        );
+    }
+
+    var employerList =
+      document.getElementById(
+        'pay-forecast-employer-list'
+      );
+
+    if (employerList) {
+      PayTrackerPayForecastService
+        .clearElement(employerList);
+
+      PayTrackerPayForecastService
+        .renderMessage(
+          employerList,
+          'No employer forecast is available.'
+        );
+    }
+  },
+
+  /**
+   * Combines historical week summaries and selected-week data.
+   *
+   * @param {Array<Object>=} weeks Historical weeks.
+   * @param {Object=} selectedWeek Selected week.
+   * @return {Array<Object>} Normalized forecast weeks.
+   */
+  buildForecastWeeks: function(
+    weeks,
+    selectedWeek
+  ) {
+    var sourceWeeks =
+      Array.isArray(weeks)
+        ? weeks
+        : [];
+
+    var normalizedWeeks =
+      sourceWeeks.map(function(week) {
+        return PayTrackerPayForecastService
+          .normalizeWeek(week || {});
+      });
+
+    if (selectedWeek) {
+      var selected =
+        PayTrackerPayForecastService
+          .normalizeWeek(selectedWeek);
+
+      var existingIndex = -1;
+
+      normalizedWeeks.forEach(
+        function(week, index) {
+          if (
+            Number(week.weekNumber) ===
+            Number(selected.weekNumber)
+          ) {
+            existingIndex = index;
+          }
+        }
+      );
+
+      if (existingIndex === -1) {
+        normalizedWeeks.push(selected);
+      } else {
+        normalizedWeeks[existingIndex] =
+          PayTrackerPayForecastService
+            .mergeWeekData(
+              normalizedWeeks[
+                existingIndex
+              ],
+              selected
+            );
+      }
+    }
+
+    return normalizedWeeks
+      .filter(function(week) {
+        return Boolean(
+          week &&
+          week.weekNumber
+        );
+      })
+      .sort(function(firstWeek, secondWeek) {
+        return (
+          PayTrackerPayForecastService
+            .toNumber(
+              firstWeek.weekNumber
+            ) -
+          PayTrackerPayForecastService
+            .toNumber(
+              secondWeek.weekNumber
+            )
+        );
+      });
+  },
+
+  /**
+   * Normalizes one historical week.
+   *
+   * @param {Object} week Week.
+   * @return {Object} Normalized week.
+   */
+  normalizeWeek: function(week) {
+    return {
+      weekNumber:
+        PayTrackerPayForecastService
+          .toNumber(
+            week.weekNumber
+          ),
+
+      weekLabel:
+        String(
+          week.weekLabel ||
+          (
+            week.weekNumber
+              ? 'Week ' +
+                String(
+                  week.weekNumber
+                )
+              : ''
+          )
+        ),
+
+      weekStart:
+        String(
+          week.weekStart || ''
+        ),
+
+      weekEnd:
+        String(
+          week.weekEnd || ''
+        ),
+
+      hasData:
+        week.hasData === true,
+
+      gross:
+        PayTrackerPayForecastService
+          .toNumber(
+            week.gross
+          ),
+
+      takeHome:
+        PayTrackerPayForecastService
+          .toNumber(
+            week.takeHome
+          ),
+
+      totalHours:
+        PayTrackerPayForecastService
+          .toNumber(
+            week.totalHours
+          ),
+
+      totalShifts:
+        PayTrackerPayForecastService
+          .toNumber(
+            week.totalShifts
+          ),
+
+      employers:
+        PayTrackerPayForecastService
+          .normalizeEmployers(
+            week.employers
+          )
+    };
+  },
+
+  /**
+   * Merges metadata with detailed selected-week values.
+   *
+   * @param {Object} existing Existing week.
+   * @param {Object} selected Selected week.
+   * @return {Object} Merged week.
+   */
+  mergeWeekData: function(
+    existing,
+    selected
+  ) {
+    return {
+      weekNumber:
+        selected.weekNumber ||
+        existing.weekNumber,
+
+      weekLabel:
+        selected.weekLabel ||
+        existing.weekLabel,
+
+      weekStart:
+        selected.weekStart ||
+        existing.weekStart,
+
+      weekEnd:
+        selected.weekEnd ||
+        existing.weekEnd,
+
+      hasData:
+        selected.hasData ||
+        existing.hasData,
+
+      gross:
+        selected.gross ||
+        existing.gross,
+
+      takeHome:
+        selected.takeHome ||
+        existing.takeHome,
+
+      totalHours:
+        selected.totalHours ||
+        existing.totalHours,
+
+      totalShifts:
+        selected.totalShifts ||
+        existing.totalShifts,
+
+      employers:
+        selected.employers ||
+        existing.employers
+    };
+  },
+
+  /**
+   * Normalizes employer information.
+   *
+   * @param {Object=} employers Employer values.
+   * @return {Object} Employer map.
+   */
+  normalizeEmployers: function(
+    employers
+  ) {
+    var source =
+      employers || {};
+
+    var result = {};
+
+    PayTrackerPayForecastService
+      .EMPLOYERS
+      .forEach(function(config) {
+        var employer =
+          source[config.key] || {};
+
+        result[config.key] = {
+          key:
+            config.key,
+
+          name:
+            config.name,
+
+          total:
+            PayTrackerPayForecastService
+              .toNumber(
+                employer.total
+              ),
+
+          hours:
+            PayTrackerPayForecastService
+              .toNumber(
+                employer.hours
+              ),
+
+          shifts:
+            PayTrackerPayForecastService
+              .toNumber(
+                employer.shifts
+              )
+        };
+      });
+
+    return result;
+  },
+
+  /**
+   * Calculates forecast metrics.
+   *
+   * @param {Array<Object>} weeks Populated weeks.
+   * @return {Object} Forecast metrics.
+   */
+  calculateMetrics: function(weeks) {
+    var weekCount =
+      weeks.length;
+
+    var grossTotal = 0;
+    var takeHomeTotal = 0;
+    var hoursTotal = 0;
+
+    var bestWeek = null;
+    var lowestWeek = null;
+
+    var employerTotals = {
+      nhs: 0,
+      relief: 0,
+      security: 0,
+      logging: 0
+    };
+
+    weeks.forEach(function(week) {
+      var gross =
+        PayTrackerPayForecastService
+          .toNumber(week.gross);
+
+      grossTotal += gross;
+
+      takeHomeTotal +=
+        PayTrackerPayForecastService
+          .toNumber(
+            week.takeHome
+          );
+
+      hoursTotal +=
+        PayTrackerPayForecastService
+          .toNumber(
+            week.totalHours
+          );
+
+      if (
+        !bestWeek ||
+        gross >
+          PayTrackerPayForecastService
+            .toNumber(
+              bestWeek.gross
+            )
+      ) {
+        bestWeek = week;
+      }
+
+      if (
+        !lowestWeek ||
+        gross <
+          PayTrackerPayForecastService
+            .toNumber(
+              lowestWeek.gross
+            )
+      ) {
+        lowestWeek = week;
+      }
+
+      PayTrackerPayForecastService
+        .EMPLOYERS
+        .forEach(function(config) {
+          employerTotals[config.key] +=
+            PayTrackerPayForecastService
+              .toNumber(
+                week.employers &&
+                week.employers[
+                  config.key
+                ]
+                  ? week.employers[
+                      config.key
+                    ].total
+                  : 0
+              );
+        });
+    });
+
+    var averageGross =
+      weekCount > 0
+        ? grossTotal / weekCount
+        : 0;
+
+    var averageTakeHome =
+      weekCount > 0
+        ? takeHomeTotal / weekCount
+        : 0;
+
+    var averageHours =
+      weekCount > 0
+        ? hoursTotal / weekCount
+        : 0;
+
+    var employerAverages = {};
+
+    PayTrackerPayForecastService
+      .EMPLOYERS
+      .forEach(function(config) {
+        employerAverages[config.key] =
+          weekCount > 0
+            ? employerTotals[
+                config.key
+              ] / weekCount
+            : 0;
+      });
+
+    return {
+      weekCount:
+        weekCount,
+
+      averageGross:
+        averageGross,
+
+      averageTakeHome:
+        averageTakeHome,
+
+      averageHours:
+        averageHours,
+
+      fourWeekGross:
+        averageGross * 4,
+
+      bestWeek:
+        bestWeek,
+
+      lowestWeek:
+        lowestWeek,
+
+      confidence:
+        PayTrackerPayForecastService
+          .calculateConfidence(
+            weekCount
+          ),
+
+      employerAverages:
+        employerAverages
+    };
+  },
+
+  /**
+   * Calculates forecast confidence.
+   *
+   * @param {number} weekCount Recorded weeks.
+   * @return {Object} Confidence.
+   */
+  calculateConfidence: function(
+    weekCount
+  ) {
+    if (weekCount > 11) {
+      return {
+        label: 'High',
+        meta:
+          String(weekCount) +
+          ' recorded weeks'
+      };
+    }
+
+    if (weekCount > 5) {
+      return {
+        label: 'Medium',
+        meta:
+          String(weekCount) +
+          ' recorded weeks'
+      };
+    }
+
+    return {
+      label: 'Low',
+      meta:
+        String(weekCount) +
+        (
+          weekCount === 1
+            ? ' recorded week'
+            : ' recorded weeks'
+        )
+    };
+  },
+
+  /**
+   * Renders headline metrics.
+   *
+   * @param {Object} metrics Metrics.
+   */
+  renderSummary: function(metrics) {
+    PayTrackerPayForecastService
+      .setText(
+        'pay-forecast-average-gross',
+        PayTrackerPayForecastService
+          .formatMoney(
+            metrics.averageGross
+          )
+      );
+
+    PayTrackerPayForecastService
+      .setText(
+        'pay-forecast-average-take-home',
+        PayTrackerPayForecastService
+          .formatMoney(
+            metrics.averageTakeHome
+          )
+      );
+
+    PayTrackerPayForecastService
+      .setText(
+        'pay-forecast-average-hours',
+        PayTrackerPayForecastService
+          .formatHours(
+            metrics.averageHours
+          )
+      );
+
+    PayTrackerPayForecastService
+      .setText(
+        'pay-forecast-four-week-gross',
+        PayTrackerPayForecastService
+          .formatMoney(
+            metrics.fourWeekGross
+          )
+      );
+
+    PayTrackerPayForecastService
+      .setText(
+        'pay-forecast-average-gross-meta',
+        'Based on ' +
+        String(metrics.weekCount) +
+        (
+          metrics.weekCount === 1
+            ? ' populated week'
+            : ' populated weeks'
+        )
+      );
+
+    PayTrackerPayForecastService
+      .setText(
+        'pay-forecast-average-take-home-meta',
+        'Estimated from recorded deductions'
+      );
+
+    PayTrackerPayForecastService
+      .setText(
+        'pay-forecast-average-hours-meta',
+        'Average across populated weeks'
+      );
+
+    PayTrackerPayForecastService
+      .setText(
+        'pay-forecast-four-week-meta',
+        'Average weekly gross multiplied by four'
+      );
+  },
+
+  /**
+   * Renders the recent earnings chart.
+   *
+   * @param {Array<Object>} weeks Weeks.
+   * @param {Object} metrics Metrics.
+   */
+  renderTrend: function(
+    weeks,
+    metrics
+  ) {
+    var container =
+      document.getElementById(
+        'pay-forecast-chart'
+      );
+
+    if (!container) {
+      return;
+    }
+
+    PayTrackerPayForecastService
+      .clearElement(container);
+
+    var recentWeeks =
+      weeks.slice(-8);
+
+    var maximumGross =
+      recentWeeks.reduce(
+        function(maximum, week) {
+          var gross =
+            PayTrackerPayForecastService
+              .toNumber(
+                week.gross
+              );
+
+          return gross > maximum
+            ? gross
+            : maximum;
+        },
+        0
+      );
+
+    if (!(maximumGross > 0)) {
+      PayTrackerPayForecastService
+        .renderMessage(
+          container,
+          'No earnings trend is available.'
+        );
+
+      return;
+    }
+
+    var chart =
+      document.createElement(
+        'div'
+      );
+
+    chart.className =
+      'pay-forecast-chart__bars';
+
+    recentWeeks.forEach(
+      function(week) {
+        chart.appendChild(
+          PayTrackerPayForecastService
+            .createTrendBar(
+              week,
+              maximumGross
+            )
+        );
+      }
+    );
+
+    container.appendChild(chart);
+
+    PayTrackerPayForecastService
+      .setText(
+        'pay-forecast-trend-status',
+        String(recentWeeks.length) +
+        (
+          recentWeeks.length === 1
+            ? ' week'
+            : ' weeks'
+        )
+      );
+  },
+
+  /**
+   * Creates one weekly chart bar.
+   *
+   * @param {Object} week Week.
+   * @param {number} maximumGross Maximum gross.
+   * @return {HTMLElement} Chart item.
+   */
+  createTrendBar: function(
+    week,
+    maximumGross
+  ) {
+    var item =
+      document.createElement(
+        'div'
+      );
+
+    item.className =
+      'pay-forecast-chart__item';
+
+    var value =
+      document.createElement(
+        'span'
+      );
+
+    value.className =
+      'pay-forecast-chart__value';
+
+    value.textContent =
+      PayTrackerPayForecastService
+        .formatMoneyShort(
+          week.gross
+        );
+
+    var track =
+      document.createElement(
+        'div'
+      );
+
+    track.className =
+      'pay-forecast-chart__track';
+
+    var bar =
+      document.createElement(
+        'span'
+      );
+
+    bar.className =
+      'pay-forecast-chart__bar';
+
+    var percentage =
+      maximumGross > 0
+        ? (
+          PayTrackerPayForecastService
+            .toNumber(
+              week.gross
+            ) /
+          maximumGross
+        ) * 100
+        : 0;
+
+    bar.style.height =
+      String(
+        Math.max(
+          percentage,
+          4
+        )
+      ) +
+      '%';
+
+    track.appendChild(bar);
+
+    var label =
+      document.createElement(
+        'span'
+      );
+
+    label.className =
+      'pay-forecast-chart__label';
+
+    label.textContent =
+      'W' +
+      String(
+        week.weekNumber
+      );
+
+    item.appendChild(value);
+    item.appendChild(track);
+    item.appendChild(label);
+
+    item.title =
+      String(week.weekLabel) +
+      ': ' +
+      PayTrackerPayForecastService
+        .formatMoney(
+          week.gross
+        );
+
+    return item;
+  },
+
+  /**
+   * Renders highest, lowest and confidence values.
+   *
+   * @param {Object} metrics Metrics.
+   */
+  renderRange: function(metrics) {
+    var bestWeek =
+      metrics.bestWeek || {};
+
+    var lowestWeek =
+      metrics.lowestWeek || {};
+
+    PayTrackerPayForecastService
+      .setText(
+        'pay-forecast-best-week-value',
+        PayTrackerPayForecastService
+          .formatMoney(
+            bestWeek.gross
+          )
+      );
+
+    PayTrackerPayForecastService
+      .setText(
+        'pay-forecast-best-week-label',
+        bestWeek.weekLabel ||
+        '—'
+      );
+
+    PayTrackerPayForecastService
+      .setText(
+        'pay-forecast-lowest-week-value',
+        PayTrackerPayForecastService
+          .formatMoney(
+            lowestWeek.gross
+          )
+      );
+
+    PayTrackerPayForecastService
+      .setText(
+        'pay-forecast-lowest-week-label',
+        lowestWeek.weekLabel ||
+        '—'
+      );
+
+    PayTrackerPayForecastService
+      .setText(
+        'pay-forecast-confidence',
+        metrics.confidence.label
+      );
+
+    PayTrackerPayForecastService
+      .setText(
+        'pay-forecast-confidence-meta',
+        metrics.confidence.meta
+      );
+  },
+
+  /**
+   * Renders projected employer contributions.
+   *
+   * @param {Object} employerAverages Average values.
+   */
+  renderEmployerForecast: function(
+    employerAverages
+  ) {
+    var container =
+      document.getElementById(
+        'pay-forecast-employer-list'
+      );
+
+    if (!container) {
+      return;
+    }
+
+    PayTrackerPayForecastService
+      .clearElement(container);
+
+    var projectedValues =
+      PayTrackerPayForecastService
+        .EMPLOYERS
+        .map(function(config) {
+          return {
+            key:
+              config.key,
+
+            name:
+              config.name,
+
+            value:
+              PayTrackerPayForecastService
+                .toNumber(
+                  employerAverages[
+                    config.key
+                  ]
+                ) * 4
+          };
+        });
+
+    var maximumValue =
+      projectedValues.reduce(
+        function(maximum, employer) {
+          return employer.value > maximum
+            ? employer.value
+            : maximum;
+        },
+        0
+      );
+
+    projectedValues.forEach(
+      function(employer) {
+        container.appendChild(
+          PayTrackerPayForecastService
+            .createEmployerRow(
+              employer,
+              maximumValue
+            )
+        );
+      }
+    );
+  },
+
+  /**
+   * Creates one employer forecast row.
+   *
+   * @param {Object} employer Employer.
+   * @param {number} maximumValue Maximum value.
+   * @return {HTMLElement} Employer row.
+   */
+  createEmployerRow: function(
+    employer,
+    maximumValue
+  ) {
+    var row =
+      document.createElement(
+        'div'
+      );
+
+    row.className =
+      'pay-forecast-employer-row ' +
+      'pay-forecast-employer-row--' +
+      employer.key;
+
+    var header =
+      document.createElement(
+        'div'
+      );
+
+    header.className =
+      'pay-forecast-employer-row__header';
+
+    var name =
+      document.createElement(
+        'span'
+      );
+
+    name.className =
+      'pay-forecast-employer-row__name';
+
+    name.textContent =
+      employer.name;
+
+    var value =
+      document.createElement(
+        'strong'
+      );
+
+    value.className =
+      'pay-forecast-employer-row__value';
+
+    value.textContent =
+      PayTrackerPayForecastService
+        .formatMoney(
+          employer.value
+        );
+
+    header.appendChild(name);
+    header.appendChild(value);
+
+    var track =
+      document.createElement(
+        'div'
+      );
+
+    track.className =
+      'pay-forecast-employer-row__track';
+
+    var bar =
+      document.createElement(
+        'span'
+      );
+
+    bar.className =
+      'pay-forecast-employer-row__bar';
+
+    var percentage =
+      maximumValue > 0
+        ? (
+          employer.value /
+          maximumValue
+        ) * 100
+        : 0;
+
+    bar.style.width =
+      String(percentage) +
+      '%';
+
+    track.appendChild(bar);
+
+    row.appendChild(header);
+    row.appendChild(track);
+
+    return row;
+  },
+
+  /**
+   * Formats GBP.
+   *
+   * @param {*} value Amount.
+   * @return {string} GBP label.
+   */
+  formatMoney: function(value) {
+    return new Intl.NumberFormat(
+      'en-GB',
+      {
+        style: 'currency',
+        currency: 'GBP',
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2
+      }
+    ).format(
+      PayTrackerPayForecastService
+        .toNumber(value)
+    );
+  },
+
+  /**
+   * Formats compact GBP for chart labels.
+   *
+   * @param {*} value Amount.
+   * @return {string} Compact label.
+   */
+  formatMoneyShort: function(value) {
+    var amount =
+      PayTrackerPayForecastService
+        .toNumber(value);
+
+    return '£' +
+      String(
+        Math.round(amount)
+      );
+  },
+
+  /**
+   * Formats hours.
+   *
+   * @param {*} value Hours.
+   * @return {string} Hours label.
+   */
+  formatHours: function(value) {
+    var hours =
+      PayTrackerPayForecastService
+        .toNumber(value);
+
+    if (!(hours > 0)) {
+      return '0h';
+    }
+
+    return hours.toFixed(1) + 'h';
+  },
+
+  /**
+   * Converts to a finite number.
+   *
+   * @param {*} value Value.
+   * @return {number} Number.
+   */
+  toNumber: function(value) {
+    var number =
+      Number(value);
+
+    return isFinite(number)
+      ? number
+      : 0;
+  },
+
+  /**
+   * Clears an element.
+   *
+   * @param {HTMLElement} element Element.
+   */
+  clearElement: function(element) {
+    while (element.firstChild) {
+      element.removeChild(
+        element.firstChild
+      );
+    }
+  },
+
+  /**
+   * Renders a status message.
+   *
+   * @param {HTMLElement} container Container.
+   * @param {string} message Message.
+   */
+  renderMessage: function(
+    container,
+    message
+  ) {
+    var element =
+      document.createElement(
+        'div'
+      );
+
+    element.className =
+      'pay-forecast-loading';
+
+    element.textContent =
+      String(
+        message ||
+        'Forecast unavailable'
+      );
+
+    container.appendChild(
+      element
+    );
+  },
+
+  /**
+   * Sets text safely.
+   *
+   * @param {string} elementId Element ID.
+   * @param {*} value Value.
+   */
+  setText: function(
+    elementId,
+    value
+  ) {
+    var element =
+      document.getElementById(
+        elementId
+      );
+
+    if (!element) {
+      return;
+    }
+
+    element.textContent =
+      value === null ||
+      typeof value === 'undefined'
+        ? ''
+        : String(value);
+  }
+};
+
+window.PayTrackerPayForecastService =
+  PayTrackerPayForecastService;
