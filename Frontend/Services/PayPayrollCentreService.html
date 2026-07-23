@@ -1,0 +1,1042 @@
+/*******************************************************
+ * PAY TRACKER V2.8
+ * Frontend/Services/PayPayrollCentreService.html
+ *
+ * Purpose:
+ * - Load Payroll Centre summary and payslip-register data
+ * - Render imported payslips inside the existing Payslips tab
+ * - Handle manual refresh and Gmail scan actions
+ * - Keep all visible output safely escaped through textContent
+ *
+ * Included inside a script tag by:
+ * Frontend/Index.html
+ *******************************************************/
+
+const PayTrackerPayrollCentreService = Object.freeze({
+  SERVER_FUNCTIONS: Object.freeze({
+    LOAD: 'getPayTrackerWebPayrollCentreData',
+    SCAN: 'scanPayTrackerPayrollGmail'
+  }),
+
+  state: {
+    initialized: false,
+    eventsRegistered: false,
+    loading: false,
+    scanning: false,
+    loaded: false,
+    data: null
+  },
+
+  /**
+   * Starts the Payroll Centre service.
+   */
+  initialize: function() {
+    if (
+      PayTrackerPayrollCentreService
+        .state
+        .initialized
+    ) {
+      return;
+    }
+
+    PayTrackerPayrollCentreService
+      .state
+      .initialized = true;
+
+    PayTrackerPayrollCentreService
+      .registerEvents();
+  },
+
+  /**
+   * Registers Payroll Centre events once.
+   */
+  registerEvents: function() {
+    if (
+      PayTrackerPayrollCentreService
+        .state
+        .eventsRegistered
+    ) {
+      return;
+    }
+
+    PayTrackerPayrollCentreService
+      .state
+      .eventsRegistered = true;
+
+    document.addEventListener(
+      'click',
+      PayTrackerPayrollCentreService
+        .handleDocumentClick
+    );
+  },
+
+  /**
+   * Handles Payroll Centre actions.
+   *
+   * @param {MouseEvent} event Click event.
+   */
+  handleDocumentClick: function(event) {
+    const clickedElement =
+      event.target instanceof Element
+        ? event.target
+        : null;
+
+    if (!clickedElement) {
+      return;
+    }
+
+    const payslipsTab =
+      clickedElement.closest(
+        '[data-pay-tab="payslips"]'
+      );
+
+    if (payslipsTab) {
+      window.setTimeout(
+        function() {
+          PayTrackerPayrollCentreService
+            .load();
+        },
+        0
+      );
+
+      return;
+    }
+
+    const refreshButton =
+      clickedElement.closest(
+        '#payroll-centre-refresh-button'
+      );
+
+    if (refreshButton) {
+      event.preventDefault();
+
+      PayTrackerPayrollCentreService
+        .load({
+          force: true
+        });
+
+      return;
+    }
+
+    const scanButton =
+      clickedElement.closest(
+        '#payroll-centre-scan-button'
+      );
+
+    if (scanButton) {
+      event.preventDefault();
+
+      PayTrackerPayrollCentreService
+        .scanGmail();
+
+      return;
+    }
+
+    const viewButton =
+      clickedElement.closest(
+        '[data-payroll-view-payslip]'
+      );
+
+    if (viewButton) {
+      event.preventDefault();
+
+      PayTrackerPayrollCentreService
+        .showToast(
+          'The private PDF viewer will be connected in the next Payroll Centre UI step.',
+          'info'
+        );
+    }
+  },
+
+  /**
+   * Loads Payroll Centre data.
+   *
+   * @param {Object=} options Load options.
+   * @return {Promise<void>}
+   */
+  load: async function(options) {
+    const config =
+      Object.assign(
+        {
+          force: false
+        },
+        options || {}
+      );
+
+    if (
+      PayTrackerPayrollCentreService
+        .state
+        .loading
+    ) {
+      return;
+    }
+
+    if (
+      PayTrackerPayrollCentreService
+        .state
+        .loaded &&
+      config.force !== true
+    ) {
+      return;
+    }
+
+    PayTrackerPayrollCentreService
+      .state
+      .loading = true;
+
+    PayTrackerPayrollCentreService
+      .setBusyState(true);
+
+    PayTrackerPayrollCentreService
+      .renderMessage(
+        'Loading private payslip records...',
+        'info'
+      );
+
+    try {
+      const response =
+        await PayTrackerPayrollCentreService
+          .runServerFunction(
+            PayTrackerPayrollCentreService
+              .SERVER_FUNCTIONS
+              .LOAD
+          );
+
+      if (
+        !response ||
+        response.success !== true
+      ) {
+        throw new Error(
+          response &&
+          response.error
+            ? response.error
+            : 'Payroll Centre data could not be loaded.'
+        );
+      }
+
+      PayTrackerPayrollCentreService
+        .state
+        .data = response;
+
+      PayTrackerPayrollCentreService
+        .state
+        .loaded = true;
+
+      PayTrackerPayrollCentreService
+        .render(response);
+
+      PayTrackerPayrollCentreService
+        .renderMessage('', 'info');
+    } catch (error) {
+      console.error(
+        'Payroll Centre data request failed.',
+        error
+      );
+
+      PayTrackerPayrollCentreService
+        .renderError(error);
+    } finally {
+      PayTrackerPayrollCentreService
+        .state
+        .loading = false;
+
+      PayTrackerPayrollCentreService
+        .setBusyState(false);
+    }
+  },
+
+  /**
+   * Runs the manual Gmail scan, then refreshes the register.
+   *
+   * @return {Promise<void>}
+   */
+  scanGmail: async function() {
+    if (
+      PayTrackerPayrollCentreService
+        .state
+        .scanning
+    ) {
+      return;
+    }
+
+    PayTrackerPayrollCentreService
+      .state
+      .scanning = true;
+
+    PayTrackerPayrollCentreService
+      .setBusyState(true);
+
+    PayTrackerPayrollCentreService
+      .renderMessage(
+        'Scanning Gmail for recognised payslip PDFs...',
+        'info'
+      );
+
+    try {
+      const response =
+        await PayTrackerPayrollCentreService
+          .runServerFunction(
+            PayTrackerPayrollCentreService
+              .SERVER_FUNCTIONS
+              .SCAN
+          );
+
+      if (
+        !response ||
+        response.success !== true
+      ) {
+        throw new Error(
+          response &&
+          response.error
+            ? response.error
+            : 'The Gmail scan could not be completed.'
+        );
+      }
+
+      PayTrackerPayrollCentreService
+        .showToast(
+          PayTrackerPayrollCentreService
+            .buildScanMessage(response),
+          'success'
+        );
+
+      await PayTrackerPayrollCentreService
+        .load({
+          force: true
+        });
+    } catch (error) {
+      const message =
+        PayTrackerPayrollCentreService
+          .getErrorMessage(error);
+
+      PayTrackerPayrollCentreService
+        .renderMessage(
+          message,
+          'error'
+        );
+
+      PayTrackerPayrollCentreService
+        .showToast(
+          message,
+          'error'
+        );
+    } finally {
+      PayTrackerPayrollCentreService
+        .state
+        .scanning = false;
+
+      PayTrackerPayrollCentreService
+        .setBusyState(false);
+    }
+  },
+
+  /**
+   * Runs an Apps Script server function.
+   *
+   * @param {string} functionName Function name.
+   * @return {Promise<*>} Server response.
+   */
+  runServerFunction: function(functionName) {
+    if (
+      !window.PayTrackerAppController ||
+      typeof window
+        .PayTrackerAppController
+        .runServerFunction !==
+        'function'
+    ) {
+      return Promise.reject(
+        new Error(
+          'Pay Tracker application controller is unavailable.'
+        )
+      );
+    }
+
+    return window
+      .PayTrackerAppController
+      .runServerFunction(
+        functionName
+      );
+  },
+
+  /**
+   * Renders Payroll Centre data.
+   *
+   * @param {Object} response Server response.
+   */
+  render: function(response) {
+    const data =
+      response || {};
+
+    const payslips =
+      Array.isArray(data.payslips)
+        ? data.payslips
+        : [];
+
+    const summary =
+      Object.assign(
+        {},
+        data.summary || {},
+        {
+          totalPayslips:
+            PayTrackerPayrollCentreService
+              .firstNumber(
+                data.summary &&
+                data.summary.totalPayslips,
+                payslips.length
+              )
+        }
+      );
+
+    PayTrackerPayrollCentreService
+      .renderSummary(
+        summary,
+        payslips
+      );
+
+    PayTrackerPayrollCentreService
+      .renderTable(payslips);
+  },
+
+  /**
+   * Renders Payroll Centre summary cards.
+   *
+   * @param {Object} summary Summary.
+   * @param {Array<Object>} payslips Payslips.
+   */
+  renderSummary: function(
+    summary,
+    payslips
+  ) {
+    const totalPayslips =
+      PayTrackerPayrollCentreService
+        .firstNumber(
+          summary.totalPayslips,
+          payslips.length
+        );
+
+    const processedCount =
+      PayTrackerPayrollCentreService
+        .firstNumber(
+          summary.processedCount,
+          payslips.filter(function(payslip) {
+            return (
+              String(
+                payslip.extractionStatus || ''
+              ).toUpperCase() ===
+              'COMPLETED'
+            );
+          }).length
+        );
+
+    const reviewCount =
+      PayTrackerPayrollCentreService
+        .firstNumber(
+          summary.reviewCount,
+          payslips.filter(function(payslip) {
+            return (
+              payslip.reviewRequired === true ||
+              [
+                'WARNING',
+                'FAILED',
+                'NEEDS REVIEW',
+                'MAJOR DISCREPANCY'
+              ].indexOf(
+                String(
+                  payslip.comparisonStatus || ''
+                ).toUpperCase()
+              ) !== -1
+            );
+          }).length
+        );
+
+    const latestPayslip =
+      summary.latestPayslip ||
+      payslips[0] ||
+      null;
+
+    PayTrackerPayrollCentreService
+      .setText(
+        'payroll-centre-total-payslips',
+        String(totalPayslips)
+      );
+
+    PayTrackerPayrollCentreService
+      .setText(
+        'payroll-centre-total-payslips-meta',
+        totalPayslips === 1
+          ? '1 private payslip registered'
+          : (
+            totalPayslips +
+            ' private payslips registered'
+          )
+      );
+
+    PayTrackerPayrollCentreService
+      .setText(
+        'payroll-centre-processed-count',
+        String(processedCount)
+      );
+
+    PayTrackerPayrollCentreService
+      .setText(
+        'payroll-centre-processed-meta',
+        totalPayslips > 0
+          ? (
+            processedCount +
+            ' of ' +
+            totalPayslips +
+            ' extracted'
+          )
+          : 'No payslips processed yet'
+      );
+
+    PayTrackerPayrollCentreService
+      .setText(
+        'payroll-centre-review-count',
+        String(reviewCount)
+      );
+
+    PayTrackerPayrollCentreService
+      .setText(
+        'payroll-centre-review-meta',
+        reviewCount > 0
+          ? 'Review payroll differences'
+          : 'No discrepancies detected'
+      );
+
+    PayTrackerPayrollCentreService
+      .setText(
+        'payroll-centre-latest-date',
+        latestPayslip
+          ? PayTrackerPayrollCentreService
+              .formatDate(
+                latestPayslip.payDate ||
+                latestPayslip.actualPayDate ||
+                latestPayslip.emailDate
+              )
+          : '—'
+      );
+
+    PayTrackerPayrollCentreService
+      .setText(
+        'payroll-centre-latest-meta',
+        latestPayslip
+          ? (
+            PayTrackerPayrollCentreService
+              .formatMoney(
+                PayTrackerPayrollCentreService
+                  .firstNumber(
+                    latestPayslip.netPayActual,
+                    latestPayslip.actualNetPay
+                  )
+              ) +
+            ' net pay'
+          )
+          : 'No payslip loaded'
+      );
+  },
+
+  /**
+   * Renders the payslip register table.
+   *
+   * @param {Array<Object>} payslips Payslips.
+   */
+  renderTable: function(payslips) {
+    const body =
+      document.getElementById(
+        'payroll-centre-table-body'
+      );
+
+    const wrapper =
+      document.getElementById(
+        'payroll-centre-table-wrapper'
+      );
+
+    const loading =
+      document.getElementById(
+        'payroll-centre-loading'
+      );
+
+    if (!body || !wrapper || !loading) {
+      return;
+    }
+
+    body.replaceChildren();
+
+    if (!payslips.length) {
+      wrapper.hidden = true;
+      loading.hidden = false;
+
+      PayTrackerPayrollCentreService
+        .setText(
+          'payroll-centre-record-count',
+          'No payslips are registered yet'
+        );
+
+      PayTrackerPayrollCentreService
+        .setText(
+          'payroll-centre-table-status',
+          'Empty'
+        );
+
+      const title =
+        loading.querySelector(
+          '.empty-state__title'
+        );
+
+      const message =
+        loading.querySelector(
+          '.empty-state__message'
+        );
+
+      if (title) {
+        title.textContent =
+          'No payslips found';
+      }
+
+      if (message) {
+        message.textContent =
+          'Use Scan Gmail to find recognised payslip PDFs, or add a manual upload in a later step.';
+      }
+
+      return;
+    }
+
+    payslips.forEach(function(payslip) {
+      body.appendChild(
+        PayTrackerPayrollCentreService
+          .createPayslipRow(payslip)
+      );
+    });
+
+    loading.hidden = true;
+    wrapper.hidden = false;
+
+    PayTrackerPayrollCentreService
+      .setText(
+        'payroll-centre-record-count',
+        payslips.length === 1
+          ? '1 payslip'
+          : (
+            payslips.length +
+            ' payslips'
+          )
+      );
+
+    PayTrackerPayrollCentreService
+      .setText(
+        'payroll-centre-table-status',
+        'Live'
+      );
+  },
+
+  /**
+   * Creates one safe payslip table row.
+   *
+   * @param {Object} payslip Payslip.
+   * @return {HTMLTableRowElement} Row.
+   */
+  createPayslipRow: function(payslip) {
+    const row =
+      document.createElement('tr');
+
+    const payDate =
+      payslip.payDate ||
+      payslip.actualPayDate ||
+      payslip.emailDate;
+
+    const payrollGroup =
+      payslip.payrollGroupName ||
+      payslip.payrollGroupId ||
+      'Unmatched';
+
+    const gross =
+      PayTrackerPayrollCentreService
+        .firstNumber(
+          payslip.grossPayActual,
+          payslip.actualGrossPay
+        );
+
+    const net =
+      PayTrackerPayrollCentreService
+        .firstNumber(
+          payslip.netPayActual,
+          payslip.actualNetPay
+        );
+
+    const cells = [
+      PayTrackerPayrollCentreService
+        .formatDate(payDate),
+      payrollGroup,
+      PayTrackerPayrollCentreService
+        .formatMoney(gross),
+      PayTrackerPayrollCentreService
+        .formatMoney(net),
+      payslip.extractionStatus ||
+        payslip.importStatus ||
+        'Pending',
+      payslip.comparisonStatus ||
+        'Not compared'
+    ];
+
+    cells.forEach(function(value) {
+      const cell =
+        document.createElement('td');
+
+      cell.textContent =
+        String(value || '—');
+
+      row.appendChild(cell);
+    });
+
+    const actionCell =
+      document.createElement('td');
+
+    const viewButton =
+      document.createElement('button');
+
+    viewButton.type = 'button';
+    viewButton.className =
+      'button button--secondary';
+    viewButton.textContent = 'View';
+    viewButton.dataset
+      .payrollViewPayslip =
+        String(
+          payslip.payslipId || ''
+        );
+
+    actionCell.appendChild(viewButton);
+    row.appendChild(actionCell);
+
+    return row;
+  },
+
+  /**
+   * Renders an error without hiding the workspace.
+   *
+   * @param {*} error Error.
+   */
+  renderError: function(error) {
+    const message =
+      PayTrackerPayrollCentreService
+        .getErrorMessage(error);
+
+    PayTrackerPayrollCentreService
+      .renderMessage(
+        message,
+        'error'
+      );
+
+    PayTrackerPayrollCentreService
+      .setText(
+        'payroll-centre-table-status',
+        'Unavailable'
+      );
+
+    PayTrackerPayrollCentreService
+      .showToast(
+        message,
+        'error'
+      );
+  },
+
+  /**
+   * Renders the inline status message.
+   *
+   * @param {string} message Message.
+   * @param {string} type Message type.
+   */
+  renderMessage: function(
+    message,
+    type
+  ) {
+    const element =
+      document.getElementById(
+        'payroll-centre-message'
+      );
+
+    if (!element) {
+      return;
+    }
+
+    const normalizedMessage =
+      String(message || '').trim();
+
+    element.hidden =
+      normalizedMessage === '';
+
+    element.textContent =
+      normalizedMessage;
+
+    element.dataset.messageType =
+      String(type || 'info');
+  },
+
+  /**
+   * Sets Payroll Centre busy state.
+   *
+   * @param {boolean} busy Busy state.
+   */
+  setBusyState: function(busy) {
+    const panel =
+      document.getElementById(
+        'payroll-centre-panel'
+      );
+
+    const refreshButton =
+      document.getElementById(
+        'payroll-centre-refresh-button'
+      );
+
+    const scanButton =
+      document.getElementById(
+        'payroll-centre-scan-button'
+      );
+
+    if (panel) {
+      panel.setAttribute(
+        'aria-busy',
+        busy
+          ? 'true'
+          : 'false'
+      );
+    }
+
+    [
+      refreshButton,
+      scanButton
+    ]
+      .filter(Boolean)
+      .forEach(function(button) {
+        button.disabled =
+          Boolean(busy);
+      });
+  },
+
+  /**
+   * Builds a successful Gmail scan message.
+   *
+   * @param {Object} response Scan response.
+   * @return {string} Message.
+   */
+  buildScanMessage: function(response) {
+    const registered =
+      PayTrackerPayrollCentreService
+        .firstNumber(
+          response.payslipsRegistered,
+          response.registered,
+          0
+        );
+
+    const duplicates =
+      PayTrackerPayrollCentreService
+        .firstNumber(
+          response.duplicatesSkipped,
+          response.duplicates,
+          0
+        );
+
+    return (
+      'Gmail scan complete. ' +
+      registered +
+      (
+        registered === 1
+          ? ' payslip registered'
+          : ' payslips registered'
+      ) +
+      ', ' +
+      duplicates +
+      ' duplicates skipped.'
+    );
+  },
+
+  /**
+   * Returns the first finite number.
+   *
+   * @param {...*} values Values.
+   * @return {number} Number.
+   */
+  firstNumber: function() {
+    const values =
+      Array.prototype.slice.call(
+        arguments
+      );
+
+    let result = 0;
+    let found = false;
+
+    values.some(function(value) {
+      if (
+        value === '' ||
+        value === null ||
+        typeof value === 'undefined'
+      ) {
+        return false;
+      }
+
+      const number =
+        Number(value);
+
+      if (!Number.isFinite(number)) {
+        return false;
+      }
+
+      result = number;
+      found = true;
+
+      return true;
+    });
+
+    return found
+      ? result
+      : 0;
+  },
+
+  /**
+   * Formats GBP currency.
+   *
+   * @param {*} value Value.
+   * @return {string} Currency.
+   */
+  formatMoney: function(value) {
+    return new Intl.NumberFormat(
+      'en-GB',
+      {
+        style: 'currency',
+        currency: 'GBP',
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2
+      }
+    ).format(
+      PayTrackerPayrollCentreService
+        .firstNumber(value)
+    );
+  },
+
+  /**
+   * Formats a date for display.
+   *
+   * @param {*} value Date value.
+   * @return {string} Date.
+   */
+  formatDate: function(value) {
+    if (!value) {
+      return '—';
+    }
+
+    const date =
+      value instanceof Date
+        ? value
+        : new Date(value);
+
+    if (
+      Number.isNaN(
+        date.getTime()
+      )
+    ) {
+      return String(value);
+    }
+
+    return new Intl.DateTimeFormat(
+      'en-GB',
+      {
+        day: '2-digit',
+        month: 'short',
+        year: 'numeric'
+      }
+    ).format(date);
+  },
+
+  /**
+   * Sets element text safely.
+   *
+   * @param {string} elementId Element ID.
+   * @param {*} value Value.
+   */
+  setText: function(
+    elementId,
+    value
+  ) {
+    const element =
+      document.getElementById(
+        elementId
+      );
+
+    if (element) {
+      element.textContent =
+        value === null ||
+        typeof value === 'undefined'
+          ? ''
+          : String(value);
+    }
+  },
+
+  /**
+   * Shows an application toast.
+   *
+   * @param {string} message Message.
+   * @param {string} type Type.
+   */
+  showToast: function(
+    message,
+    type
+  ) {
+    if (
+      window.PayTrackerAppController &&
+      typeof window
+        .PayTrackerAppController
+        .showToast === 'function'
+    ) {
+      window.PayTrackerAppController
+        .showToast(
+          message,
+          type || 'info'
+        );
+
+      return;
+    }
+
+    console.log(message);
+  },
+
+  /**
+   * Returns a safe error message.
+   *
+   * @param {*} error Error.
+   * @return {string} Message.
+   */
+  getErrorMessage: function(error) {
+    if (
+      error &&
+      typeof error.message ===
+        'string' &&
+      error.message.trim() !== ''
+    ) {
+      return error.message.trim();
+    }
+
+    return String(
+      error ||
+      'An unknown Payroll Centre error occurred.'
+    );
+  }
+});
+
+window.PayTrackerPayrollCentreService =
+  PayTrackerPayrollCentreService;
+
+if (
+  document.readyState ===
+  'loading'
+) {
+  document.addEventListener(
+    'DOMContentLoaded',
+    function() {
+      PayTrackerPayrollCentreService
+        .initialize();
+    }
+  );
+} else {
+  PayTrackerPayrollCentreService
+    .initialize();
+}
