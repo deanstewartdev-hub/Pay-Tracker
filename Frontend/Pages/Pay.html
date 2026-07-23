@@ -1286,30 +1286,276 @@
 </section>
 
   <section
+    id="payroll-centre-panel"
     class="pay-workspace-panel"
     data-pay-panel="payslips"
-    aria-label="Payslip comparison"
+    data-payroll-centre
+    aria-label="Payroll Centre"
+    aria-busy="false"
     hidden
   >
-    <div class="card">
-      <div class="empty-state">
-        <div
-          class="empty-state__icon"
-          aria-hidden="true"
-        >
-          P
-        </div>
+    <section class="pay-workspace__hero">
+      <div class="pay-workspace__hero-copy">
+        <p class="page-header__eyebrow">
+          Payslip management
+        </p>
 
-        <h3 class="empty-state__title">
-          Payslip comparison
+        <h3 class="page-header__title">
+          Payroll Centre
         </h3>
 
-        <p class="empty-state__message">
-          Predicted earnings, actual payslip income and any difference
-          between them will be compared here.
+        <p class="page-header__description">
+          Import private payslip PDFs, review payroll history and
+          compare actual pay with Pay Tracker predictions.
         </p>
       </div>
-    </div>
+
+      <div class="pay-workspace__hero-actions">
+        <button
+          id="payroll-centre-refresh-button"
+          class="button button--secondary"
+          type="button"
+          aria-label="Refresh Payroll Centre"
+        >
+          Refresh
+        </button>
+
+        <button
+          id="payroll-centre-scan-button"
+          class="button button--primary"
+          type="button"
+          aria-label="Scan Gmail for new payslips"
+        >
+          Scan Gmail
+        </button>
+      </div>
+    </section>
+
+    <div
+      id="payroll-centre-message"
+      class="pay-workspace-message"
+      role="status"
+      aria-live="polite"
+      hidden
+    ></div>
+
+    <section
+      class="pay-shell-summary-grid"
+      aria-label="Payroll Centre summary"
+    >
+      <article class="pay-shell-summary-card">
+        <div class="pay-shell-summary-card__header">
+          <div>
+            <p class="pay-shell-summary-card__label">
+              Total payslips
+            </p>
+
+            <p class="pay-shell-summary-card__period">
+              Registered documents
+            </p>
+          </div>
+
+          <span
+            class="pay-shell-summary-card__icon"
+            aria-hidden="true"
+          >
+            P
+          </span>
+        </div>
+
+        <p
+          id="payroll-centre-total-payslips"
+          class="pay-shell-summary-card__value"
+        >
+          —
+        </p>
+
+        <p
+          id="payroll-centre-total-payslips-meta"
+          class="pay-shell-summary-card__meta"
+        >
+          Waiting for Payroll Centre data
+        </p>
+      </article>
+
+      <article class="pay-shell-summary-card">
+        <div class="pay-shell-summary-card__header">
+          <div>
+            <p class="pay-shell-summary-card__label">
+              Latest payslip
+            </p>
+
+            <p class="pay-shell-summary-card__period">
+              Most recent pay date
+            </p>
+          </div>
+
+          <span
+            class="pay-shell-summary-card__icon"
+            aria-hidden="true"
+          >
+            #
+          </span>
+        </div>
+
+        <p
+          id="payroll-centre-latest-date"
+          class="pay-shell-summary-card__value"
+        >
+          —
+        </p>
+
+        <p
+          id="payroll-centre-latest-meta"
+          class="pay-shell-summary-card__meta"
+        >
+          No payslip loaded
+        </p>
+      </article>
+
+      <article class="pay-shell-summary-card">
+        <div class="pay-shell-summary-card__header">
+          <div>
+            <p class="pay-shell-summary-card__label">
+              Processed
+            </p>
+
+            <p class="pay-shell-summary-card__period">
+              Values extracted
+            </p>
+          </div>
+
+          <span
+            class="pay-shell-summary-card__icon"
+            aria-hidden="true"
+          >
+            ✓
+          </span>
+        </div>
+
+        <p
+          id="payroll-centre-processed-count"
+          class="pay-shell-summary-card__value"
+        >
+          —
+        </p>
+
+        <p
+          id="payroll-centre-processed-meta"
+          class="pay-shell-summary-card__meta"
+        >
+          Awaiting extraction status
+        </p>
+      </article>
+
+      <article class="pay-shell-summary-card">
+        <div class="pay-shell-summary-card__header">
+          <div>
+            <p class="pay-shell-summary-card__label">
+              Needs review
+            </p>
+
+            <p class="pay-shell-summary-card__period">
+              Payroll discrepancies
+            </p>
+          </div>
+
+          <span
+            class="pay-shell-summary-card__icon"
+            aria-hidden="true"
+          >
+            !
+          </span>
+        </div>
+
+        <p
+          id="payroll-centre-review-count"
+          class="pay-shell-summary-card__value"
+        >
+          —
+        </p>
+
+        <p
+          id="payroll-centre-review-meta"
+          class="pay-shell-summary-card__meta"
+        >
+          Awaiting comparison results
+        </p>
+      </article>
+    </section>
+
+    <article class="card pay-shell-card">
+      <div class="card__header">
+        <div>
+          <h3 class="card__title">
+            Payslip register
+          </h3>
+
+          <p
+            id="payroll-centre-record-count"
+            class="card__subtitle"
+          >
+            Connect the Payroll Centre service to load payslips
+          </p>
+        </div>
+
+        <span
+          id="payroll-centre-table-status"
+          class="pay-shell-card__status"
+        >
+          Ready
+        </span>
+      </div>
+
+      <div class="card__body">
+        <div
+          id="payroll-centre-loading"
+          class="empty-state"
+          role="status"
+          aria-live="polite"
+        >
+          <div
+            class="empty-state__icon"
+            aria-hidden="true"
+          >
+            P
+          </div>
+
+          <h3 class="empty-state__title">
+            Payroll Centre shell ready
+          </h3>
+
+          <p class="empty-state__message">
+            The next controlled step will connect this workspace to
+            imported payslips, extracted values and comparison results.
+          </p>
+        </div>
+
+        <div
+          id="payroll-centre-table-wrapper"
+          hidden
+        >
+          <table
+            class="pay-shift-table"
+            aria-label="Imported payslips"
+          >
+            <thead>
+              <tr>
+                <th scope="col">Pay date</th>
+                <th scope="col">Payroll group</th>
+                <th scope="col">Gross</th>
+                <th scope="col">Net</th>
+                <th scope="col">Extraction</th>
+                <th scope="col">Comparison</th>
+                <th scope="col">Action</th>
+              </tr>
+            </thead>
+
+            <tbody id="payroll-centre-table-body"></tbody>
+          </table>
+        </div>
+      </div>
+    </article>
   </section>
 
   <section
