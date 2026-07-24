@@ -151,9 +151,21 @@
       [],
       function(data) {
         state.loading = false;
+        setLoading(false);
+
+        if (
+          !data ||
+          typeof data !== 'object'
+        ) {
+          showNotice(
+            'The Finance service returned no data. Refresh the page or run the Finance setup again.',
+            true
+          );
+          return;
+        }
+
         state.loaded = true;
         state.data = data;
-        setLoading(false);
         render(data);
       },
       function(error) {
@@ -229,103 +241,151 @@
   }
 
   function renderAllocation(data) {
-    const income =
-      Number(
-        data.estimatedMonthlyTakeHome
-      ) || 0;
+  const income =
+    Number(
+      data.estimatedMonthlyTakeHome
+    ) || 0;
 
-    const rows = [
-      ['Bills', data.monthlyBills],
-      ['Debt', data.monthlyDebtRepayments],
-      ['Savings', data.monthlySavings],
-      ['Available', data.disposableIncome]
-    ];
+  const rows = [
+    ['Bills', data.monthlyBills],
+    ['Debt', data.monthlyDebtRepayments],
+    ['Savings', data.monthlySavings],
+    ['Available', data.disposableIncome]
+  ];
 
-    html(
-      '[data-finance-allocation]',
-      rows.map(function(row) {
-        const amount =
-          Number(row[1]) || 0;
+  const widths = [];
 
-        const width =
-          income > 0
-            ? Math.max(
-                0,
-                Math.min(
-                  100,
-                  amount /
-                  income *
-                  100
-                )
+  html(
+    '[data-finance-allocation]',
+    rows.map(function(row) {
+      const amount =
+        Number(row[1]) || 0;
+
+      const width =
+        income > 0
+          ? Math.max(
+              0,
+              Math.min(
+                100,
+                amount /
+                income *
+                100
               )
-            : 0;
+            )
+          : 0;
 
-        return (
-          '<div class="finance-allocation__row">' +
-            '<span>' + escape(row[0]) + '</span>' +
-            '<div class="finance-allocation__track">' +
-              '<div class="finance-allocation__fill" style="width:' +
-                width.toFixed(1) + '%"></div>' +
-            '</div>' +
-            '<strong>' + money(amount) + '</strong>' +
-          '</div>'
-        );
-      }).join('')
-    );
-  }
+      widths.push(width);
+
+      return (
+        '<div class="finance-allocation__row">' +
+          '<span>' +
+            escape(row[0]) +
+          '</span>' +
+          '<div class="finance-allocation__track">' +
+            '<div class="finance-allocation__fill"></div>' +
+          '</div>' +
+          '<strong>' +
+            money(amount) +
+          '</strong>' +
+        '</div>'
+      );
+    }).join('')
+  );
+
+  document.querySelectorAll(
+    '[data-finance-allocation] .finance-allocation__fill'
+  ).forEach(function(element, index) {
+    element.style.width =
+      (widths[index] || 0).toFixed(1) +
+      '%';
+  });
+}
 
   function renderPayments(records) {
-    const upcoming =
-      records.filter(function(record) {
-        return record.paid !== true;
-      });
+  const upcoming =
+    records.filter(function(record) {
+      return record.paid !== true;
+    });
 
-    setText(
-      '[data-finance-upcoming-count]',
-      String(upcoming.length)
-    );
+  setText(
+    '[data-finance-upcoming-count]',
+    String(upcoming.length)
+  );
 
-    html(
-      '[data-finance-upcoming]',
-      upcoming.slice(0, 5)
-        .map(function(record) {
-          return (
-            '<div class="finance-list-item">' +
-              '<div><strong>' +
-                escape(record.name) +
-              '</strong><small>' +
-                date(record.dueDate) +
-                ' - ' +
-                escape(record.type) +
-              '</small></div>' +
-              '<strong>' +
-                money(record.amount) +
-              '</strong>' +
-            '</div>'
-          );
-        }).join('') ||
-        empty('No upcoming payments.')
-    );
-
-    html(
-      '[data-finance-payments]',
-      upcoming.map(function(record) {
-        return (
-          '<tr><td>' + date(record.dueDate) +
-          '</td><td><strong>' + escape(record.name) +
-          '</strong></td><td>' + escape(record.type) +
-          '</td><td>' + money(record.amount) +
-          '</td><td>' + escape(record.status) +
-          '</td><td><button class="finance-mini-button finance-mini-button--confirm" type="button" data-finance-pay="' +
-          escape(record.id) + '">Mark paid</button></td></tr>'
-        );
+  html(
+    '[data-finance-upcoming]',
+    upcoming.slice(0, 5)
+      .map(function(record) {
+        return [
+          '<div class="finance-list-item">',
+            '<div>',
+              '<strong>',
+                escape(record.name),
+              '</strong>',
+              '<small>',
+                date(record.dueDate),
+                ' - ',
+                escape(record.type),
+              '</small>',
+            '</div>',
+            '<strong>',
+              money(record.amount),
+            '</strong>',
+          '</div>'
+        ].join('');
       }).join('') ||
-      tableEmpty(
-        6,
+      empty(
         'No upcoming payments.'
       )
+  );
+
+  html(
+    '[data-finance-payments]',
+    upcoming.map(function(record) {
+      return [
+        '<tr>',
+          '<td>',
+            date(record.dueDate),
+          '</td>',
+          '<td>',
+            '<strong>',
+              escape(record.name),
+            '</strong>',
+          '</td>',
+          '<td>',
+            escape(record.type),
+          '</td>',
+          '<td>',
+            money(record.amount),
+          '</td>',
+          '<td>',
+            escape(record.status),
+          '</td>',
+          '<td>',
+            '<button class="finance-mini-button finance-mini-button--confirm" type="button" data-finance-pay-button>',
+              'Mark paid',
+            '</button>',
+          '</td>',
+        '</tr>'
+      ].join('');
+    }).join('') ||
+    tableEmpty(
+      6,
+      'No upcoming payments.'
+    )
+  );
+
+  document.querySelectorAll(
+    '[data-finance-pay-button]'
+  ).forEach(function(button, index) {
+    button.setAttribute(
+      'data-finance-pay',
+      String(
+        upcoming[index].id || ''
+      )
     );
-  }
+  });
+}
 
   function renderBills(records) {
     html(
@@ -346,107 +406,199 @@
   }
 
   function renderDebts(records) {
-    html(
-      '[data-finance-debts]',
-      records.map(function(record) {
-        const progress =
-          Math.max(
-            0,
-            Math.min(
-              100,
-              Number(
-                record.percentageRepaid
-              ) *
-              100
-            )
-          );
+  const progressValues = [];
 
-        return (
-          '<article class="finance-debt-card">' +
-            '<div class="finance-debt-card__top"><div><h4>' +
-              escape(record.name) +
-            '</h4><p>' + escape(record.type) +
-            ' - ' + Number(record.apr).toFixed(2) +
-            '% APR</p></div><strong>' +
-              money(record.currentBalance) +
-            '</strong></div>' +
-            '<div class="finance-progress"><div class="finance-progress__fill" style="width:' +
-              progress.toFixed(1) + '%"></div></div>' +
-            '<div class="finance-card-stats"><span>' +
-              progress.toFixed(0) + '% repaid</span><span>' +
-              money(record.monthlyRepayment) + '/month</span></div>' +
-          '</article>'
+  html(
+    '[data-finance-debts]',
+    records.map(function(record) {
+      const progress =
+        Math.max(
+          0,
+          Math.min(
+            100,
+            Number(
+              record.percentageRepaid
+            ) *
+            100
+          )
         );
-      }).join('') ||
-      empty('No active debts found.')
-    );
-  }
+
+      progressValues.push(progress);
+
+      return (
+        '<article class="finance-debt-card">' +
+          '<div class="finance-debt-card__top">' +
+            '<div>' +
+              '<h4>' +
+                escape(record.name) +
+              '</h4>' +
+              '<p>' +
+                escape(record.type) +
+                ' - ' +
+                Number(record.apr).toFixed(2) +
+                '% APR' +
+              '</p>' +
+            '</div>' +
+            '<strong>' +
+              money(record.currentBalance) +
+            '</strong>' +
+          '</div>' +
+          '<div class="finance-progress">' +
+            '<div class="finance-progress__fill"></div>' +
+          '</div>' +
+          '<div class="finance-card-stats">' +
+            '<span>' +
+              progress.toFixed(0) +
+              '% repaid' +
+            '</span>' +
+            '<span>' +
+              money(record.monthlyRepayment) +
+              '/month' +
+            '</span>' +
+          '</div>' +
+        '</article>'
+      );
+    }).join('') ||
+    empty(
+      'No active debts found.'
+    )
+  );
+
+  document.querySelectorAll(
+    '[data-finance-debts] .finance-progress__fill'
+  ).forEach(function(element, index) {
+    element.style.width =
+      (progressValues[index] || 0).toFixed(1) +
+      '%';
+  });
+}
 
   function renderSubscriptions(
-    records,
-    summary
-  ) {
-    html(
-      '[data-finance-subscription-summary]',
-      '<div><span>Monthly</span><strong>' +
+  records,
+  summary
+) {
+  html(
+    '[data-finance-subscription-summary]',
+    '<div>' +
+      '<span>Monthly</span>' +
+      '<strong>' +
         money(summary.monthlyCost) +
-      '</strong></div><div><span>Annual</span><strong>' +
+      '</strong>' +
+    '</div>' +
+    '<div>' +
+      '<span>Annual</span>' +
+      '<strong>' +
         money(summary.annualCost) +
-      '</strong></div><div><span>Active</span><strong>' +
+      '</strong>' +
+    '</div>' +
+    '<div>' +
+      '<span>Active</span>' +
+      '<strong>' +
         String(summary.active || 0) +
-      '</strong></div>'
-    );
+      '</strong>' +
+    '</div>'
+  );
 
-    setText(
-      '[data-finance-review-count]',
-      String(
-        summary.needsReview || 0
-      ) +
-      ' need review'
-    );
+  setText(
+    '[data-finance-review-count]',
+    String(
+      summary.needsReview || 0
+    ) +
+    ' need review'
+  );
 
-    html(
-      '[data-finance-subscriptions]',
-      records.map(function(record) {
-        const needsReview =
-          record.reviewStatus ===
-          'Needs Review';
+  const reviewRecords = [];
 
-        return (
-          '<article class="finance-subscription-card">' +
-            '<div class="finance-subscription-card__top"><div><h4>' +
-              escape(record.subscriptionName) +
-            '</h4><p>' + escape(record.frequency) +
-            ' - ' + escape(record.sourceType) +
-            '</p></div><strong>' +
+  html(
+    '[data-finance-subscriptions]',
+    records.map(function(record) {
+      const needsReview =
+        record.reviewStatus ===
+        'Needs Review';
+
+      if (needsReview) {
+        reviewRecords.push(record);
+      }
+
+      return (
+        '<article class="finance-subscription-card">' +
+          '<div class="finance-subscription-card__top">' +
+            '<div>' +
+              '<h4>' +
+                escape(record.subscriptionName) +
+              '</h4>' +
+              '<p>' +
+                escape(record.frequency) +
+                ' - ' +
+                escape(record.sourceType) +
+              '</p>' +
+            '</div>' +
+            '<strong>' +
               money(record.latestAmount) +
-            '</strong></div>' +
-            '<div class="finance-card-stats"><span>' +
+            '</strong>' +
+          '</div>' +
+          '<div class="finance-card-stats">' +
+            '<span>' +
               money(record.monthlyCost) +
-              '/month</span><span>' +
+              '/month' +
+            '</span>' +
+            '<span>' +
               money(record.annualCost) +
-              '/year</span></div>' +
-            (
-              needsReview
-                ? '<div class="finance-subscription-actions"><button class="finance-mini-button finance-mini-button--confirm" type="button" data-finance-subscription-action="confirm" data-subscription-id="' +
-                  escape(record.subscriptionId) +
-                  '">Confirm</button><button class="finance-mini-button" type="button" data-finance-subscription-action="reject" data-subscription-id="' +
-                  escape(record.subscriptionId) +
-                  '">Dismiss</button></div>'
-                : '<div class="finance-card-stats"><span>' +
-                  escape(record.reviewStatus) +
-                  '</span><span>' +
-                  escape(record.subscriptionStatus) +
-                  '</span></div>'
-            ) +
-          '</article>'
-        );
-      }).join('') ||
-      empty(
-        'No subscriptions found yet. Connect Monzo or categorise a bill as Subscriptions.'
-      )
+              '/year' +
+            '</span>' +
+          '</div>' +
+          (
+            needsReview
+              ? (
+                  '<div class="finance-subscription-actions">' +
+                    '<button class="finance-mini-button finance-mini-button--confirm" type="button" data-finance-subscription-action="confirm" data-finance-review-button>' +
+                      'Confirm' +
+                    '</button>' +
+                    '<button class="finance-mini-button" type="button" data-finance-subscription-action="reject" data-finance-review-button>' +
+                      'Dismiss' +
+                    '</button>' +
+                  '</div>'
+                )
+              : (
+                  '<div class="finance-card-stats">' +
+                    '<span>' +
+                      escape(record.reviewStatus) +
+                    '</span>' +
+                    '<span>' +
+                      escape(record.subscriptionStatus) +
+                    '</span>' +
+                  '</div>'
+                )
+          ) +
+        '</article>'
+      );
+    }).join('') ||
+    empty(
+      'No subscriptions found yet. Connect Monzo or categorise a bill as Subscriptions.'
+    )
+  );
+
+  document.querySelectorAll(
+    '[data-finance-review-button]'
+  ).forEach(function(button, index) {
+    const recordIndex =
+      Math.floor(
+        index / 2
+      );
+
+    const record =
+      reviewRecords[recordIndex];
+
+    button.setAttribute(
+      'data-subscription-id',
+      record
+        ? String(
+            record.subscriptionId || ''
+          )
+        : ''
     );
-  }
+  });
+}
 
   function renderHistory(records) {
     html(
@@ -558,36 +710,75 @@
     );
   }
 
-  function call(
-    functionName,
-    args,
-    success,
-    failure
+function call(
+  functionName,
+  args,
+  success,
+  failure
+) {
+  if (
+    !window.google ||
+    !google.script ||
+    !google.script.run
   ) {
-    if (
-      !window.google ||
-      !google.script ||
-      !google.script.run
-    ) {
+    failure(
+      new Error(
+        'The Finance service is only available in the deployed Pay Tracker app.'
+      )
+    );
+    return;
+  }
+
+  const runner =
+    google.script.run
+      .withSuccessHandler(success)
+      .withFailureHandler(failure);
+
+  const values =
+    Array.isArray(args)
+      ? args
+      : [];
+
+  switch (functionName) {
+    case 'getPayTrackerFinanceWorkspace':
+      runner.getPayTrackerFinanceWorkspace();
+      break;
+
+    case 'markPayTrackerFinancePaymentPaid':
+      runner.markPayTrackerFinancePaymentPaid(
+        values[0]
+      );
+      break;
+
+    case 'undoPayTrackerFinancePayment':
+      runner.undoPayTrackerFinancePayment();
+      break;
+
+    case 'confirmPayTrackerSubscription':
+      runner.confirmPayTrackerSubscription(
+        values[0]
+      );
+      break;
+
+    case 'rejectPayTrackerSubscription':
+      runner.rejectPayTrackerSubscription(
+        values[0]
+      );
+      break;
+
+    case 'getPayTrackerMonzoAction':
+      runner.getPayTrackerMonzoAction();
+      break;
+
+    default:
       failure(
         new Error(
-          'The Finance service is only available in the deployed Pay Tracker app.'
+          'Unknown Finance service function: ' +
+          functionName
         )
       );
-      return;
-    }
-
-    let runner =
-      google.script.run
-        .withSuccessHandler(success)
-        .withFailureHandler(failure);
-
-    runner[functionName]
-      .apply(
-        runner,
-        args || []
-      );
   }
+}
 
   function selectTab(name) {
     document.querySelectorAll(
@@ -719,25 +910,29 @@
   }
 
   function empty(message) {
-    return (
-      '<div class="finance-empty">' +
-      escape(message) +
-      '</div>'
-    );
-  }
+  return [
+    '<div class="finance-empty">',
+      escape(message),
+    '</div>'
+  ].join('');
+}
 
   function tableEmpty(
-    columns,
-    message
-  ) {
-    return (
-      '<tr><td colspan="' +
-      String(columns) +
-      '"><div class="finance-empty">' +
-      escape(message) +
-      '</div></td></tr>'
-    );
-  }
+  columns,
+  message
+) {
+  return [
+    '<tr>',
+      '<td colspan="',
+        String(columns),
+      '">',
+        '<div class="finance-empty">',
+          escape(message),
+        '</div>',
+      '</td>',
+    '</tr>'
+  ].join('');
+}
 
   function html(selector, value) {
     const element =

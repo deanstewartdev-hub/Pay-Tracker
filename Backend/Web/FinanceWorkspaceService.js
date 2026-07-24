@@ -599,8 +599,33 @@ const PayTrackerWebFinanceWorkspaceService =
   });
 
 function getPayTrackerFinanceWorkspace() {
-  return PayTrackerWebFinanceWorkspaceService
-    .getData();
+  const data =
+    PayTrackerWebFinanceWorkspaceService
+      .getData();
+
+  return JSON.parse(
+    JSON.stringify(
+      data,
+      function(key, value) {
+        if (value instanceof Date) {
+          return value.toISOString();
+        }
+
+        if (
+          typeof value === 'number' &&
+          !Number.isFinite(value)
+        ) {
+          return 0;
+        }
+
+        if (value === undefined) {
+          return null;
+        }
+
+        return value;
+      }
+    )
+  );
 }
 
 function markPayTrackerFinancePaymentPaid(
