@@ -1,0 +1,176 @@
+<div
+  class="finance-workspace"
+  data-finance-workspace
+>
+  <div class="page-header finance-header">
+    <div>
+      <p class="page-header__eyebrow">
+        Money control centre
+      </p>
+
+      <h2 class="page-header__title">
+        Finance
+      </h2>
+
+      <p class="page-header__description">
+        See income, commitments, debts, subscriptions and payments together.
+      </p>
+    </div>
+
+    <div class="finance-header__actions">
+      <button
+        class="button button--secondary"
+        type="button"
+        data-finance-refresh
+      >
+        Refresh
+      </button>
+
+      <button
+        class="button button--primary"
+        type="button"
+        data-finance-bank-action
+      >
+        Connect Monzo
+      </button>
+    </div>
+  </div>
+
+  <div
+    class="finance-notice"
+    data-finance-notice
+    hidden
+  ></div>
+
+  <div class="finance-tabs" role="tablist">
+    <button class="finance-tab is-active" type="button" data-finance-tab="overview">Overview</button>
+    <button class="finance-tab" type="button" data-finance-tab="payments">Payments</button>
+    <button class="finance-tab" type="button" data-finance-tab="bills">Bills</button>
+    <button class="finance-tab" type="button" data-finance-tab="debts">Debts</button>
+    <button class="finance-tab" type="button" data-finance-tab="subscriptions">Subscriptions</button>
+    <button class="finance-tab" type="button" data-finance-tab="history">History</button>
+  </div>
+
+  <div class="finance-loading" data-finance-loading>
+    Loading your finance workspace…
+  </div>
+
+  <div data-finance-content hidden>
+    <section class="finance-panel is-active" data-finance-panel="overview">
+      <div class="finance-metric-grid">
+        <article class="finance-metric finance-metric--income">
+          <span>Monthly take-home</span>
+          <strong data-finance-metric="income">£0.00</strong>
+          <small>Estimated from Pay Tracker</small>
+        </article>
+
+        <article class="finance-metric">
+          <span>Committed monthly</span>
+          <strong data-finance-metric="committed">£0.00</strong>
+          <small data-finance-commitment-label>0% of income</small>
+        </article>
+
+        <article class="finance-metric finance-metric--available">
+          <span>Disposable income</span>
+          <strong data-finance-metric="disposable">£0.00</strong>
+          <small>After bills, debts and savings</small>
+        </article>
+
+        <article class="finance-metric finance-metric--debt">
+          <span>Debt remaining</span>
+          <strong data-finance-metric="debt">£0.00</strong>
+          <small data-finance-debt-label>0% repaid</small>
+        </article>
+      </div>
+
+      <div class="finance-overview-grid">
+        <article class="card finance-card">
+          <div class="finance-card__header">
+            <div>
+              <p class="finance-card__eyebrow">Cash flow</p>
+              <h3>Monthly allocation</h3>
+            </div>
+          </div>
+
+          <div class="finance-allocation" data-finance-allocation></div>
+        </article>
+
+        <article class="card finance-card">
+          <div class="finance-card__header">
+            <div>
+              <p class="finance-card__eyebrow">Next actions</p>
+              <h3>Upcoming payments</h3>
+            </div>
+            <span class="finance-count" data-finance-upcoming-count>0</span>
+          </div>
+
+          <div class="finance-list" data-finance-upcoming></div>
+        </article>
+
+        <article class="card finance-card">
+          <div class="finance-card__header">
+            <div>
+              <p class="finance-card__eyebrow">Recurring costs</p>
+              <h3>Subscriptions</h3>
+            </div>
+            <button class="finance-text-button" type="button" data-finance-jump="subscriptions">View all</button>
+          </div>
+
+          <div class="finance-subscription-summary" data-finance-subscription-summary></div>
+        </article>
+
+        <article class="card finance-card">
+          <div class="finance-card__header">
+            <div>
+              <p class="finance-card__eyebrow">Bank connection</p>
+              <h3>Monzo</h3>
+            </div>
+            <span class="finance-status" data-finance-bank-status>Not connected</span>
+          </div>
+
+          <p class="finance-card__copy" data-finance-bank-copy>
+            Connect your own Monzo account with read-only access to import transactions and find recurring payments.
+          </p>
+
+          <div class="finance-privacy">
+            Pay Tracker never asks for or stores your password, PIN, card number or verification code.
+          </div>
+        </article>
+      </div>
+    </section>
+
+    <section class="finance-panel" data-finance-panel="payments">
+      <div class="finance-section-heading">
+        <div>
+          <p class="finance-card__eyebrow">Payment queue</p>
+          <h3>Upcoming payments</h3>
+        </div>
+        <button class="button button--secondary" type="button" data-finance-undo>Undo last payment</button>
+      </div>
+      <div class="finance-table-wrap"><table class="finance-table"><thead><tr><th>Due</th><th>Name</th><th>Type</th><th>Amount</th><th>Status</th><th></th></tr></thead><tbody data-finance-payments></tbody></table></div>
+    </section>
+
+    <section class="finance-panel" data-finance-panel="bills">
+      <div class="finance-section-heading"><div><p class="finance-card__eyebrow">Regular commitments</p><h3>Bills</h3></div></div>
+      <div class="finance-table-wrap"><table class="finance-table"><thead><tr><th>Bill</th><th>Category</th><th>Frequency</th><th>Next due</th><th>Amount</th><th>Monthly</th></tr></thead><tbody data-finance-bills></tbody></table></div>
+    </section>
+
+    <section class="finance-panel" data-finance-panel="debts">
+      <div class="finance-section-heading"><div><p class="finance-card__eyebrow">Repayment progress</p><h3>Debts and loans</h3></div></div>
+      <div class="finance-debt-grid" data-finance-debts></div>
+    </section>
+
+    <section class="finance-panel" data-finance-panel="subscriptions">
+      <div class="finance-section-heading">
+        <div><p class="finance-card__eyebrow">Monthly and annual costs</p><h3>Subscription centre</h3></div>
+        <span class="finance-status" data-finance-review-count>0 need review</span>
+      </div>
+      <div class="finance-subscription-grid" data-finance-subscriptions></div>
+    </section>
+
+    <section class="finance-panel" data-finance-panel="history">
+      <div class="finance-section-heading"><div><p class="finance-card__eyebrow">Audit trail</p><h3>Payment history</h3></div></div>
+      <div class="finance-table-wrap"><table class="finance-table"><thead><tr><th>Paid</th><th>Name</th><th>Type</th><th>Amount</th><th>Principal</th><th>Interest</th></tr></thead><tbody data-finance-history></tbody></table></div>
+    </section>
+  </div>
+</div>
