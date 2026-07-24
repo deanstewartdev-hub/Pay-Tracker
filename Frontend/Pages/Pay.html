@@ -1285,31 +1285,1273 @@
   </section>
 </section>
 
-  <section
-    class="pay-workspace-panel"
+    <section
+    id="payroll-centre-panel"
+    class="pay-workspace-panel payroll-centre"
     data-pay-panel="payslips"
-    aria-label="Payslip comparison"
+    data-payroll-centre
+    aria-label="Payroll Centre"
+    aria-busy="false"
     hidden
   >
-    <div class="card">
-      <div class="empty-state">
-        <div
-          class="empty-state__icon"
-          aria-hidden="true"
-        >
-          P
-        </div>
+    <!-- Payroll Centre header -->
+    <section class="payroll-centre-header">
+      <div class="payroll-centre-header__copy">
+        <p class="payroll-centre-header__eyebrow">
+          Payslip management
+        </p>
 
-        <h3 class="empty-state__title">
-          Payslip comparison
+        <h3 class="payroll-centre-header__title">
+          Payroll Centre
         </h3>
 
-        <p class="empty-state__message">
-          Predicted earnings, actual payslip income and any difference
-          between them will be compared here.
+        <p class="payroll-centre-header__description">
+          Import, review and compare your real payslips against
+          your predicted Pay Tracker earnings.
         </p>
       </div>
+
+      <div class="payroll-centre-header__actions">
+        <button
+          id="payroll-centre-refresh-button"
+          class="button button--secondary"
+          type="button"
+          aria-label="Refresh Payroll Centre"
+        >
+          <span
+            class="button__icon"
+            aria-hidden="true"
+          >
+            <svg viewBox="0 0 24 24">
+              <path
+                d="M17.65 6.35A8 8 0 1 0 20 12h-2a6 6 0 1 1-1.76-4.24L13 11h8V3l-3.35 3.35Z"
+                fill="currentColor"
+              />
+            </svg>
+          </span>
+
+          <span>
+            Refresh
+          </span>
+        </button>
+
+        <button
+          id="payroll-centre-upload-button"
+          class="button button--secondary"
+          type="button"
+          aria-label="Upload a payslip PDF"
+        >
+          <span
+            class="button__icon"
+            aria-hidden="true"
+          >
+            <svg viewBox="0 0 24 24">
+              <path
+                d="M11 16V7.8L8.4 10.4 7 9l5-5 5 5-1.4 1.4L13 7.8V16h-2Zm-5 4a2 2 0 0 1-2-2v-3h2v3h12v-3h2v3a2 2 0 0 1-2 2H6Z"
+                fill="currentColor"
+              />
+            </svg>
+          </span>
+
+          <span>
+            Upload PDF
+          </span>
+        </button>
+
+        <button
+          id="payroll-centre-scan-button"
+          class="button button--primary"
+          type="button"
+          aria-label="Scan Gmail for new payslips"
+        >
+          <span
+            class="button__icon"
+            aria-hidden="true"
+          >
+            <svg viewBox="0 0 24 24">
+              <path
+                d="M3 5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5Zm2 .4v.8l7 5.25 7-5.25v-.8H5Zm14 3.3-7 5.25L5 8.7V19h14V8.7Z"
+                fill="currentColor"
+              />
+            </svg>
+          </span>
+
+          <span>
+            Scan Gmail
+          </span>
+        </button>
+      </div>
+    </section>
+
+    <!-- Global Payroll Centre message -->
+    <div
+      id="payroll-centre-message"
+      class="payroll-centre-message"
+      role="status"
+      aria-live="polite"
+      hidden
+    ></div>
+
+    <!-- Loading state -->
+    <section
+      id="payroll-centre-loading"
+      class="payroll-centre-state payroll-centre-state--loading"
+      aria-live="polite"
+    >
+      <div
+        class="payroll-centre-state__spinner"
+        aria-hidden="true"
+      ></div>
+
+      <div>
+        <h4 class="payroll-centre-state__title">
+          Loading Payroll Centre
+        </h4>
+
+        <p class="payroll-centre-state__message">
+          Connecting to your Payslip Register.
+        </p>
+      </div>
+    </section>
+
+    <!-- Main content -->
+    <div
+      id="payroll-centre-content"
+      class="payroll-centre-content"
+      hidden
+    >
+      <!-- Summary cards -->
+      <section
+        class="payroll-centre-summary-grid"
+        aria-label="Payroll Centre summary"
+      >
+        <article
+          class="payroll-centre-summary-card payroll-centre-summary-card--total"
+        >
+          <div class="payroll-centre-summary-card__header">
+            <div>
+              <p class="payroll-centre-summary-card__label">
+                Total payslips
+              </p>
+
+              <p class="payroll-centre-summary-card__period">
+                Registered documents
+              </p>
+            </div>
+
+            <span
+              class="payroll-centre-summary-card__icon"
+              aria-hidden="true"
+            >
+              <svg viewBox="0 0 24 24">
+                <path
+                  d="M6 2h9l5 5v15H4V4a2 2 0 0 1 2-2Zm8 2H6v16h12V8h-4V4Zm2 1.4V6h.6L16 5.4ZM8 10h8v2H8v-2Zm0 4h8v2H8v-2Zm0 4h5v1H8v-1Z"
+                  fill="currentColor"
+                />
+              </svg>
+            </span>
+          </div>
+
+          <strong
+            id="payroll-centre-total-payslips"
+            class="payroll-centre-summary-card__value"
+          >
+            0
+          </strong>
+
+          <p
+            id="payroll-centre-total-payslips-meta"
+            class="payroll-centre-summary-card__meta"
+          >
+            Waiting for Payroll Centre data
+          </p>
+        </article>
+
+        <article
+          class="payroll-centre-summary-card payroll-centre-summary-card--latest"
+        >
+          <div class="payroll-centre-summary-card__header">
+            <div>
+              <p class="payroll-centre-summary-card__label">
+                Latest payslip
+              </p>
+
+              <p class="payroll-centre-summary-card__period">
+                Most recent email
+              </p>
+            </div>
+
+            <span
+              class="payroll-centre-summary-card__icon"
+              aria-hidden="true"
+            >
+              <svg viewBox="0 0 24 24">
+                <path
+                  d="M7 2h2v2h6V2h2v2h4v18H3V4h4V2Zm12 7H5v11h14V9ZM5 6v1h14V6h-2v1h-2V6H9v1H7V6H5Z"
+                  fill="currentColor"
+                />
+              </svg>
+            </span>
+          </div>
+
+          <strong
+            id="payroll-centre-latest-date"
+            class="payroll-centre-summary-card__value"
+          >
+            —
+          </strong>
+
+          <p
+            id="payroll-centre-latest-meta"
+            class="payroll-centre-summary-card__meta"
+          >
+            No recent payslip loaded
+          </p>
+        </article>
+
+        <article
+          class="payroll-centre-summary-card payroll-centre-summary-card--imported"
+        >
+          <div class="payroll-centre-summary-card__header">
+            <div>
+              <p class="payroll-centre-summary-card__label">
+                Imported
+              </p>
+
+              <p class="payroll-centre-summary-card__period">
+                Stored successfully
+              </p>
+            </div>
+
+            <span
+              class="payroll-centre-summary-card__icon"
+              aria-hidden="true"
+            >
+              <svg viewBox="0 0 24 24">
+                <path
+                  d="M9 16.2 4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4L9 16.2Z"
+                  fill="currentColor"
+                />
+              </svg>
+            </span>
+          </div>
+
+          <strong
+            id="payroll-centre-imported-count"
+            class="payroll-centre-summary-card__value"
+          >
+            0
+          </strong>
+
+          <p
+            id="payroll-centre-imported-meta"
+            class="payroll-centre-summary-card__meta"
+          >
+            Stored in Google Drive
+          </p>
+        </article>
+
+        <article
+          class="payroll-centre-summary-card payroll-centre-summary-card--review"
+        >
+          <div class="payroll-centre-summary-card__header">
+            <div>
+              <p class="payroll-centre-summary-card__label">
+                Needs review
+              </p>
+
+              <p class="payroll-centre-summary-card__period">
+                Pay discrepancies
+              </p>
+            </div>
+
+            <span
+              class="payroll-centre-summary-card__icon"
+              aria-hidden="true"
+            >
+              <svg viewBox="0 0 24 24">
+                <path
+                  d="M12 2 1 21h22L12 2Zm0 4 7.5 13h-15L12 6Zm-1 4v5h2v-5h-2Zm0 7v2h2v-2h-2Z"
+                  fill="currentColor"
+                />
+              </svg>
+            </span>
+          </div>
+
+          <strong
+            id="payroll-centre-review-count"
+            class="payroll-centre-summary-card__value"
+          >
+            0
+          </strong>
+
+          <p
+            id="payroll-centre-review-meta"
+            class="payroll-centre-summary-card__meta"
+          >
+            Comparison engine pending
+          </p>
+        </article>
+      </section>
+
+      <!-- Last scan summary -->
+      <section
+        id="payroll-centre-scan-summary"
+        class="payroll-centre-scan-summary"
+        aria-label="Latest Gmail scan"
+      >
+        <div class="payroll-centre-scan-summary__status">
+          <span
+            id="payroll-centre-scan-status-icon"
+            class="payroll-centre-scan-summary__icon"
+            aria-hidden="true"
+          >
+            ✓
+          </span>
+
+          <div>
+            <p class="payroll-centre-scan-summary__eyebrow">
+              Latest Gmail scan
+            </p>
+
+            <strong
+              id="payroll-centre-scan-status"
+              class="payroll-centre-scan-summary__title"
+            >
+              Waiting for scan history
+            </strong>
+
+            <p
+              id="payroll-centre-scan-meta"
+              class="payroll-centre-scan-summary__meta"
+            >
+              Recent import details will appear here.
+            </p>
+          </div>
+        </div>
+
+        <button
+          id="payroll-centre-view-scans-button"
+          class="button button--ghost"
+          type="button"
+        >
+          View scan history
+        </button>
+      </section>
+
+      <!-- Filters -->
+      <section
+        class="card payroll-centre-filter-card"
+        aria-label="Payslip filters"
+      >
+        <div class="card__header">
+          <div>
+            <h4 class="card__title">
+              Payslip register
+            </h4>
+
+            <p class="card__subtitle">
+              Search and filter imported payroll documents.
+            </p>
+          </div>
+
+          <button
+            id="payroll-centre-clear-filters-button"
+            class="button button--ghost"
+            type="button"
+          >
+            Clear filters
+          </button>
+        </div>
+
+        <div class="card__body">
+          <form
+            id="payroll-centre-filter-form"
+            class="payroll-centre-filters"
+            autocomplete="off"
+          >
+            <label
+              class="payroll-centre-field payroll-centre-field--search"
+            >
+              <span class="payroll-centre-field__label">
+                Search
+              </span>
+
+              <span class="payroll-centre-search">
+                <span
+                  class="payroll-centre-search__icon"
+                  aria-hidden="true"
+                >
+                  <svg viewBox="0 0 24 24">
+                    <path
+                      d="m21 19.6-5.2-5.2a7 7 0 1 0-1.4 1.4L19.6 21 21 19.6ZM5 10a5 5 0 1 1 10 0 5 5 0 0 1-10 0Z"
+                      fill="currentColor"
+                    />
+                  </svg>
+                </span>
+
+                <input
+                  id="payroll-centre-search-input"
+                  class="payroll-centre-field__control payroll-centre-search__input"
+                  type="search"
+                  placeholder="Search payslips"
+                />
+              </span>
+            </label>
+
+            <label class="payroll-centre-field">
+              <span class="payroll-centre-field__label">
+                Payroll group
+              </span>
+
+              <select
+                id="payroll-centre-group-filter"
+                class="payroll-centre-field__control"
+              >
+                <option value="">
+                  All payroll groups
+                </option>
+              </select>
+            </label>
+
+            <label class="payroll-centre-field">
+              <span class="payroll-centre-field__label">
+                Import status
+              </span>
+
+              <select
+                id="payroll-centre-import-status-filter"
+                class="payroll-centre-field__control"
+              >
+                <option value="">
+                  All import statuses
+                </option>
+              </select>
+            </label>
+
+            <label class="payroll-centre-field">
+              <span class="payroll-centre-field__label">
+                Comparison
+              </span>
+
+              <select
+                id="payroll-centre-comparison-filter"
+                class="payroll-centre-field__control"
+              >
+                <option value="">
+                  All comparison statuses
+                </option>
+              </select>
+            </label>
+
+            <label class="payroll-centre-field">
+              <span class="payroll-centre-field__label">
+                Date from
+              </span>
+
+              <input
+                id="payroll-centre-date-from-filter"
+                class="payroll-centre-field__control"
+                type="date"
+              />
+            </label>
+
+            <label class="payroll-centre-field">
+              <span class="payroll-centre-field__label">
+                Date to
+              </span>
+
+              <input
+                id="payroll-centre-date-to-filter"
+                class="payroll-centre-field__control"
+                type="date"
+              />
+            </label>
+          </form>
+        </div>
+      </section>
+
+      <!-- Payslip table -->
+      <section class="card payroll-centre-table-card">
+        <div class="card__header">
+          <div>
+            <h4 class="card__title">
+              Imported payslips
+            </h4>
+
+            <p
+              id="payroll-centre-record-count"
+              class="card__subtitle"
+            >
+              Loading payslip records
+            </p>
+          </div>
+
+          <span
+            id="payroll-centre-table-status"
+            class="pay-shell-card__status"
+          >
+            Loading
+          </span>
+        </div>
+
+        <div class="card__body payroll-centre-table-card__body">
+          <div
+            id="payroll-centre-table-wrapper"
+            class="payroll-centre-table-wrapper"
+          >
+            <table
+              class="payroll-centre-table"
+              aria-label="Imported payslips"
+            >
+              <thead>
+                <tr>
+                  <th scope="col">
+                    Date
+                  </th>
+
+                  <th scope="col">
+                    Payroll group
+                  </th>
+
+                  <th scope="col">
+                    Payslip
+                  </th>
+
+                  <th scope="col">
+                    Source
+                  </th>
+
+                  <th scope="col">
+                    Gross
+                  </th>
+
+                  <th scope="col">
+                    Net
+                  </th>
+
+                  <th scope="col">
+                    Import
+                  </th>
+
+                  <th scope="col">
+                    Comparison
+                  </th>
+
+                  <th
+                    scope="col"
+                    class="payroll-centre-table__actions-heading"
+                  >
+                    Action
+                  </th>
+                </tr>
+              </thead>
+
+              <tbody id="payroll-centre-table-body">
+                <tr>
+                  <td
+                    class="payroll-centre-table__loading-cell"
+                    colspan="9"
+                  >
+                    Loading imported payslips
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <!-- Mobile cards -->
+          <div
+            id="payroll-centre-mobile-list"
+            class="payroll-centre-mobile-list"
+            aria-label="Imported payslips"
+          ></div>
+
+          <!-- Empty result state -->
+          <div
+            id="payroll-centre-empty-state"
+            class="payroll-centre-empty-state"
+            hidden
+          >
+            <div
+              class="payroll-centre-empty-state__icon"
+              aria-hidden="true"
+            >
+              P
+            </div>
+
+            <h4 class="payroll-centre-empty-state__title">
+              No payslips found
+            </h4>
+
+            <p
+              id="payroll-centre-empty-message"
+              class="payroll-centre-empty-state__message"
+            >
+              Scan Gmail to find and import your payslip PDFs.
+            </p>
+
+            <button
+              id="payroll-centre-empty-scan-button"
+              class="button button--primary"
+              type="button"
+            >
+              Scan Gmail
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <!-- Recent scan history -->
+      <section
+        id="payroll-centre-scan-history-card"
+        class="card payroll-centre-scan-history-card"
+        hidden
+      >
+        <div class="card__header">
+          <div>
+            <h4 class="card__title">
+              Gmail scan history
+            </h4>
+
+            <p class="card__subtitle">
+              Recent Payroll Centre import activity.
+            </p>
+          </div>
+
+          <button
+            id="payroll-centre-close-scans-button"
+            class="button button--ghost"
+            type="button"
+          >
+            Close
+          </button>
+        </div>
+
+        <div class="card__body">
+          <div
+            id="payroll-centre-scan-history-list"
+            class="payroll-centre-scan-history-list"
+          >
+            <p class="payroll-centre-scan-history-list__loading">
+              Loading scan history
+            </p>
+          </div>
+        </div>
+      </section>
     </div>
+
+    <!-- Initial empty workspace state -->
+    <section
+      id="payroll-centre-workspace-empty"
+      class="payroll-centre-state payroll-centre-state--empty"
+      hidden
+    >
+      <div
+        class="payroll-centre-state__icon"
+        aria-hidden="true"
+      >
+        P
+      </div>
+
+      <div>
+        <h4 class="payroll-centre-state__title">
+          No payslips imported yet
+        </h4>
+
+        <p class="payroll-centre-state__message">
+          Scan Gmail to locate your existing payroll emails
+          and save their PDF attachments.
+        </p>
+
+        <button
+          id="payroll-centre-workspace-scan-button"
+          class="button button--primary"
+          type="button"
+        >
+          Scan Gmail
+        </button>
+      </div>
+    </section>
+
+    <!-- Fatal error state -->
+    <section
+      id="payroll-centre-error-state"
+      class="payroll-centre-state payroll-centre-state--error"
+      hidden
+    >
+      <div
+        class="payroll-centre-state__icon"
+        aria-hidden="true"
+      >
+        !
+      </div>
+
+      <div>
+        <h4 class="payroll-centre-state__title">
+          Payroll Centre could not be loaded
+        </h4>
+
+        <p
+          id="payroll-centre-error-message"
+          class="payroll-centre-state__message"
+        >
+          Your existing payroll data has not been changed.
+        </p>
+
+        <button
+          id="payroll-centre-retry-button"
+          class="button button--primary"
+          type="button"
+        >
+          Try again
+        </button>
+      </div>
+    </section>
+
+    <!-- Payslip detail drawer backdrop -->
+    <div
+      id="payroll-centre-drawer-backdrop"
+      class="payroll-centre-drawer-backdrop"
+      hidden
+    ></div>
+
+    <!-- Payslip detail drawer -->
+    <aside
+      id="payroll-centre-detail-drawer"
+      class="payroll-centre-drawer"
+      aria-label="Payslip details"
+      aria-hidden="true"
+      hidden
+    >
+      <header class="payroll-centre-drawer__header">
+        <div>
+          <p class="payroll-centre-drawer__eyebrow">
+            Payslip details
+          </p>
+
+          <h4
+            id="payroll-centre-detail-title"
+            class="payroll-centre-drawer__title"
+          >
+            Selected payslip
+          </h4>
+        </div>
+
+        <button
+          id="payroll-centre-detail-close-button"
+          class="payroll-centre-drawer__close"
+          type="button"
+          aria-label="Close payslip details"
+        >
+          <svg
+            viewBox="0 0 24 24"
+            aria-hidden="true"
+          >
+            <path
+              d="m6.4 5 5.6 5.6L17.6 5 19 6.4 13.4 12l5.6 5.6-1.4 1.4-5.6-5.6L6.4 19 5 17.6l5.6-5.6L5 6.4 6.4 5Z"
+              fill="currentColor"
+            />
+          </svg>
+        </button>
+      </header>
+
+      <div
+        id="payroll-centre-detail-content"
+        class="payroll-centre-drawer__content"
+      >
+        <div class="payroll-centre-state payroll-centre-state--loading">
+          <div
+            class="payroll-centre-state__spinner"
+            aria-hidden="true"
+          ></div>
+
+          <p class="payroll-centre-state__message">
+            Loading payslip details
+          </p>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Gmail scan dialog backdrop -->
+    <div
+      id="payroll-centre-scan-dialog-backdrop"
+      class="payroll-centre-dialog-backdrop"
+      hidden
+    ></div>
+
+    <!-- Gmail scan dialog -->
+    <section
+      id="payroll-centre-scan-dialog"
+      class="payroll-centre-dialog"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="payroll-centre-scan-dialog-title"
+      aria-hidden="true"
+      hidden
+    >
+      <header class="payroll-centre-dialog__header">
+        <div>
+          <p class="payroll-centre-dialog__eyebrow">
+            Manual import
+          </p>
+
+          <h4
+            id="payroll-centre-scan-dialog-title"
+            class="payroll-centre-dialog__title"
+          >
+            Scan Gmail for payslips
+          </h4>
+        </div>
+
+        <button
+          id="payroll-centre-scan-dialog-close-button"
+          class="payroll-centre-dialog__close"
+          type="button"
+          aria-label="Close Gmail scan dialog"
+        >
+          <svg
+            viewBox="0 0 24 24"
+            aria-hidden="true"
+          >
+            <path
+              d="m6.4 5 5.6 5.6L17.6 5 19 6.4 13.4 12l5.6 5.6-1.4 1.4-5.6-5.6L6.4 19 5 17.6l5.6-5.6L5 6.4 6.4 5Z"
+              fill="currentColor"
+            />
+          </svg>
+        </button>
+      </header>
+
+      <div class="payroll-centre-dialog__body">
+        <div
+          id="payroll-centre-scan-form-view"
+          class="payroll-centre-scan-form-view"
+        >
+          <p class="payroll-centre-dialog__description">
+            Pay Tracker will read matching payroll emails,
+            save new PDF payslips to Drive and skip documents
+            that have already been imported.
+          </p>
+
+          <div class="payroll-centre-scan-options">
+            <label class="payroll-centre-field">
+              <span class="payroll-centre-field__label">
+                Search period
+              </span>
+
+              <select
+                id="payroll-centre-scan-lookback"
+                class="payroll-centre-field__control"
+              >
+                <option value="90">
+                  Last 3 months
+                </option>
+
+                <option value="180">
+                  Last 6 months
+                </option>
+
+                <option
+                  value="365"
+                  selected
+                >
+                  Last 12 months
+                </option>
+
+                <option value="730">
+                  Last 2 years
+                </option>
+              </select>
+            </label>
+
+            <label class="payroll-centre-field">
+              <span class="payroll-centre-field__label">
+                Maximum email threads
+              </span>
+
+              <select
+                id="payroll-centre-scan-limit"
+                class="payroll-centre-field__control"
+              >
+                <option value="50">
+                  50 threads
+                </option>
+
+                <option
+                  value="100"
+                  selected
+                >
+                  100 threads
+                </option>
+
+                <option value="250">
+                  250 threads
+                </option>
+
+                <option value="500">
+                  500 threads
+                </option>
+              </select>
+            </label>
+          </div>
+
+          <div class="payroll-centre-scan-information">
+            <div class="payroll-centre-scan-information__section">
+              <h5 class="payroll-centre-scan-information__title">
+                This scan will
+              </h5>
+
+              <ul class="payroll-centre-scan-information__list">
+                <li>
+                  Read matching Gmail messages
+                </li>
+
+                <li>
+                  Save new PDF payslips to Google Drive
+                </li>
+
+                <li>
+                  Add new records to the Payslip Register
+                </li>
+
+                <li>
+                  Skip previously imported attachments
+                </li>
+              </ul>
+            </div>
+
+            <div class="payroll-centre-scan-information__section">
+              <h5 class="payroll-centre-scan-information__title">
+                It will not
+              </h5>
+
+              <ul class="payroll-centre-scan-information__list">
+                <li>
+                  Delete or modify Gmail messages
+                </li>
+
+                <li>
+                  Send emails
+                </li>
+
+                <li>
+                  Replace existing payslip records
+                </li>
+              </ul>
+            </div>
+          </div>
+        </div>
+
+        <div
+          id="payroll-centre-scan-running-view"
+          class="payroll-centre-scan-running-view"
+          hidden
+        >
+          <div
+            class="payroll-centre-state__spinner"
+            aria-hidden="true"
+          ></div>
+
+          <h5 class="payroll-centre-dialog__status-title">
+            Scanning Gmail
+          </h5>
+
+          <p class="payroll-centre-dialog__description">
+            Checking payroll emails and PDF attachments.
+            This may take a few minutes.
+          </p>
+        </div>
+
+        <div
+          id="payroll-centre-scan-result-view"
+          class="payroll-centre-scan-result-view"
+          hidden
+        >
+          <div
+            id="payroll-centre-scan-result-icon"
+            class="payroll-centre-scan-result-view__icon"
+            aria-hidden="true"
+          >
+            ✓
+          </div>
+
+          <h5
+            id="payroll-centre-scan-result-title"
+            class="payroll-centre-dialog__status-title"
+          >
+            Scan completed
+          </h5>
+
+          <p
+            id="payroll-centre-scan-result-message"
+            class="payroll-centre-dialog__description"
+          >
+            The Gmail scan has finished.
+          </p>
+
+          <dl class="payroll-centre-scan-results">
+            <div class="payroll-centre-scan-results__item">
+              <dt>
+                Messages checked
+              </dt>
+
+              <dd id="payroll-centre-scan-result-messages">
+                0
+              </dd>
+            </div>
+
+            <div class="payroll-centre-scan-results__item">
+              <dt>
+                Payslip emails found
+              </dt>
+
+              <dd id="payroll-centre-scan-result-matched">
+                0
+              </dd>
+            </div>
+
+            <div class="payroll-centre-scan-results__item">
+              <dt>
+                New payslips imported
+              </dt>
+
+              <dd id="payroll-centre-scan-result-imported">
+                0
+              </dd>
+            </div>
+
+            <div class="payroll-centre-scan-results__item">
+              <dt>
+                Duplicates skipped
+              </dt>
+
+              <dd id="payroll-centre-scan-result-duplicates">
+                0
+              </dd>
+            </div>
+          </dl>
+        </div>
+      </div>
+
+      <footer class="payroll-centre-dialog__footer">
+        <button
+          id="payroll-centre-scan-cancel-button"
+          class="button button--secondary"
+          type="button"
+        >
+          Cancel
+        </button>
+
+        <button
+          id="payroll-centre-scan-start-button"
+          class="button button--primary"
+          type="button"
+        >
+          Start scan
+        </button>
+
+        <button
+          id="payroll-centre-scan-finish-button"
+          class="button button--primary"
+          type="button"
+          hidden
+        >
+          Close
+        </button>
+      </footer>
+    </section>
+  </section>
+
+  <!-- Private manual PDF upload dialog -->
+  <section
+    id="payroll-centre-upload-dialog-backdrop"
+    class="payroll-centre-dialog-backdrop"
+    hidden
+  >
+    <section
+      id="payroll-centre-upload-dialog"
+      class="payroll-centre-dialog"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="payroll-centre-upload-dialog-title"
+      hidden
+    >
+      <header class="payroll-centre-dialog__header">
+        <div>
+          <p class="payroll-centre-dialog__eyebrow">
+            Manual fallback
+          </p>
+
+          <h4
+            id="payroll-centre-upload-dialog-title"
+            class="payroll-centre-dialog__title"
+          >
+            Upload payslip PDF
+          </h4>
+        </div>
+
+        <button
+          id="payroll-centre-upload-dialog-close-button"
+          class="payroll-centre-icon-button"
+          type="button"
+          aria-label="Close manual upload"
+        >
+          <span aria-hidden="true">
+            ×
+          </span>
+        </button>
+      </header>
+
+      <div class="payroll-centre-dialog__body">
+        <div id="payroll-centre-upload-form-view">
+          <p class="payroll-centre-dialog__description">
+            Select a private PDF when a payslip is not available
+            through the Gmail scanner.
+          </p>
+
+          <div class="payroll-centre-filters">
+            <label class="payroll-centre-field">
+              <span class="payroll-centre-field__label">
+                Payroll group
+              </span>
+
+              <select
+                id="payroll-centre-upload-group"
+                class="payroll-centre-field__control"
+                required
+              ></select>
+            </label>
+
+            <label class="payroll-centre-field">
+              <span class="payroll-centre-field__label">
+                Pay date
+                <small>
+                  Optional
+                </small>
+              </span>
+
+              <input
+                id="payroll-centre-upload-pay-date"
+                class="payroll-centre-field__control"
+                type="date"
+              />
+            </label>
+
+            <label class="payroll-centre-field">
+              <span class="payroll-centre-field__label">
+                Payslip PDF
+              </span>
+
+              <input
+                id="payroll-centre-upload-file"
+                class="payroll-centre-field__control"
+                type="file"
+                accept="application/pdf,.pdf"
+                required
+              />
+            </label>
+          </div>
+
+          <div class="payroll-centre-scan-information">
+            <div class="payroll-centre-scan-information__item">
+              <span
+                class="payroll-centre-scan-information__icon"
+                aria-hidden="true"
+              >
+                ✓
+              </span>
+
+              <div>
+                <h5 class="payroll-centre-scan-information__title">
+                  Private storage
+                </h5>
+
+                <p class="payroll-centre-dialog__description">
+                  The PDF stays in your private Pay Tracker Drive
+                  folder. Only its reference and payroll details are
+                  stored in the register.
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div
+          id="payroll-centre-upload-running-view"
+          class="payroll-centre-scan-running-view"
+          hidden
+        >
+          <div
+            class="payroll-centre-state__spinner"
+            aria-hidden="true"
+          ></div>
+
+          <h5 class="payroll-centre-dialog__status-title">
+            Uploading payslip
+          </h5>
+
+          <p class="payroll-centre-dialog__description">
+            Saving the private PDF and extracting its payroll
+            details.
+          </p>
+        </div>
+
+        <div
+          id="payroll-centre-upload-result-view"
+          class="payroll-centre-scan-result-view"
+          hidden
+        >
+          <div
+            id="payroll-centre-upload-result-icon"
+            class="payroll-centre-scan-result-view__icon"
+            aria-hidden="true"
+          >
+            ✓
+          </div>
+
+          <h5
+            id="payroll-centre-upload-result-title"
+            class="payroll-centre-dialog__status-title"
+          >
+            Payslip uploaded
+          </h5>
+
+          <p
+            id="payroll-centre-upload-result-message"
+            class="payroll-centre-dialog__description"
+          >
+            The payslip has been added to the register.
+          </p>
+        </div>
+      </div>
+
+      <footer class="payroll-centre-dialog__footer">
+        <button
+          id="payroll-centre-upload-cancel-button"
+          class="button button--secondary"
+          type="button"
+        >
+          Cancel
+        </button>
+
+        <button
+          id="payroll-centre-upload-start-button"
+          class="button button--primary"
+          type="button"
+        >
+          Upload payslip
+        </button>
+
+        <button
+          id="payroll-centre-upload-finish-button"
+          class="button button--primary"
+          type="button"
+          hidden
+        >
+          Close
+        </button>
+      </footer>
+    </section>
   </section>
 
   <section
@@ -1318,23 +2560,82 @@
     aria-label="Pay analytics"
     hidden
   >
-    <div class="card">
-      <div class="empty-state">
-        <div
-          class="empty-state__icon"
-          aria-hidden="true"
-        >
-          %
+    <div class="pay-analytics" data-pay-analytics>
+      <header class="pay-analytics__header">
+        <div>
+          <p class="pay-analytics__eyebrow">
+            Earnings intelligence
+          </p>
+          <h3 class="pay-analytics__title">
+            Pay analytics
+          </h3>
+          <p class="pay-analytics__description">
+            Trends across every populated PaySheet week and imported
+            payslip comparison.
+          </p>
         </div>
+      </header>
 
-        <h3 class="empty-state__title">
-          Pay analytics
-        </h3>
+      <div class="pay-analytics__summary">
+        <article class="pay-analytics-card">
+          <span class="pay-analytics-card__label">Total gross</span>
+          <strong id="pay-analytics-total-gross">£0.00</strong>
+          <span id="pay-analytics-total-gross-meta">No weeks loaded</span>
+        </article>
 
-        <p class="empty-state__message">
-          Employer statistics, overtime trends, deductions and
-          year-to-date income will be presented here.
-        </p>
+        <article class="pay-analytics-card">
+          <span class="pay-analytics-card__label">Take home</span>
+          <strong id="pay-analytics-take-home">£0.00</strong>
+          <span id="pay-analytics-take-home-meta">After deductions</span>
+        </article>
+
+        <article class="pay-analytics-card">
+          <span class="pay-analytics-card__label">Hours worked</span>
+          <strong id="pay-analytics-hours">0</strong>
+          <span id="pay-analytics-hours-meta">Across all employers</span>
+        </article>
+
+        <article class="pay-analytics-card">
+          <span class="pay-analytics-card__label">Payroll coverage</span>
+          <strong id="pay-analytics-coverage">0%</strong>
+          <span id="pay-analytics-coverage-meta">No comparisons yet</span>
+        </article>
+      </div>
+
+      <div class="pay-analytics__grid">
+        <section class="card pay-analytics-panel">
+          <div class="pay-analytics-panel__header">
+            <h4>Weekly earnings trend</h4>
+            <span id="pay-analytics-weekly-average">Average £0.00</span>
+          </div>
+          <div
+            id="pay-analytics-trend"
+            class="pay-analytics-trend"
+            aria-label="Weekly gross earnings chart"
+          ></div>
+        </section>
+
+        <section class="card pay-analytics-panel">
+          <div class="pay-analytics-panel__header">
+            <h4>Employer contribution</h4>
+            <span>Gross earnings</span>
+          </div>
+          <div
+            id="pay-analytics-employers"
+            class="pay-analytics-employers"
+          ></div>
+        </section>
+
+        <section class="card pay-analytics-panel pay-analytics-panel--wide">
+          <div class="pay-analytics-panel__header">
+            <h4>Payroll verification</h4>
+            <span id="pay-analytics-payroll-meta">Imported payslips</span>
+          </div>
+          <div
+            id="pay-analytics-payroll-statuses"
+            class="pay-analytics-statuses"
+          ></div>
+        </section>
       </div>
     </div>
   </section>

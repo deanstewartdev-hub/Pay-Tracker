@@ -1,0 +1,214 @@
+.pay-analytics {
+  display: grid;
+  gap: 1.25rem;
+}
+
+.pay-analytics__header {
+  align-items: flex-end;
+  display: flex;
+  justify-content: space-between;
+}
+
+.pay-analytics__eyebrow {
+  color: var(--color-primary, #2563eb);
+  font-size: .75rem;
+  font-weight: 800;
+  letter-spacing: .08em;
+  margin: 0 0 .35rem;
+  text-transform: uppercase;
+}
+
+.pay-analytics__title {
+  font-size: clamp(1.35rem, 2vw, 1.75rem);
+  margin: 0;
+}
+
+.pay-analytics__description {
+  color: var(--color-text-muted, #64748b);
+  margin: .35rem 0 0;
+}
+
+.pay-analytics__summary {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.pay-analytics-card {
+  background:
+    linear-gradient(145deg, rgba(37, 99, 235, .09), transparent 65%),
+    var(--color-surface, #fff);
+  border: 1px solid var(--color-border, #e2e8f0);
+  border-radius: 1rem;
+  display: grid;
+  gap: .35rem;
+  min-width: 0;
+  padding: 1.1rem;
+}
+
+.pay-analytics-card__label,
+.pay-analytics-card span:last-child {
+  color: var(--color-text-muted, #64748b);
+  font-size: .78rem;
+}
+
+.pay-analytics-card strong {
+  font-size: clamp(1.35rem, 2.5vw, 2rem);
+  line-height: 1.1;
+}
+
+.pay-analytics__grid {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: minmax(0, 1.35fr) minmax(18rem, .65fr);
+}
+
+.pay-analytics-panel {
+  min-width: 0;
+  padding: 1.15rem;
+}
+
+.pay-analytics-panel--wide {
+  grid-column: 1 / -1;
+}
+
+.pay-analytics-panel__header {
+  align-items: center;
+  display: flex;
+  gap: 1rem;
+  justify-content: space-between;
+  margin-bottom: 1.2rem;
+}
+
+.pay-analytics-panel__header h4 {
+  margin: 0;
+}
+
+.pay-analytics-panel__header span {
+  color: var(--color-text-muted, #64748b);
+  font-size: .78rem;
+}
+
+.pay-analytics-trend {
+  align-items: end;
+  display: grid;
+  gap: .45rem;
+  grid-template-columns: repeat(12, minmax(1rem, 1fr));
+  height: 14rem;
+}
+
+.pay-analytics-trend__item {
+  align-items: center;
+  display: flex;
+  flex-direction: column;
+  gap: .45rem;
+  height: 100%;
+  justify-content: flex-end;
+}
+
+.pay-analytics-trend__bar {
+  background: linear-gradient(180deg, #60a5fa, #2563eb);
+  border-radius: .5rem .5rem .2rem .2rem;
+  box-shadow: 0 .4rem .9rem rgba(37, 99, 235, .2);
+  min-height: .5rem;
+  width: min(2rem, 82%);
+}
+
+.pay-analytics-trend__item small {
+  color: var(--color-text-muted, #64748b);
+  font-size: .65rem;
+}
+
+.pay-analytics-employers {
+  display: grid;
+  gap: 1rem;
+}
+
+.pay-analytics-employer {
+  display: grid;
+  gap: .45rem;
+}
+
+.pay-analytics-employer__heading {
+  display: flex;
+  font-size: .82rem;
+  gap: .75rem;
+  justify-content: space-between;
+}
+
+.pay-analytics-employer__track {
+  background: var(--color-surface-muted, #e2e8f0);
+  border-radius: 999px;
+  height: .55rem;
+  overflow: hidden;
+}
+
+.pay-analytics-employer__track span {
+  background: linear-gradient(90deg, #22c55e, #14b8a6);
+  border-radius: inherit;
+  display: block;
+  height: 100%;
+}
+
+.pay-analytics-statuses {
+  display: grid;
+  gap: .8rem;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.pay-analytics-status {
+  border: 1px solid var(--color-border, #e2e8f0);
+  border-left: .3rem solid #94a3b8;
+  border-radius: .75rem;
+  display: grid;
+  gap: .2rem;
+  padding: .9rem;
+}
+
+.pay-analytics-status strong {
+  font-size: 1.4rem;
+}
+
+.pay-analytics-status span {
+  color: var(--color-text-muted, #64748b);
+  font-size: .78rem;
+}
+
+.pay-analytics-status--success {
+  border-left-color: #22c55e;
+}
+
+.pay-analytics-status--info {
+  border-left-color: #3b82f6;
+}
+
+.pay-analytics-status--danger {
+  border-left-color: #ef4444;
+}
+
+@media (max-width: 900px) {
+  .pay-analytics__summary,
+  .pay-analytics-statuses {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .pay-analytics__grid {
+    grid-template-columns: 1fr;
+  }
+
+  .pay-analytics-panel--wide {
+    grid-column: auto;
+  }
+}
+
+@media (max-width: 560px) {
+  .pay-analytics__summary,
+  .pay-analytics-statuses {
+    grid-template-columns: 1fr;
+  }
+
+  .pay-analytics-trend {
+    gap: .2rem;
+    height: 11rem;
+  }
+}

@@ -1,0 +1,4635 @@
+/*******************************************************
+ * PAY TRACKER V2.8
+ * Frontend/Services/PayrollCentreService.html
+ *
+ * Purpose:
+ * - Load the Payroll Centre frontend model
+ * - Render imported payslips
+ * - Render Payroll Centre summary cards
+ * - Handle search and filters
+ * - Open payslip details
+ * - Open saved Drive PDFs
+ * - Display Gmail scan history
+ * - Run manual Gmail scans
+ * - Upload private payslip PDFs manually
+ *
+ * Included inside a script tag by:
+ * Frontend/Index.html
+ *
+ * Important:
+ * - Gmail is accessed only after a manual scan action
+ * - PDF binary data is never loaded into the web app
+ * - Avoid raw less-than operators inside this template
+ *******************************************************/
+
+var PayTrackerPayrollCentreService = Object.freeze({
+  VERSION: '2.8.0',
+
+  state: {
+    initialized: false,
+    eventsRegistered: false,
+    loading: false,
+    loaded: false,
+    scanning: false,
+    uploading: false,
+    drawerOpen: false,
+    data: null,
+    filteredPayslips: [],
+    selectedPayslipId: '',
+    searchTimer: null
+  },
+
+  /**
+   * Starts the Payroll Centre service.
+   *
+   * @return {Promise<void>}
+   */
+  initialize: async function() {
+    if (
+      PayTrackerPayrollCentreService
+        .state
+        .initialized
+    ) {
+      return;
+    }
+
+    PayTrackerPayrollCentreService
+      .state
+      .initialized = true;
+
+    PayTrackerPayrollCentreService
+      .registerEvents();
+
+    const payslipPanel =
+      document.querySelector(
+        '[data-pay-panel="payslips"]'
+      );
+
+    if (
+      payslipPanel &&
+      payslipPanel.hidden === false
+    ) {
+      await PayTrackerPayrollCentreService
+        .load();
+    }
+  },
+
+  /**
+   * Registers all Payroll Centre events once.
+   */
+  registerEvents: function() {
+    if (
+      PayTrackerPayrollCentreService
+        .state
+        .eventsRegistered
+    ) {
+      return;
+    }
+
+    PayTrackerPayrollCentreService
+      .state
+      .eventsRegistered = true;
+
+    document.addEventListener(
+      'click',
+      PayTrackerPayrollCentreService
+        .handleDocumentClick
+    );
+
+    document.addEventListener(
+      'input',
+      PayTrackerPayrollCentreService
+        .handleDocumentInput
+    );
+
+    document.addEventListener(
+      'change',
+      PayTrackerPayrollCentreService
+        .handleDocumentChange
+    );
+
+    document.addEventListener(
+      'keydown',
+      PayTrackerPayrollCentreService
+        .handleDocumentKeydown
+    );
+
+    document.addEventListener(
+      'paytracker:routechange',
+      PayTrackerPayrollCentreService
+        .handleRouteChange
+    );
+  },
+
+  /**
+   * Handles application route changes.
+   *
+   * @param {CustomEvent} event Route event.
+   */
+  handleRouteChange: function(event) {
+    const route =
+      event &&
+      event.detail
+        ? String(
+          event.detail.route || ''
+        )
+        : '';
+
+    if (
+      route === 'pay' &&
+      PayTrackerPayrollCentreService
+        .isPayslipPanelActive() &&
+      !PayTrackerPayrollCentreService
+        .state
+        .loaded &&
+      !PayTrackerPayrollCentreService
+        .state
+        .loading
+    ) {
+      PayTrackerPayrollCentreService
+        .load();
+    }
+  },
+
+  /**
+   * Handles Payroll Centre click actions.
+   *
+   * @param {MouseEvent} event Click event.
+   */
+  handleDocumentClick: function(event) {
+    const clickedElement =
+      event.target instanceof Element
+        ? event.target
+        : null;
+
+    if (!clickedElement) {
+      return;
+    }
+
+    const payslipTab =
+      clickedElement.closest(
+        '[data-pay-tab="payslips"]'
+      );
+
+    if (payslipTab) {
+      window.setTimeout(
+        function() {
+          if (
+            !PayTrackerPayrollCentreService
+              .state
+              .loaded &&
+            !PayTrackerPayrollCentreService
+              .state
+              .loading
+          ) {
+            PayTrackerPayrollCentreService
+              .load();
+          }
+        },
+        0
+      );
+
+      return;
+    }
+
+    const refreshButton =
+      clickedElement.closest(
+        '#payroll-centre-refresh-button'
+      );
+
+    if (refreshButton) {
+      event.preventDefault();
+
+      PayTrackerPayrollCentreService
+        .load({
+          force: true,
+          showSuccessMessage: true
+        });
+
+      return;
+    }
+
+    const scanButton =
+      clickedElement.closest(
+        [
+          '#payroll-centre-scan-button',
+          '#payroll-centre-empty-scan-button',
+          '#payroll-centre-workspace-scan-button'
+        ].join(',')
+      );
+
+    if (scanButton) {
+      event.preventDefault();
+
+      PayTrackerPayrollCentreService
+        .openScanDialog();
+
+      return;
+    }
+
+    const uploadButton =
+      clickedElement.closest(
+        '#payroll-centre-upload-button'
+      );
+
+    if (uploadButton) {
+      event.preventDefault();
+
+      PayTrackerPayrollCentreService
+        .openUploadDialog();
+
+      return;
+    }
+
+    const clearFiltersButton =
+      clickedElement.closest(
+        '#payroll-centre-clear-filters-button'
+      );
+
+    if (clearFiltersButton) {
+      event.preventDefault();
+
+      PayTrackerPayrollCentreService
+        .clearFilters();
+
+      return;
+    }
+
+    const viewButton =
+      clickedElement.closest(
+        '[data-payroll-payslip-id]'
+      );
+
+    if (viewButton) {
+      event.preventDefault();
+
+      PayTrackerPayrollCentreService
+        .openPayslipDetails(
+          viewButton.dataset
+            .payrollPayslipId
+        );
+
+      return;
+    }
+
+    const directDriveLink =
+      clickedElement.closest(
+        '[data-payroll-drive-url]'
+      );
+
+    if (directDriveLink) {
+      event.preventDefault();
+
+      PayTrackerPayrollCentreService
+        .openExternalUrl(
+          directDriveLink.dataset
+            .payrollDriveUrl
+        );
+
+      return;
+    }
+
+    const retryButton =
+      clickedElement.closest(
+        '#payroll-centre-retry-button'
+      );
+
+    if (retryButton) {
+      event.preventDefault();
+
+      PayTrackerPayrollCentreService
+        .load({
+          force: true
+        });
+
+      return;
+    }
+
+    const detailCloseButton =
+      clickedElement.closest(
+        '#payroll-centre-detail-close-button'
+      );
+
+    if (detailCloseButton) {
+      event.preventDefault();
+
+      PayTrackerPayrollCentreService
+        .closePayslipDetails();
+
+      return;
+    }
+
+    const drawerBackdrop =
+      clickedElement.closest(
+        '#payroll-centre-drawer-backdrop'
+      );
+
+    if (drawerBackdrop) {
+      event.preventDefault();
+
+      PayTrackerPayrollCentreService
+        .closePayslipDetails();
+
+      return;
+    }
+
+    const viewScansButton =
+      clickedElement.closest(
+        '#payroll-centre-view-scans-button'
+      );
+
+    if (viewScansButton) {
+      event.preventDefault();
+
+      PayTrackerPayrollCentreService
+        .showScanHistory();
+
+      return;
+    }
+
+    const closeScansButton =
+      clickedElement.closest(
+        '#payroll-centre-close-scans-button'
+      );
+
+    if (closeScansButton) {
+      event.preventDefault();
+
+      PayTrackerPayrollCentreService
+        .hideScanHistory();
+
+      return;
+    }
+
+    const closeScanDialogButton =
+      clickedElement.closest(
+        [
+          '#payroll-centre-scan-dialog-close-button',
+          '#payroll-centre-scan-cancel-button'
+        ].join(',')
+      );
+
+    if (closeScanDialogButton) {
+      event.preventDefault();
+
+      PayTrackerPayrollCentreService
+        .closeScanDialog();
+
+      return;
+    }
+
+    const scanDialogBackdrop =
+      clickedElement.id ===
+        'payroll-centre-scan-dialog-backdrop'
+        ? clickedElement
+        : null;
+
+    if (scanDialogBackdrop) {
+      event.preventDefault();
+
+      PayTrackerPayrollCentreService
+        .closeScanDialog();
+
+      return;
+    }
+
+    const startScanButton =
+      clickedElement.closest(
+        '#payroll-centre-scan-start-button'
+      );
+
+    if (startScanButton) {
+      event.preventDefault();
+
+      PayTrackerPayrollCentreService
+        .startGmailScan();
+
+      return;
+    }
+
+    const finishScanButton =
+      clickedElement.closest(
+        '#payroll-centre-scan-finish-button'
+      );
+
+    if (finishScanButton) {
+      event.preventDefault();
+
+      PayTrackerPayrollCentreService
+        .closeScanDialog();
+
+      return;
+    }
+
+    const closeUploadButton =
+      clickedElement.closest(
+        [
+          '#payroll-centre-upload-dialog-close-button',
+          '#payroll-centre-upload-cancel-button'
+        ].join(',')
+      );
+
+    if (closeUploadButton) {
+      event.preventDefault();
+
+      PayTrackerPayrollCentreService
+        .closeUploadDialog();
+
+      return;
+    }
+
+    const uploadBackdrop =
+      clickedElement.id ===
+        'payroll-centre-upload-dialog-backdrop'
+        ? clickedElement
+        : null;
+
+    if (uploadBackdrop) {
+      event.preventDefault();
+
+      PayTrackerPayrollCentreService
+        .closeUploadDialog();
+
+      return;
+    }
+
+    const startUploadButton =
+      clickedElement.closest(
+        '#payroll-centre-upload-start-button'
+      );
+
+    if (startUploadButton) {
+      event.preventDefault();
+
+      PayTrackerPayrollCentreService
+        .startManualUpload();
+
+      return;
+    }
+
+    const finishUploadButton =
+      clickedElement.closest(
+        '#payroll-centre-upload-finish-button'
+      );
+
+    if (finishUploadButton) {
+      event.preventDefault();
+
+      PayTrackerPayrollCentreService
+        .closeUploadDialog();
+
+      return;
+    }
+
+    const copyButton =
+      clickedElement.closest(
+        '[data-payroll-copy]'
+      );
+
+    if (copyButton) {
+      event.preventDefault();
+
+      PayTrackerPayrollCentreService
+        .copyText(
+          copyButton.dataset
+            .payrollCopy
+        );
+    }
+  },
+
+  /**
+   * Handles search input.
+   *
+   * @param {InputEvent} event Input event.
+   */
+  handleDocumentInput: function(event) {
+    const target =
+      event.target instanceof Element
+        ? event.target
+        : null;
+
+    if (
+      !target ||
+      target.id !==
+        'payroll-centre-search-input'
+    ) {
+      return;
+    }
+
+    window.clearTimeout(
+      PayTrackerPayrollCentreService
+        .state
+        .searchTimer
+    );
+
+    PayTrackerPayrollCentreService
+      .state
+      .searchTimer =
+        window.setTimeout(
+          function() {
+            PayTrackerPayrollCentreService
+              .applyFilters();
+          },
+          250
+        );
+  },
+
+  /**
+   * Handles filter changes.
+   *
+   * @param {Event} event Change event.
+   */
+  handleDocumentChange: function(event) {
+    const target =
+      event.target instanceof Element
+        ? event.target
+        : null;
+
+    if (!target) {
+      return;
+    }
+
+    const filterIds = [
+      'payroll-centre-group-filter',
+      'payroll-centre-import-status-filter',
+      'payroll-centre-comparison-filter',
+      'payroll-centre-date-from-filter',
+      'payroll-centre-date-to-filter'
+    ];
+
+    if (
+      filterIds.indexOf(
+        target.id
+      ) !== -1
+    ) {
+      PayTrackerPayrollCentreService
+        .applyFilters();
+    }
+  },
+
+  /**
+   * Handles Escape for open overlays.
+   *
+   * @param {KeyboardEvent} event Keyboard event.
+   */
+  handleDocumentKeydown: function(event) {
+    if (event.key !== 'Escape') {
+      return;
+    }
+
+    if (
+      PayTrackerPayrollCentreService
+        .state
+        .drawerOpen
+    ) {
+      PayTrackerPayrollCentreService
+        .closePayslipDetails();
+
+      return;
+    }
+
+    const dialog =
+      document.getElementById(
+        'payroll-centre-scan-dialog'
+      );
+
+    if (
+      dialog &&
+      dialog.hidden === false
+    ) {
+      PayTrackerPayrollCentreService
+        .closeScanDialog();
+
+      return;
+    }
+
+    const uploadDialog =
+      document.getElementById(
+        'payroll-centre-upload-dialog'
+      );
+
+    if (
+      uploadDialog &&
+      uploadDialog.hidden === false
+    ) {
+      PayTrackerPayrollCentreService
+        .closeUploadDialog();
+    }
+  },
+
+  /**
+   * Loads Payroll Centre data.
+   *
+   * @param {Object=} options Load options.
+   * @return {Promise<void>}
+   */
+  load: async function(options) {
+    const config =
+      Object.assign(
+        {
+          force: false,
+          showSuccessMessage: false
+        },
+        options || {}
+      );
+
+    if (
+      PayTrackerPayrollCentreService
+        .state
+        .loading
+    ) {
+      return;
+    }
+
+    if (
+      PayTrackerPayrollCentreService
+        .state
+        .loaded &&
+      !config.force
+    ) {
+      return;
+    }
+
+    PayTrackerPayrollCentreService
+      .state
+      .loading = true;
+
+    PayTrackerPayrollCentreService
+      .setBusy(true);
+
+    PayTrackerPayrollCentreService
+      .renderLoading();
+
+    try {
+      const response =
+        await PayTrackerPayrollCentreService
+          .runServerFunction(
+            'getPayTrackerPayrollCentre',
+            {
+              limit: 500
+            }
+          );
+
+      if (
+        !response ||
+        response.success !== true
+      ) {
+        throw new Error(
+          response &&
+          response.error
+            ? response.error
+            : 'Payroll Centre data could not be loaded.'
+        );
+      }
+
+      PayTrackerPayrollCentreService
+        .state
+        .data = response;
+
+      PayTrackerPayrollCentreService
+        .state
+        .loaded = true;
+
+      PayTrackerPayrollCentreService
+        .state
+        .filteredPayslips =
+          Array.isArray(
+            response.payslips
+          )
+            ? response.payslips.slice()
+            : [];
+
+      PayTrackerPayrollCentreService
+        .render(response);
+
+      if (config.showSuccessMessage) {
+        PayTrackerPayrollCentreService
+          .showMessage(
+            'Payroll Centre refreshed.',
+            'success'
+          );
+      }
+    } catch (error) {
+      console.error(
+        'Payroll Centre request failed.',
+        error
+      );
+
+      PayTrackerPayrollCentreService
+        .renderError(
+          PayTrackerPayrollCentreService
+            .getErrorMessage(error)
+        );
+
+      PayTrackerPayrollCentreService
+        .showToast(
+          PayTrackerPayrollCentreService
+            .getErrorMessage(error),
+          'error'
+        );
+    } finally {
+      PayTrackerPayrollCentreService
+        .state
+        .loading = false;
+
+      PayTrackerPayrollCentreService
+        .setBusy(false);
+    }
+  },
+
+  /**
+   * Renders the complete Payroll Centre.
+   *
+   * @param {Object} data Controller response.
+   */
+  render: function(data) {
+    const response =
+      data || {};
+
+    PayTrackerPayrollCentreService
+      .hideElement(
+        'payroll-centre-loading'
+      );
+
+    PayTrackerPayrollCentreService
+      .hideElement(
+        'payroll-centre-error-state'
+      );
+
+    if (
+      response.empty === true ||
+      !Array.isArray(response.payslips) ||
+      response.payslips.length === 0
+    ) {
+      PayTrackerPayrollCentreService
+        .hideElement(
+          'payroll-centre-content'
+        );
+
+      PayTrackerPayrollCentreService
+        .showElement(
+          'payroll-centre-workspace-empty'
+        );
+
+      return;
+    }
+
+    PayTrackerPayrollCentreService
+      .hideElement(
+        'payroll-centre-workspace-empty'
+      );
+
+    PayTrackerPayrollCentreService
+      .showElement(
+        'payroll-centre-content'
+      );
+
+    PayTrackerPayrollCentreService
+      .renderSummary(
+        response.summary || {}
+      );
+
+    PayTrackerPayrollCentreService
+      .renderFilterOptions(
+        response.filters || {}
+      );
+
+    PayTrackerPayrollCentreService
+      .renderPayslips(
+        response.payslips || []
+      );
+
+    PayTrackerPayrollCentreService
+      .renderRecentScans(
+        response.recentScans || []
+      );
+  },
+
+  /**
+   * Renders summary cards.
+   *
+   * @param {Object} summary Summary.
+   */
+  renderSummary: function(summary) {
+    const value =
+      summary || {};
+
+    PayTrackerPayrollCentreService
+      .setText(
+        'payroll-centre-total-payslips',
+        PayTrackerPayrollCentreService
+          .formatInteger(
+            value.totalPayslips
+          )
+      );
+
+    PayTrackerPayrollCentreService
+      .setText(
+        'payroll-centre-total-payslips-meta',
+        value.totalPayslips === 1
+          ? '1 registered document'
+          : PayTrackerPayrollCentreService
+              .formatInteger(
+                value.totalPayslips
+              ) +
+            ' registered documents'
+      );
+
+    PayTrackerPayrollCentreService
+      .setText(
+        'payroll-centre-imported-count',
+        PayTrackerPayrollCentreService
+          .formatInteger(
+            value.importedCount
+          )
+      );
+
+    PayTrackerPayrollCentreService
+      .setText(
+        'payroll-centre-imported-meta',
+        'Stored in Google Drive'
+      );
+
+    PayTrackerPayrollCentreService
+      .setText(
+        'payroll-centre-review-count',
+        PayTrackerPayrollCentreService
+          .formatInteger(
+            value.requiresReview
+          )
+      );
+
+    PayTrackerPayrollCentreService
+      .setText(
+        'payroll-centre-review-meta',
+        PayTrackerPayrollCentreService
+          .toNumber(
+            value.requiresReview
+          ) === 0
+          ? 'No discrepancies flagged'
+          : 'Payslips require attention'
+      );
+
+    const latestPayslip =
+      value.latestPayslip || null;
+
+    PayTrackerPayrollCentreService
+      .setText(
+        'payroll-centre-latest-date',
+        latestPayslip
+          ? PayTrackerPayrollCentreService
+              .formatDate(
+                latestPayslip.payDate ||
+                latestPayslip.emailDate ||
+                latestPayslip.createdAt
+              )
+          : '—'
+      );
+
+    PayTrackerPayrollCentreService
+      .setText(
+        'payroll-centre-latest-meta',
+        latestPayslip
+          ? (
+              latestPayslip.emailSubject ||
+              latestPayslip.originalFilename ||
+              'Latest imported payslip'
+            )
+          : 'No recent payslip loaded'
+      );
+  },
+
+  /**
+   * Populates filter dropdowns.
+   *
+   * @param {Object} filters Filter choices.
+   */
+  renderFilterOptions: function(filters) {
+    const value =
+      filters || {};
+
+    PayTrackerPayrollCentreService
+      .populateSelect(
+        'payroll-centre-group-filter',
+        value.payrollGroups || [],
+        'All payroll groups'
+      );
+
+    PayTrackerPayrollCentreService
+      .populateSelect(
+        'payroll-centre-upload-group',
+        value.payrollGroups || [],
+        'Select payroll group'
+      );
+
+    PayTrackerPayrollCentreService
+      .populateSelect(
+        'payroll-centre-import-status-filter',
+        PayTrackerPayrollCentreService
+          .toSelectOptions(
+            value.importStatuses || []
+          ),
+        'All import statuses'
+      );
+
+    PayTrackerPayrollCentreService
+      .populateSelect(
+        'payroll-centre-comparison-filter',
+        PayTrackerPayrollCentreService
+          .toSelectOptions(
+            value.comparisonStatuses || []
+          ),
+        'All comparison statuses'
+      );
+  },
+
+  /**
+   * Populates one select while preserving its value.
+   *
+   * @param {string} elementId Element ID.
+   * @param {Array<Object>} options Options.
+   * @param {string} emptyLabel Empty label.
+   */
+  populateSelect: function(
+    elementId,
+    options,
+    emptyLabel
+  ) {
+    const select =
+      document.getElementById(
+        elementId
+      );
+
+    if (!select) {
+      return;
+    }
+
+    const currentValue =
+      select.value;
+
+    select.replaceChildren();
+
+    const emptyOption =
+      document.createElement(
+        'option'
+      );
+
+    emptyOption.value = '';
+    emptyOption.textContent =
+      emptyLabel;
+
+    select.appendChild(
+      emptyOption
+    );
+
+    options.forEach(function(option) {
+      const item =
+        option || {};
+
+      const optionElement =
+        document.createElement(
+          'option'
+        );
+
+      optionElement.value =
+        String(
+          item.value || ''
+        );
+
+      optionElement.textContent =
+        String(
+          item.label ||
+          item.value ||
+          ''
+        );
+
+      select.appendChild(
+        optionElement
+      );
+    });
+
+    select.value =
+      currentValue;
+  },
+
+  /**
+   * Converts text values into select options.
+   *
+   * @param {Array<string>} values Values.
+   * @return {Array<Object>} Options.
+   */
+  toSelectOptions: function(values) {
+    return values.map(function(value) {
+      return {
+        value: value,
+        label:
+          PayTrackerPayrollCentreService
+            .formatStatusLabel(
+              value
+            )
+      };
+    });
+  },
+
+  /**
+   * Applies client-side filters.
+   */
+  applyFilters: function() {
+    const data =
+      PayTrackerPayrollCentreService
+        .state
+        .data || {};
+
+    const records =
+      Array.isArray(data.payslips)
+        ? data.payslips
+        : [];
+
+    const filters =
+      PayTrackerPayrollCentreService
+        .readFilters();
+
+    const filtered =
+      records.filter(function(payslip) {
+        return PayTrackerPayrollCentreService
+          .payslipMatchesFilters(
+            payslip,
+            filters
+          );
+      });
+
+    PayTrackerPayrollCentreService
+      .state
+      .filteredPayslips =
+        filtered;
+
+    PayTrackerPayrollCentreService
+      .renderPayslips(
+        filtered,
+        {
+          filtered:
+            PayTrackerPayrollCentreService
+              .hasActiveFilters(
+                filters
+              )
+        }
+      );
+  },
+
+  /**
+   * Reads current filter values.
+   *
+   * @return {Object} Filters.
+   */
+  readFilters: function() {
+    return {
+      search:
+        PayTrackerPayrollCentreService
+          .getInputValue(
+            'payroll-centre-search-input'
+          ),
+
+      payrollGroupId:
+        PayTrackerPayrollCentreService
+          .getInputValue(
+            'payroll-centre-group-filter'
+          ),
+
+      importStatus:
+        PayTrackerPayrollCentreService
+          .getInputValue(
+            'payroll-centre-import-status-filter'
+          ),
+
+      comparisonStatus:
+        PayTrackerPayrollCentreService
+          .getInputValue(
+            'payroll-centre-comparison-filter'
+          ),
+
+      dateFrom:
+        PayTrackerPayrollCentreService
+          .getInputValue(
+            'payroll-centre-date-from-filter'
+          ),
+
+      dateTo:
+        PayTrackerPayrollCentreService
+          .getInputValue(
+            'payroll-centre-date-to-filter'
+          )
+    };
+  },
+
+  /**
+   * Tests one payslip against filters.
+   *
+   * @param {Object} payslip Payslip.
+   * @param {Object} filters Filters.
+   * @return {boolean} Match.
+   */
+  payslipMatchesFilters: function(
+    payslip,
+    filters
+  ) {
+    const record =
+      payslip || {};
+
+    const request =
+      filters || {};
+
+    if (
+      request.payrollGroupId &&
+      record.payrollGroupId !==
+        request.payrollGroupId
+    ) {
+      return false;
+    }
+
+    if (
+      request.importStatus &&
+      PayTrackerPayrollCentreService
+        .normalizeText(
+          record.importStatus
+        ) !==
+      PayTrackerPayrollCentreService
+        .normalizeText(
+          request.importStatus
+        )
+    ) {
+      return false;
+    }
+
+    if (
+      request.comparisonStatus &&
+      PayTrackerPayrollCentreService
+        .normalizeText(
+          record.comparisonStatus
+        ) !==
+      PayTrackerPayrollCentreService
+        .normalizeText(
+          request.comparisonStatus
+        )
+    ) {
+      return false;
+    }
+
+    if (request.search) {
+      const target =
+        PayTrackerPayrollCentreService
+          .normalizeText(
+            request.search
+          );
+
+      const searchable =
+        [
+          record.payslipId,
+          record.emailSubject,
+          record.emailSender,
+          record.originalFilename,
+          record.importStatus,
+          record.comparisonStatus,
+          record.matchReason,
+          record.notes
+        ]
+          .join(' ')
+          .toLowerCase();
+
+      if (
+        searchable.indexOf(
+          target
+        ) === -1
+      ) {
+        return false;
+      }
+    }
+
+    const effectiveDate =
+      PayTrackerPayrollCentreService
+        .toDate(
+          record.payDate ||
+          record.emailDate ||
+          record.createdAt
+        );
+
+    if (
+    request.dateFrom &&
+    effectiveDate
+    ) {
+    const dateFrom =
+        PayTrackerPayrollCentreService
+        .toDate(
+            request.dateFrom
+        );
+
+    if (
+        dateFrom &&
+        (
+        dateFrom.getTime() -
+        effectiveDate.getTime()
+        ) > 0
+    ) {
+        return false;
+    }
+    }
+
+    if (
+    request.dateTo &&
+    effectiveDate
+    ) {
+      const dateTo =
+        PayTrackerPayrollCentreService
+          .toDate(
+            request.dateTo
+          );
+
+      if (dateTo) {
+        dateTo.setHours(
+          23,
+          59,
+          59,
+          999
+        );
+
+        if (
+          effectiveDate.getTime() >
+            dateTo.getTime()
+        ) {
+          return false;
+        }
+      }
+    }
+
+    return true;
+  },
+
+  /**
+   * Clears all current filters.
+   */
+  clearFilters: function() {
+    [
+      'payroll-centre-search-input',
+      'payroll-centre-group-filter',
+      'payroll-centre-import-status-filter',
+      'payroll-centre-comparison-filter',
+      'payroll-centre-date-from-filter',
+      'payroll-centre-date-to-filter'
+    ].forEach(function(elementId) {
+      const element =
+        document.getElementById(
+          elementId
+        );
+
+      if (element) {
+        element.value = '';
+      }
+    });
+
+    PayTrackerPayrollCentreService
+      .applyFilters();
+  },
+
+  /**
+   * Renders payslip table and mobile cards.
+   *
+   * @param {Array<Object>} payslips Payslips.
+   * @param {Object=} options Render options.
+   */
+  renderPayslips: function(
+    payslips,
+    options
+  ) {
+    const records =
+      Array.isArray(payslips)
+        ? payslips
+        : [];
+
+    const config =
+      options || {};
+
+    const tableBody =
+      document.getElementById(
+        'payroll-centre-table-body'
+      );
+
+    const mobileList =
+      document.getElementById(
+        'payroll-centre-mobile-list'
+      );
+
+    if (tableBody) {
+      tableBody.replaceChildren();
+    }
+
+    if (mobileList) {
+      mobileList.replaceChildren();
+    }
+
+    PayTrackerPayrollCentreService
+      .setText(
+        'payroll-centre-record-count',
+        records.length === 1
+          ? '1 payslip displayed'
+          : PayTrackerPayrollCentreService
+              .formatInteger(
+                records.length
+              ) +
+            ' payslips displayed'
+      );
+
+    PayTrackerPayrollCentreService
+      .setText(
+        'payroll-centre-table-status',
+        config.filtered
+          ? 'Filtered'
+          : 'Live'
+      );
+
+    if (records.length === 0) {
+      PayTrackerPayrollCentreService
+        .showElement(
+          'payroll-centre-empty-state'
+        );
+
+      PayTrackerPayrollCentreService
+        .setText(
+          'payroll-centre-empty-message',
+          config.filtered
+            ? 'No payslips match the current filters.'
+            : 'Scan Gmail to find and import your payslip PDFs.'
+        );
+
+      return;
+    }
+
+    PayTrackerPayrollCentreService
+      .hideElement(
+        'payroll-centre-empty-state'
+      );
+
+    records.forEach(function(payslip) {
+      if (tableBody) {
+        tableBody.appendChild(
+          PayTrackerPayrollCentreService
+            .createPayslipTableRow(
+              payslip
+            )
+        );
+      }
+
+      if (mobileList) {
+        mobileList.appendChild(
+          PayTrackerPayrollCentreService
+            .createPayslipMobileCard(
+              payslip
+            )
+        );
+      }
+    });
+  },
+
+  /**
+   * Creates a table row.
+   *
+   * @param {Object} payslip Payslip.
+   * @return {HTMLTableRowElement} Row.
+   */
+  createPayslipTableRow: function(payslip) {
+    const row =
+      document.createElement(
+        'tr'
+      );
+
+    row.className =
+      'payroll-centre-table__row';
+
+    row.appendChild(
+      PayTrackerPayrollCentreService
+        .createTableCell(
+          PayTrackerPayrollCentreService
+            .formatDate(
+              payslip.payDate ||
+              payslip.emailDate ||
+              payslip.createdAt
+            ),
+          'payroll-centre-table__date'
+        )
+    );
+
+    row.appendChild(
+      PayTrackerPayrollCentreService
+        .createTableCell(
+          PayTrackerPayrollCentreService
+            .getPayrollGroupName(
+              payslip.payrollGroupId
+            ),
+          'payroll-centre-table__group'
+        )
+    );
+
+    const payslipCell =
+      document.createElement(
+        'td'
+      );
+
+    payslipCell.className =
+      'payroll-centre-table__document';
+
+    const subject =
+      document.createElement(
+        'strong'
+      );
+
+    subject.textContent =
+      payslip.emailSubject ||
+      payslip.originalFilename ||
+      'Imported payslip';
+
+    const filename =
+      document.createElement(
+        'span'
+      );
+
+    filename.textContent =
+      payslip.originalFilename ||
+      payslip.payslipId ||
+      '';
+
+    payslipCell.appendChild(
+      subject
+    );
+
+    payslipCell.appendChild(
+      filename
+    );
+
+    row.appendChild(
+      payslipCell
+    );
+
+    row.appendChild(
+      PayTrackerPayrollCentreService
+        .createTableCell(
+          payslip.sourceType ||
+          'Gmail'
+        )
+    );
+
+    row.appendChild(
+      PayTrackerPayrollCentreService
+        .createCurrencyCell(
+          payslip.grossPayActual
+        )
+    );
+
+    row.appendChild(
+      PayTrackerPayrollCentreService
+        .createCurrencyCell(
+          payslip.netPayActual
+        )
+    );
+
+    row.appendChild(
+      PayTrackerPayrollCentreService
+        .createStatusCell(
+          payslip.importStatus ||
+          'Imported',
+          'import'
+        )
+    );
+
+    row.appendChild(
+      PayTrackerPayrollCentreService
+        .createStatusCell(
+          payslip.comparisonStatus ||
+          'Not compared',
+          'comparison'
+        )
+    );
+
+    const actionCell =
+      document.createElement(
+        'td'
+      );
+
+    actionCell.className =
+      'payroll-centre-table__actions';
+
+    const button =
+      document.createElement(
+        'button'
+      );
+
+    button.type = 'button';
+    button.className =
+      'button button--ghost payroll-centre-table__view-button';
+
+    button.dataset
+      .payrollPayslipId =
+        payslip.payslipId;
+
+    button.textContent =
+      'View';
+
+    actionCell.appendChild(
+      button
+    );
+
+    row.appendChild(
+      actionCell
+    );
+
+    return row;
+  },
+
+  /**
+   * Creates one mobile payslip card.
+   *
+   * @param {Object} payslip Payslip.
+   * @return {HTMLElement} Card.
+   */
+  createPayslipMobileCard: function(
+    payslip
+  ) {
+    const card =
+      document.createElement(
+        'article'
+      );
+
+    card.className =
+      'payroll-centre-mobile-card';
+
+    const header =
+      document.createElement(
+        'div'
+      );
+
+    header.className =
+      'payroll-centre-mobile-card__header';
+
+    const titleContainer =
+      document.createElement(
+        'div'
+      );
+
+    const title =
+      document.createElement(
+        'strong'
+      );
+
+    title.className =
+      'payroll-centre-mobile-card__title';
+
+    title.textContent =
+      payslip.emailSubject ||
+      payslip.originalFilename ||
+      'Imported payslip';
+
+    const date =
+      document.createElement(
+        'span'
+      );
+
+    date.className =
+      'payroll-centre-mobile-card__date';
+
+    date.textContent =
+      PayTrackerPayrollCentreService
+        .formatDate(
+          payslip.payDate ||
+          payslip.emailDate ||
+          payslip.createdAt
+        );
+
+    titleContainer.appendChild(
+      title
+    );
+
+    titleContainer.appendChild(
+      date
+    );
+
+    header.appendChild(
+      titleContainer
+    );
+
+    header.appendChild(
+      PayTrackerPayrollCentreService
+        .createStatusBadge(
+          payslip.importStatus ||
+          'Imported',
+          'import'
+        )
+    );
+
+    const details =
+      document.createElement(
+        'dl'
+      );
+
+    details.className =
+      'payroll-centre-mobile-card__details';
+
+    details.appendChild(
+      PayTrackerPayrollCentreService
+        .createDetailPair(
+          'Payroll group',
+          PayTrackerPayrollCentreService
+            .getPayrollGroupName(
+              payslip.payrollGroupId
+            )
+        )
+    );
+
+    details.appendChild(
+      PayTrackerPayrollCentreService
+        .createDetailPair(
+          'Gross',
+          PayTrackerPayrollCentreService
+            .formatCurrency(
+              payslip.grossPayActual
+            )
+        )
+    );
+
+    details.appendChild(
+      PayTrackerPayrollCentreService
+        .createDetailPair(
+          'Net',
+          PayTrackerPayrollCentreService
+            .formatCurrency(
+              payslip.netPayActual
+            )
+        )
+    );
+
+    const action =
+      document.createElement(
+        'button'
+      );
+
+    action.type = 'button';
+    action.className =
+      'button button--secondary payroll-centre-mobile-card__action';
+
+    action.dataset
+      .payrollPayslipId =
+        payslip.payslipId;
+
+    action.textContent =
+      'View payslip';
+
+    card.appendChild(
+      header
+    );
+
+    card.appendChild(
+      details
+    );
+
+    card.appendChild(
+      action
+    );
+
+    return card;
+  },
+
+  /**
+   * Opens one payslip detail drawer.
+   *
+   * @param {string} payslipId Payslip ID.
+   * @return {Promise<void>}
+   */
+  openPayslipDetails: async function(
+    payslipId
+  ) {
+    const normalizedId =
+      String(
+        payslipId || ''
+      ).trim();
+
+    if (!normalizedId) {
+      return;
+    }
+
+    PayTrackerPayrollCentreService
+      .state
+      .selectedPayslipId =
+        normalizedId;
+
+    PayTrackerPayrollCentreService
+      .state
+      .drawerOpen = true;
+
+    PayTrackerPayrollCentreService
+      .showElement(
+        'payroll-centre-drawer-backdrop'
+      );
+
+    const drawer =
+      document.getElementById(
+        'payroll-centre-detail-drawer'
+      );
+
+    if (drawer) {
+      drawer.hidden = false;
+      drawer.setAttribute(
+        'aria-hidden',
+        'false'
+      );
+    }
+
+    document.body.classList.add(
+      'has-payroll-centre-overlay'
+    );
+
+    PayTrackerPayrollCentreService
+      .renderDetailLoading();
+
+    try {
+      const response =
+        await PayTrackerPayrollCentreService
+          .runServerFunction(
+            'getPayTrackerPayslip',
+            normalizedId
+          );
+
+      if (
+        !response ||
+        response.success !== true ||
+        !response.payslip
+      ) {
+        throw new Error(
+          'Payslip details could not be loaded.'
+        );
+      }
+
+      PayTrackerPayrollCentreService
+        .renderPayslipDetails(
+          response
+        );
+    } catch (error) {
+      PayTrackerPayrollCentreService
+        .renderDetailError(
+          PayTrackerPayrollCentreService
+            .getErrorMessage(error)
+        );
+    }
+  },
+
+  /**
+   * Closes the detail drawer.
+   */
+  closePayslipDetails: function() {
+    PayTrackerPayrollCentreService
+      .state
+      .drawerOpen = false;
+
+    PayTrackerPayrollCentreService
+      .state
+      .selectedPayslipId = '';
+
+    PayTrackerPayrollCentreService
+      .hideElement(
+        'payroll-centre-drawer-backdrop'
+      );
+
+    const drawer =
+      document.getElementById(
+        'payroll-centre-detail-drawer'
+      );
+
+    if (drawer) {
+      drawer.setAttribute(
+        'aria-hidden',
+        'true'
+      );
+
+      drawer.hidden = true;
+    }
+
+    document.body.classList.remove(
+      'has-payroll-centre-overlay'
+    );
+  },
+
+  /**
+   * Renders payslip detail content.
+   *
+   * @param {Object} response Detail response.
+   */
+  renderPayslipDetails: function(
+    response
+  ) {
+    const payslip =
+      response.payslip || {};
+
+    const group =
+      response.payrollGroup || {};
+
+    const driveFile =
+      response.driveFile || {};
+
+    const extraction =
+      response.extraction || null;
+
+    const comparison =
+      response.comparison || null;
+
+    PayTrackerPayrollCentreService
+      .setText(
+        'payroll-centre-detail-title',
+        payslip.emailSubject ||
+        payslip.originalFilename ||
+        'Selected payslip'
+      );
+
+    const content =
+      document.getElementById(
+        'payroll-centre-detail-content'
+      );
+
+    if (!content) {
+      return;
+    }
+
+    content.replaceChildren();
+
+    const overview =
+      PayTrackerPayrollCentreService
+        .createDetailSection(
+          'Payslip overview'
+        );
+
+    overview.appendChild(
+      PayTrackerPayrollCentreService
+        .createDetailGrid([
+          {
+            label: 'Payroll group',
+            value:
+              group.payrollGroupName ||
+              PayTrackerPayrollCentreService
+                .getPayrollGroupName(
+                  payslip.payrollGroupId
+                )
+          },
+          {
+            label: 'Pay date',
+            value:
+              PayTrackerPayrollCentreService
+                .formatDateOrPending(
+                  extraction &&
+                  extraction.payDate
+                    ? extraction.payDate
+                    : payslip.payDate
+                )
+          },
+          {
+            label: 'Gross pay',
+            value:
+              PayTrackerPayrollCentreService
+                .formatExtractedCurrency(
+                  extraction
+                    ? extraction.grossPay
+                    : payslip.grossPayActual,
+                  Boolean(extraction)
+                )
+          },
+          {
+            label: 'Net pay',
+            value:
+              PayTrackerPayrollCentreService
+                .formatExtractedCurrency(
+                  extraction
+                    ? extraction.netPay
+                    : payslip.netPayActual,
+                  Boolean(extraction)
+                )
+          }
+        ])
+    );
+
+    overview.appendChild(
+      PayTrackerPayrollCentreService
+        .createStatusRow(
+          'Import status',
+          payslip.importStatus ||
+          'Imported',
+          'import'
+        )
+    );
+
+    overview.appendChild(
+      PayTrackerPayrollCentreService
+        .createStatusRow(
+          'Comparison',
+          payslip.comparisonStatus ||
+          'Not compared',
+          'comparison'
+        )
+    );
+
+    let payrollDetails = null;
+    let deductions = null;
+    let hours = null;
+    let processing = null;
+    let comparisonDetails = null;
+
+    if (extraction) {
+      payrollDetails =
+        PayTrackerPayrollCentreService
+          .createDetailSection(
+            'Actual payroll'
+          );
+
+      payrollDetails.appendChild(
+        PayTrackerPayrollCentreService
+          .createDetailGrid([
+            {
+              label: 'Gross pay',
+              value:
+                PayTrackerPayrollCentreService
+                  .formatExtractedCurrency(
+                    extraction.grossPay,
+                    true
+                  )
+            },
+            {
+              label: 'Taxable pay',
+              value:
+                PayTrackerPayrollCentreService
+                  .formatExtractedCurrency(
+                    extraction.taxablePay,
+                    true
+                  )
+            },
+            {
+              label: 'Total deductions',
+              value:
+                PayTrackerPayrollCentreService
+                  .formatExtractedCurrency(
+                    extraction.totalDeductions,
+                    true
+                  )
+            },
+            {
+              label: 'Net pay',
+              value:
+                PayTrackerPayrollCentreService
+                  .formatExtractedCurrency(
+                    extraction.netPay,
+                    true
+                  )
+            },
+            {
+              label: 'Pay period',
+              value:
+                extraction.payPeriod
+            },
+            {
+              label: 'Tax code',
+              value:
+                extraction.taxCode
+            },
+            {
+              label: 'Payroll number',
+              value:
+                extraction.payrollNumber
+            },
+            {
+              label: 'Employer',
+              value:
+                extraction.employerName
+            }
+          ])
+      );
+
+      deductions =
+        PayTrackerPayrollCentreService
+          .createDetailSection(
+            'Deductions'
+          );
+
+      deductions.appendChild(
+        PayTrackerPayrollCentreService
+          .createDetailGrid([
+            {
+              label: 'Income tax',
+              value:
+                PayTrackerPayrollCentreService
+                  .formatExtractedCurrency(
+                    extraction.incomeTax,
+                    true
+                  )
+            },
+            {
+              label: 'National Insurance',
+              value:
+                PayTrackerPayrollCentreService
+                  .formatExtractedCurrency(
+                    extraction
+                      .nationalInsurance,
+                    true
+                  )
+            },
+            {
+              label: 'Pension',
+              value:
+                PayTrackerPayrollCentreService
+                  .formatExtractedCurrency(
+                    extraction.pension,
+                    true
+                  )
+            },
+            {
+              label: 'Student loan',
+              value:
+                PayTrackerPayrollCentreService
+                  .formatExtractedCurrency(
+                    extraction.studentLoan,
+                    true
+                  )
+            }
+          ])
+      );
+
+      hours =
+        PayTrackerPayrollCentreService
+          .createDetailSection(
+            'Timesheet hours'
+          );
+
+      hours.appendChild(
+        PayTrackerPayrollCentreService
+          .createDetailGrid([
+            {
+              label: 'Total hours',
+              value:
+                PayTrackerPayrollCentreService
+                  .formatHours(
+                    extraction.totalHours
+                  )
+            },
+            {
+              label: 'Basic hours',
+              value:
+                PayTrackerPayrollCentreService
+                  .formatHours(
+                    extraction.basicHours
+                  )
+            },
+            {
+              label: 'Enhanced hours',
+              value:
+                PayTrackerPayrollCentreService
+                  .formatHours(
+                    extraction.enhancedHours
+                  )
+            },
+            {
+              label: 'Unsocial hours',
+              value:
+                PayTrackerPayrollCentreService
+                  .formatHours(
+                    extraction.unsocialHours
+                  )
+            },
+            {
+              label: 'Overtime hours',
+              value:
+                PayTrackerPayrollCentreService
+                  .formatHours(
+                    extraction.overtimeHours
+                  )
+            },
+            {
+              label: 'Holiday hours',
+              value:
+                PayTrackerPayrollCentreService
+                  .formatHours(
+                    extraction.holidayHours
+                  )
+            },
+            {
+              label: 'Timesheet entries',
+              value:
+                PayTrackerPayrollCentreService
+                  .formatInteger(
+                    extraction
+                      .timesheetEntryCount
+                  )
+            },
+            {
+              label: 'References',
+              value:
+                extraction.timesheetReferences
+            }
+          ])
+      );
+
+      hours.appendChild(
+        PayTrackerPayrollCentreService
+          .createStatusRow(
+            'Classification',
+            extraction
+              .classificationStatus ||
+            'Not classified',
+            'import'
+          )
+      );
+
+      processing =
+        PayTrackerPayrollCentreService
+          .createDetailSection(
+            'PDF extraction'
+          );
+
+      processing.appendChild(
+        PayTrackerPayrollCentreService
+          .createDetailGrid([
+            {
+              label: 'Provider',
+              value:
+                extraction.provider
+            },
+            {
+              label: 'Parser',
+              value:
+                extraction.parserType
+            },
+            {
+              label: 'Parser confidence',
+              value:
+                PayTrackerPayrollCentreService
+                  .formatPercentage(
+                    extraction
+                      .parserConfidence
+                  )
+            },
+            {
+              label: 'Extracted',
+              value:
+                PayTrackerPayrollCentreService
+                  .formatDateTime(
+                    extraction.extractedAt
+                  )
+            }
+          ])
+      );
+
+      processing.appendChild(
+        PayTrackerPayrollCentreService
+          .createStatusRow(
+            'Extraction status',
+            extraction.status,
+            'import'
+          )
+      );
+    }
+
+    if (comparison) {
+      comparisonDetails =
+        PayTrackerPayrollCentreService
+          .createDetailSection(
+            'Predicted versus actual'
+          );
+
+      const totals =
+        comparison.totals || {};
+
+      comparisonDetails.appendChild(
+        PayTrackerPayrollCentreService
+          .createDetailGrid([
+            {
+              label: 'Matched week',
+              value:
+                comparison.weekLabel ||
+                (
+                  payslip.matchReason &&
+                  payslip.matchReason.indexOf(
+                    'Matched to '
+                  ) !== -1
+                    ? payslip.matchReason
+                        .split(
+                          'Matched to '
+                        )
+                        .pop()
+                    : ''
+                ) ||
+                (
+                  comparison.weekStart &&
+                  comparison.weekEnd
+                    ? comparison.weekStart +
+                      ' to ' +
+                      comparison.weekEnd
+                    : 'No matching PaySheet week'
+                )
+            },
+            {
+              label: 'Accuracy score',
+              value:
+                PayTrackerPayrollCentreService
+                  .formatPercentage(
+                    comparison.score
+                  )
+            },
+            {
+              label: 'Predicted gross',
+              value:
+                PayTrackerPayrollCentreService
+                  .formatExtractedCurrency(
+                    totals.expectedGross,
+                    totals.expectedGross !== null
+                  )
+            },
+            {
+              label: 'Actual gross',
+              value:
+                PayTrackerPayrollCentreService
+                  .formatExtractedCurrency(
+                    totals.actualGross,
+                    totals.actualGross !== null
+                  )
+            },
+            {
+              label: 'Gross difference',
+              value:
+                PayTrackerPayrollCentreService
+                  .formatExtractedCurrency(
+                    totals.grossDifference,
+                    totals.grossDifference !== null
+                  )
+            },
+            {
+              label: 'Predicted take home',
+              value:
+                PayTrackerPayrollCentreService
+                  .formatExtractedCurrency(
+                    totals.expectedNet,
+                    totals.expectedNet !== null
+                  )
+            },
+            {
+              label: 'Actual take home',
+              value:
+                PayTrackerPayrollCentreService
+                  .formatExtractedCurrency(
+                    totals.actualNet,
+                    totals.actualNet !== null
+                  )
+            },
+            {
+              label: 'Net difference',
+              value:
+                PayTrackerPayrollCentreService
+                  .formatExtractedCurrency(
+                    totals.netDifference,
+                    totals.netDifference !== null
+                  )
+            }
+          ])
+      );
+
+      comparisonDetails.appendChild(
+        PayTrackerPayrollCentreService
+          .createStatusRow(
+            'Comparison result',
+            comparison.status ||
+            payslip.comparisonStatus ||
+            'Incomplete',
+            'comparison'
+          )
+      );
+
+      const comparisonMessage =
+        document.createElement(
+          'p'
+        );
+
+      comparisonMessage.className =
+        'payroll-centre-detail-note';
+
+      comparisonMessage.textContent =
+        comparison.comparisonMessage ||
+        payslip.matchReason ||
+        'No comparison explanation is available.';
+
+      comparisonDetails.appendChild(
+        comparisonMessage
+      );
+    }
+
+    const source =
+      PayTrackerPayrollCentreService
+        .createDetailSection(
+          'Source'
+        );
+
+    source.appendChild(
+      PayTrackerPayrollCentreService
+        .createDetailGrid([
+          {
+            label: 'Email sender',
+            value:
+              payslip.emailSender ||
+              'Unavailable'
+          },
+          {
+            label: 'Email date',
+            value:
+              PayTrackerPayrollCentreService
+                .formatDate(
+                  payslip.emailDate
+                )
+          },
+          {
+            label: 'Original filename',
+            value:
+              payslip.originalFilename ||
+              'Unavailable'
+          },
+          {
+            label: 'File size',
+            value:
+              PayTrackerPayrollCentreService
+                .formatFileSize(
+                  payslip.fileSize
+                )
+          }
+        ])
+    );
+
+    const actions =
+      document.createElement(
+        'div'
+      );
+
+    actions.className =
+      'payroll-centre-detail-actions';
+
+    const driveUrl =
+      driveFile.driveFileUrl ||
+      payslip.driveFileUrl ||
+      '';
+
+    if (driveUrl) {
+      const openButton =
+        document.createElement(
+          'button'
+        );
+
+      openButton.type = 'button';
+      openButton.className =
+        'button button--primary';
+
+      openButton.dataset
+        .payrollDriveUrl =
+          driveUrl;
+
+      openButton.textContent =
+        'Open PDF';
+
+      actions.appendChild(
+        openButton
+      );
+    }
+
+    const copyButton =
+      document.createElement(
+        'button'
+      );
+
+    copyButton.type = 'button';
+    copyButton.className =
+      'button button--secondary';
+
+    copyButton.dataset
+      .payrollCopy =
+        payslip.payslipId || '';
+
+    copyButton.textContent =
+      'Copy Payslip ID';
+
+    actions.appendChild(
+      copyButton
+    );
+
+    source.appendChild(
+      actions
+    );
+
+    const notes =
+      PayTrackerPayrollCentreService
+        .createDetailSection(
+          'Import information'
+        );
+
+    const notesText =
+      document.createElement(
+        'p'
+      );
+
+    notesText.className =
+      'payroll-centre-detail-note';
+
+    notesText.textContent =
+      payslip.notes ||
+      payslip.matchReason ||
+      'No additional notes are recorded.';
+
+    notes.appendChild(
+      notesText
+    );
+
+    content.appendChild(
+      overview
+    );
+
+    if (payrollDetails) {
+      content.appendChild(
+        payrollDetails
+      );
+    }
+
+    if (deductions) {
+      content.appendChild(
+        deductions
+      );
+    }
+
+    if (hours) {
+      content.appendChild(
+        hours
+      );
+    }
+
+    if (processing) {
+      content.appendChild(
+        processing
+      );
+    }
+
+    if (comparisonDetails) {
+      content.appendChild(
+        comparisonDetails
+      );
+    }
+
+    content.appendChild(
+      source
+    );
+
+    content.appendChild(
+      notes
+    );
+  },
+
+  /**
+   * Displays recent scan history.
+   */
+  showScanHistory: function() {
+    PayTrackerPayrollCentreService
+      .showElement(
+        'payroll-centre-scan-history-card'
+      );
+
+    const card =
+      document.getElementById(
+        'payroll-centre-scan-history-card'
+      );
+
+    if (card) {
+      card.scrollIntoView({
+        behavior: 'smooth',
+        block: 'start'
+      });
+    }
+  },
+
+  /**
+   * Hides recent scan history.
+   */
+  hideScanHistory: function() {
+    PayTrackerPayrollCentreService
+      .hideElement(
+        'payroll-centre-scan-history-card'
+      );
+  },
+
+  /**
+   * Renders recent Gmail scans.
+   *
+   * @param {Array<Object>} scans Scans.
+   */
+  renderRecentScans: function(scans) {
+    const records =
+      Array.isArray(scans)
+        ? scans
+        : [];
+
+    const latest =
+      records.length
+        ? records[0]
+        : null;
+
+    if (latest) {
+      PayTrackerPayrollCentreService
+        .setText(
+          'payroll-centre-scan-status',
+          PayTrackerPayrollCentreService
+            .formatStatusLabel(
+              latest.status
+            )
+        );
+
+      PayTrackerPayrollCentreService
+        .setText(
+          'payroll-centre-scan-meta',
+          [
+            PayTrackerPayrollCentreService
+              .formatDateTime(
+                latest.completedAt ||
+                latest.startedAt
+              ),
+            PayTrackerPayrollCentreService
+              .formatInteger(
+                latest.payslipsImported
+              ) +
+              ' imported',
+            PayTrackerPayrollCentreService
+              .formatInteger(
+                latest.duplicatesSkipped
+              ) +
+              ' duplicates skipped'
+          ].join(' • ')
+        );
+    } else {
+      PayTrackerPayrollCentreService
+        .setText(
+          'payroll-centre-scan-status',
+          'No scans recorded'
+        );
+
+      PayTrackerPayrollCentreService
+        .setText(
+          'payroll-centre-scan-meta',
+          'Run Scan Gmail to check for new payslips.'
+        );
+    }
+
+    const list =
+      document.getElementById(
+        'payroll-centre-scan-history-list'
+      );
+
+    if (!list) {
+      return;
+    }
+
+    list.replaceChildren();
+
+    if (records.length === 0) {
+      const empty =
+        document.createElement(
+          'p'
+        );
+
+      empty.className =
+        'payroll-centre-scan-history-list__loading';
+
+      empty.textContent =
+        'No Gmail scans have been recorded.';
+
+      list.appendChild(
+        empty
+      );
+
+      return;
+    }
+
+    records.forEach(function(scan) {
+      const item =
+        document.createElement(
+          'article'
+        );
+
+      item.className =
+        'payroll-centre-scan-history-item';
+
+      const header =
+        document.createElement(
+          'div'
+        );
+
+      header.className =
+        'payroll-centre-scan-history-item__header';
+
+      const title =
+        document.createElement(
+          'strong'
+        );
+
+      title.textContent =
+        PayTrackerPayrollCentreService
+          .formatDateTime(
+            scan.completedAt ||
+            scan.startedAt
+          );
+
+      header.appendChild(
+        title
+      );
+
+      header.appendChild(
+        PayTrackerPayrollCentreService
+          .createStatusBadge(
+            scan.status ||
+            'Completed',
+            'scan'
+          )
+      );
+
+      const summary =
+        document.createElement(
+          'p'
+        );
+
+      summary.className =
+        'payroll-centre-scan-history-item__summary';
+
+      summary.textContent =
+        scan.summary ||
+        [
+          PayTrackerPayrollCentreService
+            .formatInteger(
+              scan.messagesChecked
+            ),
+          'messages checked;',
+          PayTrackerPayrollCentreService
+            .formatInteger(
+              scan.payslipsImported
+            ),
+          'imported;',
+          PayTrackerPayrollCentreService
+            .formatInteger(
+              scan.duplicatesSkipped
+            ),
+          'duplicates skipped.'
+        ].join(' ');
+
+      item.appendChild(
+        header
+      );
+
+      item.appendChild(
+        summary
+      );
+
+      list.appendChild(
+        item
+      );
+    });
+  },
+
+  /**
+   * Opens the private manual-upload dialog.
+   */
+  openUploadDialog: function() {
+    if (
+      PayTrackerPayrollCentreService
+        .state
+        .uploading
+    ) {
+      return;
+    }
+
+    PayTrackerPayrollCentreService
+      .resetUploadDialog();
+
+    PayTrackerPayrollCentreService
+      .showElement(
+        'payroll-centre-upload-dialog-backdrop'
+      );
+
+    const dialog =
+      document.getElementById(
+        'payroll-centre-upload-dialog'
+      );
+
+    if (dialog) {
+      dialog.hidden = false;
+      dialog.setAttribute(
+        'aria-hidden',
+        'false'
+      );
+    }
+
+    document.body.classList.add(
+      'has-payroll-centre-overlay'
+    );
+  },
+
+  /**
+   * Closes the private manual-upload dialog.
+   */
+  closeUploadDialog: function() {
+    if (
+      PayTrackerPayrollCentreService
+        .state
+        .uploading
+    ) {
+      return;
+    }
+
+    PayTrackerPayrollCentreService
+      .hideElement(
+        'payroll-centre-upload-dialog-backdrop'
+      );
+
+    const dialog =
+      document.getElementById(
+        'payroll-centre-upload-dialog'
+      );
+
+    if (dialog) {
+      dialog.setAttribute(
+        'aria-hidden',
+        'true'
+      );
+
+      dialog.hidden = true;
+    }
+
+    if (
+      !PayTrackerPayrollCentreService
+        .state
+        .drawerOpen
+    ) {
+      document.body.classList.remove(
+        'has-payroll-centre-overlay'
+      );
+    }
+  },
+
+  /**
+   * Resets the manual-upload dialog.
+   */
+  resetUploadDialog: function() {
+    PayTrackerPayrollCentreService
+      .showElement(
+        'payroll-centre-upload-form-view'
+      );
+
+    PayTrackerPayrollCentreService
+      .hideElement(
+        'payroll-centre-upload-running-view'
+      );
+
+    PayTrackerPayrollCentreService
+      .hideElement(
+        'payroll-centre-upload-result-view'
+      );
+
+    PayTrackerPayrollCentreService
+      .showElement(
+        'payroll-centre-upload-cancel-button'
+      );
+
+    PayTrackerPayrollCentreService
+      .showElement(
+        'payroll-centre-upload-start-button'
+      );
+
+    PayTrackerPayrollCentreService
+      .hideElement(
+        'payroll-centre-upload-finish-button'
+      );
+
+    const fileInput =
+      document.getElementById(
+        'payroll-centre-upload-file'
+      );
+
+    if (fileInput) {
+      fileInput.value = '';
+    }
+  },
+
+  /**
+   * Uploads and processes one selected PDF.
+   *
+   * @return {Promise<void>}
+   */
+  startManualUpload: async function() {
+    if (
+      PayTrackerPayrollCentreService
+        .state
+        .uploading
+    ) {
+      return;
+    }
+
+    const payrollGroupId =
+      PayTrackerPayrollCentreService
+        .getInputValue(
+          'payroll-centre-upload-group'
+        );
+
+    const payDate =
+      PayTrackerPayrollCentreService
+        .getInputValue(
+          'payroll-centre-upload-pay-date'
+        );
+
+    const fileInput =
+      document.getElementById(
+        'payroll-centre-upload-file'
+      );
+
+    const file =
+      fileInput &&
+      fileInput.files
+        ? fileInput.files[0]
+        : null;
+
+    if (!payrollGroupId) {
+      PayTrackerPayrollCentreService
+        .showMessage(
+          'Choose the Payroll Group for this payslip.',
+          'error'
+        );
+
+      return;
+    }
+
+    if (!file) {
+      PayTrackerPayrollCentreService
+        .showMessage(
+          'Select a payslip PDF to upload.',
+          'error'
+        );
+
+      return;
+    }
+
+    if (
+      !/\.pdf$/i.test(
+        file.name || ''
+      )
+    ) {
+      PayTrackerPayrollCentreService
+        .showMessage(
+          'Only PDF payslips can be uploaded.',
+          'error'
+        );
+
+      return;
+    }
+
+    if (file.size > 10485760) {
+      PayTrackerPayrollCentreService
+        .showMessage(
+          'The selected PDF is larger than the 10 MB upload limit.',
+          'error'
+        );
+
+      return;
+    }
+
+    PayTrackerPayrollCentreService
+      .state
+      .uploading = true;
+
+    PayTrackerPayrollCentreService
+      .hideElement(
+        'payroll-centre-upload-form-view'
+      );
+
+    PayTrackerPayrollCentreService
+      .showElement(
+        'payroll-centre-upload-running-view'
+      );
+
+    PayTrackerPayrollCentreService
+      .hideElement(
+        'payroll-centre-upload-result-view'
+      );
+
+    PayTrackerPayrollCentreService
+      .hideElement(
+        'payroll-centre-upload-cancel-button'
+      );
+
+    PayTrackerPayrollCentreService
+      .hideElement(
+        'payroll-centre-upload-start-button'
+      );
+
+    try {
+      const base64Data =
+        await PayTrackerPayrollCentreService
+          .readFileAsDataUrl(
+            file
+          );
+
+      const response =
+        await PayTrackerPayrollCentreService
+          .runServerFunction(
+            'uploadPayTrackerPayslipPdf',
+            {
+              payrollGroupId:
+                payrollGroupId,
+
+              payDate:
+                payDate,
+
+              originalFilename:
+                file.name,
+
+              base64Data:
+                base64Data
+            }
+          );
+
+      if (
+        !response ||
+        response.success !== true
+      ) {
+        throw new Error(
+          response &&
+          response.message
+            ? response.message
+            : 'The payslip could not be uploaded.'
+        );
+      }
+
+      PayTrackerPayrollCentreService
+        .showUploadResult(
+          true,
+          response.duplicate === true
+            ? 'Payslip already registered'
+            : 'Payslip uploaded',
+          response.message ||
+          'The payslip has been added to the register.'
+        );
+
+      await PayTrackerPayrollCentreService
+        .load({
+          force: true
+        });
+    } catch (error) {
+      PayTrackerPayrollCentreService
+        .showUploadResult(
+          false,
+          'Upload failed',
+          PayTrackerPayrollCentreService
+            .getErrorMessage(
+              error
+            )
+        );
+    } finally {
+      PayTrackerPayrollCentreService
+        .state
+        .uploading = false;
+    }
+  },
+
+  /**
+   * Displays the manual-upload result.
+   *
+   * @param {boolean} success Success state.
+   * @param {string} title Result title.
+   * @param {string} message Result message.
+   */
+  showUploadResult: function(
+    success,
+    title,
+    message
+  ) {
+    PayTrackerPayrollCentreService
+      .hideElement(
+        'payroll-centre-upload-form-view'
+      );
+
+    PayTrackerPayrollCentreService
+      .hideElement(
+        'payroll-centre-upload-running-view'
+      );
+
+    PayTrackerPayrollCentreService
+      .showElement(
+        'payroll-centre-upload-result-view'
+      );
+
+    PayTrackerPayrollCentreService
+      .hideElement(
+        'payroll-centre-upload-cancel-button'
+      );
+
+    PayTrackerPayrollCentreService
+      .hideElement(
+        'payroll-centre-upload-start-button'
+      );
+
+    PayTrackerPayrollCentreService
+      .showElement(
+        'payroll-centre-upload-finish-button'
+      );
+
+    PayTrackerPayrollCentreService
+      .setText(
+        'payroll-centre-upload-result-icon',
+        success
+          ? '✓'
+          : '!'
+      );
+
+    PayTrackerPayrollCentreService
+      .setText(
+        'payroll-centre-upload-result-title',
+        title
+      );
+
+    PayTrackerPayrollCentreService
+      .setText(
+        'payroll-centre-upload-result-message',
+        message
+      );
+  },
+
+  /**
+   * Reads a selected file without storing it in the page.
+   *
+   * @param {File} file Selected file.
+   * @return {Promise<string>} Data URL.
+   */
+  readFileAsDataUrl: function(file) {
+    return new Promise(function(
+      resolve,
+      reject
+    ) {
+      const reader =
+        new FileReader();
+
+      reader.onload =
+        function() {
+          resolve(
+            String(
+              reader.result || ''
+            )
+          );
+        };
+
+      reader.onerror =
+        function() {
+          reject(
+            new Error(
+              'The selected PDF could not be read.'
+            )
+          );
+        };
+
+      reader.readAsDataURL(
+        file
+      );
+    });
+  },
+
+  /**
+   * Opens the Gmail scan dialog.
+   */
+  openScanDialog: function() {
+    if (
+      PayTrackerPayrollCentreService
+        .state
+        .scanning
+    ) {
+      return;
+    }
+
+    PayTrackerPayrollCentreService
+      .resetScanDialog();
+
+    PayTrackerPayrollCentreService
+      .showElement(
+        'payroll-centre-scan-dialog-backdrop'
+      );
+
+    const dialog =
+      document.getElementById(
+        'payroll-centre-scan-dialog'
+      );
+
+    if (dialog) {
+      dialog.hidden = false;
+      dialog.setAttribute(
+        'aria-hidden',
+        'false'
+      );
+    }
+
+    document.body.classList.add(
+      'has-payroll-centre-overlay'
+    );
+  },
+
+  /**
+   * Closes the Gmail scan dialog.
+   */
+  closeScanDialog: function() {
+    if (
+      PayTrackerPayrollCentreService
+        .state
+        .scanning
+    ) {
+      return;
+    }
+
+    PayTrackerPayrollCentreService
+      .hideElement(
+        'payroll-centre-scan-dialog-backdrop'
+      );
+
+    const dialog =
+      document.getElementById(
+        'payroll-centre-scan-dialog'
+      );
+
+    if (dialog) {
+      dialog.setAttribute(
+        'aria-hidden',
+        'true'
+      );
+
+      dialog.hidden = true;
+    }
+
+    if (
+      !PayTrackerPayrollCentreService
+        .state
+        .drawerOpen
+    ) {
+      document.body.classList.remove(
+        'has-payroll-centre-overlay'
+      );
+    }
+  },
+
+  /**
+   * Resets dialog views.
+   */
+  resetScanDialog: function() {
+    PayTrackerPayrollCentreService
+      .showElement(
+        'payroll-centre-scan-form-view'
+      );
+
+    PayTrackerPayrollCentreService
+      .hideElement(
+        'payroll-centre-scan-running-view'
+      );
+
+    PayTrackerPayrollCentreService
+      .hideElement(
+        'payroll-centre-scan-result-view'
+      );
+
+    PayTrackerPayrollCentreService
+      .showElement(
+        'payroll-centre-scan-cancel-button'
+      );
+
+    PayTrackerPayrollCentreService
+      .showElement(
+        'payroll-centre-scan-start-button'
+      );
+
+    PayTrackerPayrollCentreService
+      .hideElement(
+        'payroll-centre-scan-finish-button'
+      );
+  },
+
+  /**
+   * Runs the manual Gmail scan.
+   *
+   * @return {Promise<void>}
+   */
+  startGmailScan: async function() {
+    if (
+      PayTrackerPayrollCentreService
+        .state
+        .scanning
+    ) {
+      return;
+    }
+
+    PayTrackerPayrollCentreService
+      .state
+      .scanning = true;
+
+    PayTrackerPayrollCentreService
+      .hideElement(
+        'payroll-centre-scan-form-view'
+      );
+
+    PayTrackerPayrollCentreService
+      .showElement(
+        'payroll-centre-scan-running-view'
+      );
+
+    PayTrackerPayrollCentreService
+      .hideElement(
+        'payroll-centre-scan-result-view'
+      );
+
+    PayTrackerPayrollCentreService
+      .hideElement(
+        'payroll-centre-scan-cancel-button'
+      );
+
+    PayTrackerPayrollCentreService
+      .hideElement(
+        'payroll-centre-scan-start-button'
+      );
+
+    try {
+      const lookbackDays =
+        PayTrackerPayrollCentreService
+          .getInputValue(
+            'payroll-centre-scan-lookback'
+          );
+
+      const maxThreads =
+        PayTrackerPayrollCentreService
+          .getInputValue(
+            'payroll-centre-scan-limit'
+          );
+
+      const response =
+        await PayTrackerPayrollCentreService
+          .runServerFunction(
+            'scanPayTrackerPayrollCentreGmail',
+            {
+              lookbackDays:
+                Number(lookbackDays),
+
+              maxThreads:
+                Number(maxThreads)
+            }
+          );
+
+      if (
+        !response ||
+        response.success !== true
+      ) {
+        throw new Error(
+          response &&
+          Array.isArray(response.errors) &&
+          response.errors.length
+            ? response.errors.join(' ')
+            : 'Gmail scan could not be completed.'
+        );
+      }
+
+      PayTrackerPayrollCentreService
+        .renderScanResult(
+          response,
+          true
+        );
+
+      await PayTrackerPayrollCentreService
+        .load({
+          force: true
+        });
+
+      PayTrackerPayrollCentreService
+        .showToast(
+          response.payslipsImported
+            ? (
+                response.payslipsImported +
+                ' new payslips imported.'
+              )
+            : 'No new payslips were found.',
+          'success'
+        );
+    } catch (error) {
+      PayTrackerPayrollCentreService
+        .renderScanResult(
+          {
+            messagesChecked: 0,
+            messagesMatched: 0,
+            payslipsImported: 0,
+            duplicatesSkipped: 0,
+            error:
+              PayTrackerPayrollCentreService
+                .getErrorMessage(error)
+          },
+          false
+        );
+
+      PayTrackerPayrollCentreService
+        .showToast(
+          PayTrackerPayrollCentreService
+            .getErrorMessage(error),
+          'error'
+        );
+    } finally {
+      PayTrackerPayrollCentreService
+        .state
+        .scanning = false;
+    }
+  },
+
+  /**
+   * Renders Gmail scan results.
+   *
+   * @param {Object} result Result.
+   * @param {boolean} success Success.
+   */
+  renderScanResult: function(
+    result,
+    success
+  ) {
+    PayTrackerPayrollCentreService
+      .hideElement(
+        'payroll-centre-scan-running-view'
+      );
+
+    PayTrackerPayrollCentreService
+      .showElement(
+        'payroll-centre-scan-result-view'
+      );
+
+    PayTrackerPayrollCentreService
+      .hideElement(
+        'payroll-centre-scan-cancel-button'
+      );
+
+    PayTrackerPayrollCentreService
+      .hideElement(
+        'payroll-centre-scan-start-button'
+      );
+
+    PayTrackerPayrollCentreService
+      .showElement(
+        'payroll-centre-scan-finish-button'
+      );
+
+    PayTrackerPayrollCentreService
+      .setText(
+        'payroll-centre-scan-result-icon',
+        success
+          ? '✓'
+          : '!'
+      );
+
+    PayTrackerPayrollCentreService
+      .setText(
+        'payroll-centre-scan-result-title',
+        success
+          ? 'Scan completed'
+          : 'Scan failed'
+      );
+
+    PayTrackerPayrollCentreService
+      .setText(
+        'payroll-centre-scan-result-message',
+        success
+          ? (
+              result.payslipsImported
+                ? 'New payslips were imported successfully.'
+                : 'No new payslips were found. Existing records were skipped.'
+            )
+          : (
+              result.error ||
+              'The Gmail scan could not be completed.'
+            )
+      );
+
+    PayTrackerPayrollCentreService
+      .setText(
+        'payroll-centre-scan-result-messages',
+        PayTrackerPayrollCentreService
+          .formatInteger(
+            result.messagesChecked
+          )
+      );
+
+    PayTrackerPayrollCentreService
+      .setText(
+        'payroll-centre-scan-result-matched',
+        PayTrackerPayrollCentreService
+          .formatInteger(
+            result.messagesMatched
+          )
+      );
+
+    PayTrackerPayrollCentreService
+      .setText(
+        'payroll-centre-scan-result-imported',
+        PayTrackerPayrollCentreService
+          .formatInteger(
+            result.payslipsImported
+          )
+      );
+
+    PayTrackerPayrollCentreService
+      .setText(
+        'payroll-centre-scan-result-duplicates',
+        PayTrackerPayrollCentreService
+          .formatInteger(
+            result.duplicatesSkipped
+          )
+      );
+  },
+
+  /**
+   * Renders the initial loading state.
+   */
+  renderLoading: function() {
+    PayTrackerPayrollCentreService
+      .showElement(
+        'payroll-centre-loading'
+      );
+
+    PayTrackerPayrollCentreService
+      .hideElement(
+        'payroll-centre-content'
+      );
+
+    PayTrackerPayrollCentreService
+      .hideElement(
+        'payroll-centre-workspace-empty'
+      );
+
+    PayTrackerPayrollCentreService
+      .hideElement(
+        'payroll-centre-error-state'
+      );
+  },
+
+  /**
+   * Renders fatal loading error.
+   *
+   * @param {string} message Error.
+   */
+  renderError: function(message) {
+    PayTrackerPayrollCentreService
+      .hideElement(
+        'payroll-centre-loading'
+      );
+
+    PayTrackerPayrollCentreService
+      .hideElement(
+        'payroll-centre-content'
+      );
+
+    PayTrackerPayrollCentreService
+      .hideElement(
+        'payroll-centre-workspace-empty'
+      );
+
+    PayTrackerPayrollCentreService
+      .showElement(
+        'payroll-centre-error-state'
+      );
+
+    PayTrackerPayrollCentreService
+      .setText(
+        'payroll-centre-error-message',
+        message ||
+        'Your existing payroll data has not been changed.'
+      );
+  },
+
+  /**
+   * Renders detail loading state.
+   */
+  renderDetailLoading: function() {
+    const content =
+      document.getElementById(
+        'payroll-centre-detail-content'
+      );
+
+    if (!content) {
+      return;
+    }
+
+    content.innerHTML =
+      '<div class="payroll-centre-state payroll-centre-state--loading">' +
+        '<div class="payroll-centre-state__spinner" aria-hidden="true"></div>' +
+        '<p class="payroll-centre-state__message">Loading payslip details</p>' +
+      '</div>';
+  },
+
+  /**
+   * Renders detail error.
+   *
+   * @param {string} message Error message.
+   */
+  renderDetailError: function(message) {
+    const content =
+      document.getElementById(
+        'payroll-centre-detail-content'
+      );
+
+    if (!content) {
+      return;
+    }
+
+    content.replaceChildren();
+
+    const error =
+      document.createElement(
+        'div'
+      );
+
+    error.className =
+      'payroll-centre-state payroll-centre-state--error';
+
+    const title =
+      document.createElement(
+        'h5'
+      );
+
+    title.className =
+      'payroll-centre-state__title';
+
+    title.textContent =
+      'Payslip details could not be loaded';
+
+    const description =
+      document.createElement(
+        'p'
+      );
+
+    description.className =
+      'payroll-centre-state__message';
+
+    description.textContent =
+      message;
+
+    error.appendChild(
+      title
+    );
+
+    error.appendChild(
+      description
+    );
+
+    content.appendChild(
+      error
+    );
+  },
+
+  /**
+   * Runs an Apps Script server function.
+   *
+   * @param {string} functionName Function.
+   * @param {...*} args Arguments.
+   * @return {Promise<*>} Result.
+   */
+  runServerFunction: function(
+    functionName
+  ) {
+    const args =
+      Array.prototype.slice.call(
+        arguments,
+        1
+      );
+
+    if (
+      window.PayTrackerAppController &&
+      typeof window
+        .PayTrackerAppController
+        .runServerFunction ===
+        'function'
+    ) {
+      return window
+        .PayTrackerAppController
+        .runServerFunction
+        .apply(
+          window.PayTrackerAppController,
+          [functionName].concat(args)
+        );
+    }
+
+    return new Promise(function(
+      resolve,
+      reject
+    ) {
+      if (
+        !window.google ||
+        !google.script ||
+        !google.script.run
+      ) {
+        reject(
+          new Error(
+            'Google Apps Script connection is unavailable.'
+          )
+        );
+
+        return;
+      }
+
+      let runner =
+        google.script.run
+          .withSuccessHandler(
+            resolve
+          )
+          .withFailureHandler(
+            reject
+          );
+
+      runner[functionName]
+        .apply(
+          runner,
+          args
+        );
+    });
+  },
+
+  /**
+   * Returns the Payroll Group display name.
+   *
+   * @param {string} payrollGroupId Group ID.
+   * @return {string} Name.
+   */
+  getPayrollGroupName: function(
+    payrollGroupId
+  ) {
+    const data =
+      PayTrackerPayrollCentreService
+        .state
+        .data || {};
+
+    const groups =
+      Array.isArray(
+        data.payrollGroups
+      )
+        ? data.payrollGroups
+        : [];
+
+    const matchingGroup =
+      groups.find(function(group) {
+        return (
+          group.payrollGroupId ===
+          payrollGroupId
+        );
+      });
+
+    return matchingGroup
+      ? matchingGroup.payrollGroupName
+      : 'Combined Payroll';
+  },
+
+  /**
+   * Creates a normal table cell.
+   *
+   * @param {string} value Value.
+   * @param {string=} className Class.
+   * @return {HTMLTableCellElement} Cell.
+   */
+  createTableCell: function(
+    value,
+    className
+  ) {
+    const cell =
+      document.createElement(
+        'td'
+      );
+
+    if (className) {
+      cell.className =
+        className;
+    }
+
+    cell.textContent =
+      value === undefined ||
+      value === null ||
+      value === ''
+        ? '—'
+        : String(value);
+
+    return cell;
+  },
+
+  /**
+   * Creates a currency cell.
+   *
+   * @param {*} value Amount.
+   * @return {HTMLTableCellElement} Cell.
+   */
+  createCurrencyCell: function(value) {
+    return PayTrackerPayrollCentreService
+      .createTableCell(
+        PayTrackerPayrollCentreService
+          .formatCurrency(value),
+        'payroll-centre-table__currency'
+      );
+  },
+
+  /**
+   * Creates a status table cell.
+   *
+   * @param {string} status Status.
+   * @param {string} type Status type.
+   * @return {HTMLTableCellElement} Cell.
+   */
+  createStatusCell: function(
+    status,
+    type
+  ) {
+    const cell =
+      document.createElement(
+        'td'
+      );
+
+    cell.appendChild(
+      PayTrackerPayrollCentreService
+        .createStatusBadge(
+          status,
+          type
+        )
+    );
+
+    return cell;
+  },
+
+  /**
+   * Creates a status badge.
+   *
+   * @param {string} status Status.
+   * @param {string} type Status type.
+   * @return {HTMLElement} Badge.
+   */
+  createStatusBadge: function(
+    status,
+    type
+  ) {
+    const badge =
+      document.createElement(
+        'span'
+      );
+
+    const statusKey =
+      PayTrackerPayrollCentreService
+        .normalizeClassName(
+          status
+        );
+
+    badge.className =
+      [
+        'payroll-centre-status',
+        'payroll-centre-status--' +
+          statusKey,
+        type
+          ? 'payroll-centre-status--' +
+            PayTrackerPayrollCentreService
+              .normalizeClassName(type)
+          : ''
+      ]
+        .filter(Boolean)
+        .join(' ');
+
+    badge.textContent =
+      PayTrackerPayrollCentreService
+        .formatStatusLabel(
+          status
+        );
+
+    return badge;
+  },
+
+  /**
+   * Creates a detail section.
+   *
+   * @param {string} title Section title.
+   * @return {HTMLElement} Section.
+   */
+  createDetailSection: function(title) {
+    const section =
+      document.createElement(
+        'section'
+      );
+
+    section.className =
+      'payroll-centre-detail-section';
+
+    const heading =
+      document.createElement(
+        'h5'
+      );
+
+    heading.className =
+      'payroll-centre-detail-section__title';
+
+    heading.textContent =
+      title;
+
+    section.appendChild(
+      heading
+    );
+
+    return section;
+  },
+
+  /**
+   * Creates a detail grid.
+   *
+   * @param {Array<Object>} items Items.
+   * @return {HTMLElement} Grid.
+   */
+  createDetailGrid: function(items) {
+    const grid =
+      document.createElement(
+        'dl'
+      );
+
+    grid.className =
+      'payroll-centre-detail-grid';
+
+    items.forEach(function(item) {
+      grid.appendChild(
+        PayTrackerPayrollCentreService
+          .createDetailPair(
+            item.label,
+            item.value
+          )
+      );
+    });
+
+    return grid;
+  },
+
+  /**
+   * Creates one description-list pair.
+   *
+   * @param {string} label Label.
+   * @param {string} value Value.
+   * @return {HTMLElement} Pair.
+   */
+  createDetailPair: function(
+    label,
+    value
+  ) {
+    const pair =
+      document.createElement(
+        'div'
+      );
+
+    pair.className =
+      'payroll-centre-detail-pair';
+
+    const term =
+      document.createElement(
+        'dt'
+      );
+
+    term.textContent =
+      label;
+
+    const description =
+      document.createElement(
+        'dd'
+      );
+
+    description.textContent =
+      value === undefined ||
+      value === null ||
+      value === ''
+        ? '—'
+        : String(value);
+
+    pair.appendChild(
+      term
+    );
+
+    pair.appendChild(
+      description
+    );
+
+    return pair;
+  },
+
+  /**
+   * Creates a labelled status row.
+   *
+   * @param {string} label Label.
+   * @param {string} status Status.
+   * @param {string} type Type.
+   * @return {HTMLElement} Row.
+   */
+  createStatusRow: function(
+    label,
+    status,
+    type
+  ) {
+    const row =
+      document.createElement(
+        'div'
+      );
+
+    row.className =
+      'payroll-centre-detail-status-row';
+
+    const text =
+      document.createElement(
+        'span'
+      );
+
+    text.textContent =
+      label;
+
+    row.appendChild(
+      text
+    );
+
+    row.appendChild(
+      PayTrackerPayrollCentreService
+        .createStatusBadge(
+          status,
+          type
+        )
+    );
+
+    return row;
+  },
+
+  /**
+   * Opens a safe external URL.
+   *
+   * @param {string} url URL.
+   */
+  openExternalUrl: function(url) {
+    const value =
+      String(
+        url || ''
+      ).trim();
+
+    if (
+      value.indexOf(
+        'https://'
+      ) !== 0
+    ) {
+      PayTrackerPayrollCentreService
+        .showToast(
+          'The payslip file link is unavailable.',
+          'error'
+        );
+
+      return;
+    }
+
+    window.open(
+      value,
+      '_blank',
+      'noopener,noreferrer'
+    );
+  },
+
+  /**
+   * Copies text to clipboard.
+   *
+   * @param {string} value Text.
+   */
+  copyText: function(value) {
+    const text =
+      String(
+        value || ''
+      ).trim();
+
+    if (!text) {
+      return;
+    }
+
+    if (
+      navigator.clipboard &&
+      typeof navigator.clipboard
+        .writeText ===
+        'function'
+    ) {
+      navigator.clipboard
+        .writeText(text)
+        .then(function() {
+          PayTrackerPayrollCentreService
+            .showToast(
+              'Payslip ID copied.',
+              'success'
+            );
+        })
+        .catch(function() {
+          PayTrackerPayrollCentreService
+            .showToast(
+              'The Payslip ID could not be copied.',
+              'error'
+            );
+        });
+    }
+  },
+
+  /**
+   * Shows Payroll Centre message.
+   *
+   * @param {string} message Message.
+   * @param {string} type Type.
+   */
+  showMessage: function(
+    message,
+    type
+  ) {
+    const element =
+      document.getElementById(
+        'payroll-centre-message'
+      );
+
+    if (!element) {
+      return;
+    }
+
+    element.hidden = false;
+
+    element.className =
+      [
+        'payroll-centre-message',
+        type
+          ? 'payroll-centre-message--' +
+            type
+          : ''
+      ]
+        .filter(Boolean)
+        .join(' ');
+
+    element.textContent =
+      message;
+
+    window.setTimeout(
+      function() {
+        element.hidden = true;
+      },
+      4500
+    );
+  },
+
+  /**
+   * Shows the existing Pay Tracker toast system.
+   *
+   * @param {string} message Message.
+   * @param {string} type Type.
+   */
+  showToast: function(
+    message,
+    type
+  ) {
+    if (
+      window.PayTrackerAppController &&
+      typeof window
+        .PayTrackerAppController
+        .showToast ===
+        'function'
+    ) {
+      window.PayTrackerAppController
+        .showToast(
+          message,
+          type
+        );
+
+      return;
+    }
+
+    PayTrackerPayrollCentreService
+      .showMessage(
+        message,
+        type
+      );
+  },
+
+  /**
+   * Sets Payroll Centre busy state.
+   *
+   * @param {boolean} busy Busy.
+   */
+  setBusy: function(busy) {
+    const panel =
+      document.getElementById(
+        'payroll-centre-panel'
+      );
+
+    if (panel) {
+      panel.setAttribute(
+        'aria-busy',
+        busy
+          ? 'true'
+          : 'false'
+      );
+    }
+
+    [
+      'payroll-centre-refresh-button',
+      'payroll-centre-scan-button'
+    ].forEach(function(elementId) {
+      const button =
+        document.getElementById(
+          elementId
+        );
+
+      if (button) {
+        button.disabled =
+          busy === true;
+      }
+    });
+  },
+
+  /**
+   * Checks whether Payslips panel is active.
+   *
+   * @return {boolean} Active.
+   */
+  isPayslipPanelActive: function() {
+    const panel =
+      document.querySelector(
+        '[data-pay-panel="payslips"]'
+      );
+
+    return Boolean(
+      panel &&
+      panel.hidden === false
+    );
+  },
+
+  /**
+   * Returns whether filters are active.
+   *
+   * @param {Object} filters Filters.
+   * @return {boolean} Active.
+   */
+  hasActiveFilters: function(filters) {
+    return Object.keys(
+      filters || {}
+    ).some(function(key) {
+      return Boolean(
+        filters[key]
+      );
+    });
+  },
+
+  /**
+   * Shows one element.
+   *
+   * @param {string} elementId Element ID.
+   */
+  showElement: function(elementId) {
+    const element =
+      document.getElementById(
+        elementId
+      );
+
+    if (element) {
+      element.hidden = false;
+    }
+  },
+
+  /**
+   * Hides one element.
+   *
+   * @param {string} elementId Element ID.
+   */
+  hideElement: function(elementId) {
+    const element =
+      document.getElementById(
+        elementId
+      );
+
+    if (element) {
+      element.hidden = true;
+    }
+  },
+
+  /**
+   * Sets element text.
+   *
+   * @param {string} elementId Element ID.
+   * @param {*} value Value.
+   */
+  setText: function(
+    elementId,
+    value
+  ) {
+    const element =
+      document.getElementById(
+        elementId
+      );
+
+    if (element) {
+      element.textContent =
+        value === undefined ||
+        value === null
+          ? ''
+          : String(value);
+    }
+  },
+
+  /**
+   * Gets input value.
+   *
+   * @param {string} elementId Element ID.
+   * @return {string} Value.
+   */
+  getInputValue: function(elementId) {
+    const element =
+      document.getElementById(
+        elementId
+      );
+
+    return element
+      ? String(
+          element.value || ''
+        ).trim()
+      : '';
+  },
+
+  /**
+   * Formats currency.
+   *
+   * @param {*} value Amount.
+   * @return {string} Currency.
+   */
+  formatCurrency: function(value) {
+    const amount =
+      PayTrackerPayrollCentreService
+        .toNumber(
+          value
+        );
+
+    if (amount === 0) {
+      return '—';
+    }
+
+    return new Intl.NumberFormat(
+      'en-GB',
+      {
+        style: 'currency',
+        currency: 'GBP'
+      }
+    ).format(amount);
+  },
+
+  /**
+   * Formats a currency value from a completed extraction.
+   *
+   * A genuine zero is displayed as £0.00. Unprocessed
+   * register values continue to use the pending marker.
+   *
+   * @param {*} value Amount.
+   * @param {boolean} extracted Extraction is available.
+   * @return {string} Currency or pending marker.
+   */
+  formatExtractedCurrency: function(
+    value,
+    extracted
+  ) {
+    if (extracted !== true) {
+      return PayTrackerPayrollCentreService
+        .formatCurrency(
+          value
+        );
+    }
+
+    return new Intl.NumberFormat(
+      'en-GB',
+      {
+        style: 'currency',
+        currency: 'GBP'
+      }
+    ).format(
+      PayTrackerPayrollCentreService
+        .toNumber(
+          value
+        )
+    );
+  },
+
+  /**
+   * Formats hours without hiding a genuine zero.
+   *
+   * @param {*} value Hours.
+   * @return {string} Formatted hours.
+   */
+  formatHours: function(value) {
+    const hours =
+      PayTrackerPayrollCentreService
+        .toNumber(
+          value
+        );
+
+    return new Intl.NumberFormat(
+      'en-GB',
+      {
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 2
+      }
+    ).format(hours) +
+      ' hrs';
+  },
+
+  /**
+   * Formats a parser confidence score.
+   *
+   * @param {*} value Confidence score.
+   * @return {string} Percentage.
+   */
+  formatPercentage: function(value) {
+    const score =
+      PayTrackerPayrollCentreService
+        .toNumber(
+          value
+        );
+
+    const percentage =
+      score > 0 &&
+      !(score > 1)
+        ? score * 100
+        : score;
+
+    return new Intl.NumberFormat(
+      'en-GB',
+      {
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 1
+      }
+    ).format(percentage) +
+      '%';
+  },
+
+  /**
+   * Formats integer.
+   *
+   * @param {*} value Value.
+   * @return {string} Integer.
+   */
+  formatInteger: function(value) {
+    return new Intl.NumberFormat(
+      'en-GB',
+      {
+        maximumFractionDigits: 0
+      }
+    ).format(
+      PayTrackerPayrollCentreService
+        .toNumber(
+          value
+        )
+    );
+  },
+
+  /**
+   * Formats a date.
+   *
+   * @param {*} value Date.
+   * @return {string} Date.
+   */
+  formatDate: function(value) {
+    const date =
+      PayTrackerPayrollCentreService
+        .toDate(
+          value
+        );
+
+    if (!date) {
+      return '—';
+    }
+
+    return new Intl.DateTimeFormat(
+      'en-GB',
+      {
+        day: '2-digit',
+        month: 'short',
+        year: 'numeric'
+      }
+    ).format(date);
+  },
+
+  /**
+   * Formats date or pending label.
+   *
+   * @param {*} value Date.
+   * @return {string} Value.
+   */
+  formatDateOrPending: function(value) {
+    return value
+      ? PayTrackerPayrollCentreService
+          .formatDate(value)
+      : 'Not extracted';
+  },
+
+  /**
+   * Formats date and time.
+   *
+   * @param {*} value Date.
+   * @return {string} Date/time.
+   */
+  formatDateTime: function(value) {
+    const date =
+      PayTrackerPayrollCentreService
+        .toDate(
+          value
+        );
+
+    if (!date) {
+      return 'Unknown time';
+    }
+
+    return new Intl.DateTimeFormat(
+      'en-GB',
+      {
+        day: '2-digit',
+        month: 'short',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      }
+    ).format(date);
+  },
+
+  /**
+   * Formats a file size.
+   *
+   * @param {*} value Bytes.
+   * @return {string} File size.
+   */
+  formatFileSize: function(value) {
+    const bytes =
+      PayTrackerPayrollCentreService
+        .toNumber(
+          value
+        );
+
+    if (!bytes) {
+      return 'Unknown size';
+    }
+
+    if (bytes >= 1048576) {
+      return (
+        Math.round(
+          bytes /
+          1048576 *
+          10
+        ) /
+        10
+      ) + ' MB';
+    }
+
+    return (
+      Math.round(
+        bytes /
+        1024 *
+        10
+      ) /
+      10
+    ) + ' KB';
+  },
+
+  /**
+   * Formats status text.
+   *
+   * @param {*} value Status.
+   * @return {string} Label.
+   */
+  formatStatusLabel: function(value) {
+    const text =
+      String(
+        value || ''
+      )
+        .replace(
+          /[_-]+/g,
+          ' '
+        )
+        .trim();
+
+    if (!text) {
+      return 'Not available';
+    }
+
+    return text
+      .split(' ')
+      .map(function(word) {
+        return (
+          word.charAt(0).toUpperCase() +
+          word.slice(1).toLowerCase()
+        );
+      })
+      .join(' ');
+  },
+
+  /**
+   * Normalizes CSS class text.
+   *
+   * @param {*} value Value.
+   * @return {string} Class-safe value.
+   */
+  normalizeClassName: function(value) {
+    return String(
+      value || 'unknown'
+    )
+      .toLowerCase()
+      .replace(
+        /[^a-z0-9]+/g,
+        '-'
+      )
+      .replace(
+        /^-+|-+$/g,
+        ''
+      ) ||
+      'unknown';
+  },
+
+  /**
+   * Normalizes comparison text.
+   *
+   * @param {*} value Value.
+   * @return {string} Text.
+   */
+  normalizeText: function(value) {
+    return String(
+      value === undefined ||
+      value === null
+        ? ''
+        : value
+    )
+      .trim()
+      .toLowerCase();
+  },
+
+  /**
+   * Converts to number.
+   *
+   * @param {*} value Value.
+   * @return {number} Number.
+   */
+  toNumber: function(value) {
+    const number =
+      Number(value);
+
+    return Number.isFinite(number)
+      ? number
+      : 0;
+  },
+
+  /**
+   * Converts to Date.
+   *
+   * @param {*} value Value.
+   * @return {Date|null} Date.
+   */
+  toDate: function(value) {
+    if (!value) {
+      return null;
+    }
+
+    const date =
+      value instanceof Date
+        ? value
+        : new Date(value);
+
+    return Number.isNaN(
+      date.getTime()
+    )
+      ? null
+      : date;
+  },
+
+  /**
+   * Returns safe error message.
+   *
+   * @param {*} error Error.
+   * @return {string} Message.
+   */
+  getErrorMessage: function(error) {
+    if (!error) {
+      return 'Unknown Payroll Centre error.';
+    }
+
+    return error.message
+      ? String(error.message)
+      : String(error);
+  }
+});
+
+window.PayTrackerPayrollCentreService =
+  PayTrackerPayrollCentreService;
+
+  if (
+  document.readyState ===
+  'loading'
+) {
+  document.addEventListener(
+    'DOMContentLoaded',
+    function() {
+      PayTrackerPayrollCentreService
+        .initialize();
+    }
+  );
+} else {
+  PayTrackerPayrollCentreService
+    .initialize();
+}

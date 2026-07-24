@@ -1,0 +1,605 @@
+/*******************************************************
+ * PAY TRACKER V2.8
+ * Frontend/Services/PayAnalyticsService.html
+ *
+ * Purpose:
+ * - Summarize every populated PaySheet week
+ * - Visualize weekly gross earnings
+ * - Show employer contribution
+ * - Summarize imported-payslip comparison coverage
+ *******************************************************/
+
+var PayTrackerPayAnalyticsService = Object.freeze({
+  initialized: false,
+
+  initialize: function() {
+    if (
+      PayTrackerPayAnalyticsService
+        .initialized
+    ) {
+      return;
+    }
+
+    PayTrackerPayAnalyticsService
+      .initialized = true;
+
+    document.addEventListener(
+      'click',
+      function(event) {
+        const target =
+          event.target instanceof Element
+            ? event.target
+            : null;
+
+        if (
+          target &&
+          target.closest(
+            '[data-pay-tab="analytics"]'
+          )
+        ) {
+          window.setTimeout(
+            PayTrackerPayAnalyticsService
+              .render,
+            0
+          );
+        }
+      }
+    );
+  },
+
+  render: function() {
+    if (
+      window.PayTrackerPayrollCentreService &&
+      window
+        .PayTrackerPayrollCentreService
+        .state
+        .loaded !== true &&
+      window
+        .PayTrackerPayrollCentreService
+        .state
+        .loading !== true
+    ) {
+      window
+        .PayTrackerPayrollCentreService
+        .load()
+        .then(function() {
+          if (
+            window
+              .PayTrackerPayrollCentreService
+              .state
+              .loaded === true
+          ) {
+            PayTrackerPayAnalyticsService
+              .render();
+          }
+        });
+
+      return;
+    }
+
+    const payData =
+      window.PayTrackerPayWorkspaceService
+        ? window
+            .PayTrackerPayWorkspaceService
+            .state
+            .data || {}
+        : {};
+
+    const payrollData =
+      window.PayTrackerPayrollCentreService
+        ? window
+            .PayTrackerPayrollCentreService
+            .state
+            .data || {}
+        : {};
+
+    const weeks =
+      Array.isArray(payData.weeks)
+        ? payData.weeks.filter(
+            function(week) {
+              return (
+                week &&
+                week.hasData === true
+              );
+            }
+          )
+        : [];
+
+    const totals =
+      weeks.reduce(
+        function(result, week) {
+          result.gross +=
+            PayTrackerPayAnalyticsService
+              .toNumber(week.gross);
+
+          result.takeHome +=
+            PayTrackerPayAnalyticsService
+              .toNumber(week.takeHome);
+
+          result.hours +=
+            PayTrackerPayAnalyticsService
+              .toNumber(week.totalHours);
+
+          return result;
+        },
+        {
+          gross: 0,
+          takeHome: 0,
+          hours: 0
+        }
+      );
+
+    PayTrackerPayAnalyticsService
+      .setText(
+        'pay-analytics-total-gross',
+        PayTrackerPayAnalyticsService
+          .formatCurrency(totals.gross)
+      );
+
+    PayTrackerPayAnalyticsService
+      .setText(
+        'pay-analytics-total-gross-meta',
+        weeks.length +
+        (
+          weeks.length === 1
+            ? ' populated week'
+            : ' populated weeks'
+        )
+      );
+
+    PayTrackerPayAnalyticsService
+      .setText(
+        'pay-analytics-take-home',
+        PayTrackerPayAnalyticsService
+          .formatCurrency(totals.takeHome)
+      );
+
+    PayTrackerPayAnalyticsService
+      .setText(
+        'pay-analytics-take-home-meta',
+        totals.gross
+          ? PayTrackerPayAnalyticsService
+              .formatPercentage(
+                (
+                  totals.takeHome /
+                  totals.gross
+                ) *
+                100
+              ) +
+              ' retained'
+          : 'After deductions'
+      );
+
+    PayTrackerPayAnalyticsService
+      .setText(
+        'pay-analytics-hours',
+        PayTrackerPayAnalyticsService
+          .formatNumber(totals.hours)
+      );
+
+    PayTrackerPayAnalyticsService
+      .setText(
+        'pay-analytics-hours-meta',
+        weeks.length
+          ? PayTrackerPayAnalyticsService
+              .formatNumber(
+                totals.hours /
+                weeks.length
+              ) +
+              ' average per week'
+          : 'Across all employers'
+      );
+
+    PayTrackerPayAnalyticsService
+      .renderTrend(
+        weeks
+      );
+
+    PayTrackerPayAnalyticsService
+      .renderEmployers(
+        weeks
+      );
+
+    PayTrackerPayAnalyticsService
+      .renderPayroll(
+        payrollData.payslips
+      );
+  },
+
+  renderTrend: function(weeks) {
+    const container =
+      document.getElementById(
+        'pay-analytics-trend'
+      );
+
+    if (!container) {
+      return;
+    }
+
+    container.replaceChildren();
+
+    const recent =
+      weeks.slice(-12);
+
+    const maximum =
+      recent.reduce(
+        function(value, week) {
+          return Math.max(
+            value,
+            PayTrackerPayAnalyticsService
+              .toNumber(week.gross)
+          );
+        },
+        0
+      );
+
+    const total =
+      recent.reduce(
+        function(value, week) {
+          return (
+            value +
+            PayTrackerPayAnalyticsService
+              .toNumber(week.gross)
+          );
+        },
+        0
+      );
+
+    PayTrackerPayAnalyticsService
+      .setText(
+        'pay-analytics-weekly-average',
+        'Average ' +
+        PayTrackerPayAnalyticsService
+          .formatCurrency(
+            recent.length
+              ? total /
+                recent.length
+              : 0
+          )
+      );
+
+    if (!recent.length) {
+      container.textContent =
+        'No populated weeks are available.';
+      return;
+    }
+
+    recent.forEach(function(week) {
+      const item =
+        document.createElement('div');
+
+      item.className =
+        'pay-analytics-trend__item';
+
+      const value =
+        PayTrackerPayAnalyticsService
+          .toNumber(week.gross);
+
+      const bar =
+        document.createElement('span');
+
+      bar.className =
+        'pay-analytics-trend__bar';
+
+      bar.style.height =
+        Math.max(
+          8,
+          maximum
+            ? (
+                value /
+                maximum
+              ) *
+              100
+            : 8
+        ) +
+        '%';
+
+      bar.title =
+        PayTrackerPayAnalyticsService
+          .formatCurrency(value);
+
+      const label =
+        document.createElement('small');
+
+      label.textContent =
+        'W' +
+        week.weekNumber;
+
+      item.appendChild(bar);
+      item.appendChild(label);
+      container.appendChild(item);
+    });
+  },
+
+  renderEmployers: function(weeks) {
+    const container =
+      document.getElementById(
+        'pay-analytics-employers'
+      );
+
+    if (!container) {
+      return;
+    }
+
+    container.replaceChildren();
+
+    const employerTotals = {};
+
+    weeks.forEach(function(week) {
+      const employers =
+        week.employers || {};
+
+      Object.keys(employers)
+        .forEach(function(key) {
+          const employer =
+            employers[key] || {};
+
+          if (!employerTotals[key]) {
+            employerTotals[key] = {
+              name:
+                employer.name ||
+                employer.displayName ||
+                key,
+              total: 0
+            };
+          }
+
+          employerTotals[key].total +=
+            PayTrackerPayAnalyticsService
+              .toNumber(
+                employer.total ||
+                employer.gross
+              );
+        });
+    });
+
+    const records =
+      Object.keys(employerTotals)
+        .map(function(key) {
+          return employerTotals[key];
+        })
+        .filter(function(record) {
+          return record.total !== 0;
+        })
+        .sort(function(left, right) {
+          return right.total - left.total;
+        });
+
+    const maximum =
+      records.length
+        ? records[0].total
+        : 0;
+
+    if (!records.length) {
+      container.textContent =
+        'No employer earnings are available.';
+      return;
+    }
+
+    records.forEach(function(record) {
+      const row =
+        document.createElement('div');
+
+      row.className =
+        'pay-analytics-employer';
+
+      row.innerHTML =
+        '<div class="pay-analytics-employer__heading">' +
+          '<span></span><strong></strong>' +
+        '</div>' +
+        '<div class="pay-analytics-employer__track">' +
+          '<span></span>' +
+        '</div>';
+
+      row.querySelector('span')
+        .textContent =
+          record.name;
+
+      row.querySelector('strong')
+        .textContent =
+          PayTrackerPayAnalyticsService
+            .formatCurrency(record.total);
+
+      row.querySelector(
+        '.pay-analytics-employer__track span'
+      ).style.width =
+        (
+          maximum
+            ? (
+                record.total /
+                maximum
+              ) *
+              100
+            : 0
+        ) +
+        '%';
+
+      container.appendChild(row);
+    });
+  },
+
+  renderPayroll: function(payslips) {
+    const container =
+      document.getElementById(
+        'pay-analytics-payroll-statuses'
+      );
+
+    if (!container) {
+      return;
+    }
+
+    container.replaceChildren();
+
+    const records =
+      Array.isArray(payslips)
+        ? payslips
+        : [];
+
+    const counts = {
+      matched: 0,
+      variance: 0,
+      review: 0,
+      incomplete: 0
+    };
+
+    records.forEach(function(payslip) {
+      const status =
+        String(
+          payslip.comparisonStatus ||
+          ''
+        ).toLowerCase();
+
+      if (status === 'matched') {
+        counts.matched += 1;
+      } else if (
+        status === 'minor variance'
+      ) {
+        counts.variance += 1;
+      } else if (
+        status === 'review' ||
+        status === 'major discrepancy'
+      ) {
+        counts.review += 1;
+      } else {
+        counts.incomplete += 1;
+      }
+    });
+
+    const compared =
+      counts.matched +
+      counts.variance +
+      counts.review;
+
+    const coverage =
+      records.length
+        ? (
+            compared /
+            records.length
+          ) *
+          100
+        : 0;
+
+    PayTrackerPayAnalyticsService
+      .setText(
+        'pay-analytics-coverage',
+        PayTrackerPayAnalyticsService
+          .formatPercentage(coverage)
+      );
+
+    PayTrackerPayAnalyticsService
+      .setText(
+        'pay-analytics-coverage-meta',
+        compared +
+        ' of ' +
+        records.length +
+        ' payslips compared'
+      );
+
+    PayTrackerPayAnalyticsService
+      .setText(
+        'pay-analytics-payroll-meta',
+        records.length +
+        ' imported payslips'
+      );
+
+    [
+      {
+        label: 'Matched',
+        value: counts.matched,
+        tone: 'success'
+      },
+      {
+        label: 'Minor variance',
+        value: counts.variance,
+        tone: 'info'
+      },
+      {
+        label: 'Needs review',
+        value: counts.review,
+        tone: 'danger'
+      },
+      {
+        label: 'No forecast week',
+        value: counts.incomplete,
+        tone: 'neutral'
+      }
+    ].forEach(function(item) {
+      const card =
+        document.createElement('article');
+
+      card.className =
+        'pay-analytics-status ' +
+        'pay-analytics-status--' +
+        item.tone;
+
+      card.innerHTML =
+        '<strong></strong><span></span>';
+
+      card.querySelector('strong')
+        .textContent =
+          String(item.value);
+
+      card.querySelector('span')
+        .textContent =
+          item.label;
+
+      container.appendChild(card);
+    });
+  },
+
+  toNumber: function(value) {
+    const number =
+      Number(value);
+
+    return Number.isFinite(number)
+      ? number
+      : 0;
+  },
+
+  formatCurrency: function(value) {
+    return new Intl.NumberFormat(
+      'en-GB',
+      {
+        style: 'currency',
+        currency: 'GBP'
+      }
+    ).format(
+      PayTrackerPayAnalyticsService
+        .toNumber(value)
+    );
+  },
+
+  formatNumber: function(value) {
+    return new Intl.NumberFormat(
+      'en-GB',
+      {
+        maximumFractionDigits: 1
+      }
+    ).format(
+      PayTrackerPayAnalyticsService
+        .toNumber(value)
+    );
+  },
+
+  formatPercentage: function(value) {
+    return (
+      PayTrackerPayAnalyticsService
+        .toNumber(value)
+        .toFixed(1) +
+      '%'
+    );
+  },
+
+  setText: function(id, value) {
+    const element =
+      document.getElementById(id);
+
+    if (element) {
+      element.textContent =
+        String(value);
+    }
+  }
+});
+
+PayTrackerPayAnalyticsService
+  .initialize();
