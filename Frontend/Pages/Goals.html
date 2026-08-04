@@ -1,0 +1,65 @@
+<div
+  class="goals-workspace"
+  data-goals-workspace
+>
+  <div class="page-header goals-header">
+    <div>
+      <p class="page-header__eyebrow">
+        Future planning
+      </p>
+
+      <h2 class="page-header__title">
+        Life Goals
+      </h2>
+
+      <p class="page-header__description">
+        Track major financial goals and estimated completion dates based
+        on the savings pots linked to each one.
+      </p>
+    </div>
+
+    <div class="goals-header__actions">
+      <button
+        class="button button--secondary"
+        type="button"
+        data-goals-refresh
+      >
+        Refresh
+      </button>
+    </div>
+  </div>
+
+  <div
+    class="goals-notice"
+    data-goals-notice
+    hidden
+  ></div>
+
+  <div class="goals-loading" data-goals-loading>
+    Loading your life goals…
+  </div>
+
+  <div data-goals-content hidden>
+    <div class="goals-metric-grid">
+      <article class="goals-metric goals-metric--saved">
+        <span>Total saved toward goals</span>
+        <strong data-goals-metric="saved">£0.00</strong>
+        <small data-goals-progress-label>0% of target</small>
+      </article>
+
+      <article class="goals-metric">
+        <span>Total goal target</span>
+        <strong data-goals-metric="target">£0.00</strong>
+        <small data-goals-remaining-label>£0.00 remaining</small>
+      </article>
+
+      <article class="goals-metric">
+        <span>Active goals</span>
+        <strong data-goals-metric="active">0</strong>
+        <small data-goals-completed-label>0 completed</small>
+      </article>
+    </div>
+
+    <div class="goals-grid" data-goals-grid></div>
+  </div>
+</div>
