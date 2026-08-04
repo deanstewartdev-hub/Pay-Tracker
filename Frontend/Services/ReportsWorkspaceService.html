@@ -253,9 +253,7 @@
                 money(month.saved),
               '</td>',
               '<td class="',
-                month.net >= 0
-                  ? 'reports-net--positive'
-                  : 'reports-net--negative',
+                netClass(month.net),
               '">',
                 money(month.net),
               '</td>',
@@ -268,6 +266,17 @@
           'No monthly activity has been recorded yet.'
         )
     );
+  }
+
+  function netClass(value) {
+    const isNegative =
+      Math.sign(
+        Number(value) || 0
+      ) === -1;
+
+    return isNegative
+      ? 'reports-net--negative'
+      : 'reports-net--positive';
   }
 
   function barHeight(value, maxValue) {

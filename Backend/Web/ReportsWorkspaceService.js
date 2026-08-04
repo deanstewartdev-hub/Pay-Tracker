@@ -28,6 +28,10 @@ const PayTrackerWebReportsWorkspaceService =
         );
       }
 
+      const payWeeks =
+        PayTrackerWebReportsWorkspaceService
+          .readPayWeeks(spreadsheet);
+
       return {
         success: true,
         generatedAt:
@@ -36,14 +40,28 @@ const PayTrackerWebReportsWorkspaceService =
           spreadsheet.getUrl(),
         weeklyEarnings:
           PayTrackerWebReportsWorkspaceService
-            .buildWeeklyEarnings(spreadsheet),
+            .buildWeeklyEarnings(payWeeks),
         monthlySummary:
           PayTrackerWebReportsWorkspaceService
-            .buildMonthlySummary(spreadsheet)
+            .buildMonthlySummary(
+              spreadsheet,
+              payWeeks
+            )
       };
     },
 
-    buildWeeklyEarnings: function(spreadsheet) {
+    /**
+     * Reads the PaySheet once and returns every week that has
+     * recorded shift data.
+     *
+     * Both the weekly chart and the monthly income column need
+     * this data, so it is read a single time and shared rather
+     * than re-reading the whole PaySheet per caller.
+     *
+     * @param {GoogleAppsScript.Spreadsheet.Spreadsheet} spreadsheet
+     * @return {Object[]}
+     */
+    readPayWeeks: function(spreadsheet) {
       const sheetName =
         PayTrackerWebPayWorkspaceService
           .getPaySheetName();
@@ -64,7 +82,11 @@ const PayTrackerWebReportsWorkspaceService =
       return payData.weeks
         .filter(function(week) {
           return week.hasData;
-        })
+        });
+    },
+
+    buildWeeklyEarnings: function(payWeeks) {
+      return payWeeks
         .slice(
           -PayTrackerWebReportsWorkspaceService
             .WEEKS_TO_INCLUDE
@@ -88,7 +110,7 @@ const PayTrackerWebReportsWorkspaceService =
         });
     },
 
-    buildMonthlySummary: function(spreadsheet) {
+    buildMonthlySummary: function(spreadsheet, payWeeks) {
       const months =
         PayTrackerWebReportsWorkspaceService
           .buildRecentMonthBuckets(
@@ -98,7 +120,7 @@ const PayTrackerWebReportsWorkspaceService =
 
       PayTrackerWebReportsWorkspaceService
         .addIncomeToMonths(
-          spreadsheet,
+          payWeeks,
           months
         );
 
@@ -197,31 +219,13 @@ const PayTrackerWebReportsWorkspaceService =
       return months;
     },
 
-    addIncomeToMonths: function(spreadsheet, months) {
-      const sheetName =
-        PayTrackerWebPayWorkspaceService
-          .getPaySheetName();
-
-      const sheet =
-        spreadsheet.getSheetByName(
-          sheetName
-        );
-
-      if (!sheet) {
-        return;
-      }
-
+    addIncomeToMonths: function(payWeeks, months) {
       const timezone =
         Session.getScriptTimeZone();
 
-      const payData =
-        PayTrackerWebPayWorkspaceService
-          .readPaySheet(sheet);
-
-      payData.weeks
+      payWeeks
         .filter(function(week) {
           return (
-            week.hasData &&
             week.weekStart instanceof Date
           );
         })
