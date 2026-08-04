@@ -140,45 +140,12 @@
 
             <section
               id="page-goals"
-              class="page-view placeholder-page"
+              class="page-view"
               data-page="goals"
               aria-hidden="true"
               hidden
             >
-              <div class="page-header">
-                <p class="page-header__eyebrow">
-                  Future planning
-                </p>
-
-                <h2 class="page-header__title">
-                  Life Goals
-                </h2>
-
-                <p class="page-header__description">
-                  Plan major financial goals and estimate how long each goal
-                  should take based on your savings rate.
-                </p>
-              </div>
-
-              <div class="card">
-                <div class="empty-state">
-                  <div
-                    class="empty-state__icon"
-                    aria-hidden="true"
-                  >
-                    ✓
-                  </div>
-
-                  <h3 class="empty-state__title">
-                    Life-goal planning coming soon
-                  </h3>
-
-                  <p class="empty-state__message">
-                    Your existing Life Goals and months-to-goal forecasting
-                    services will be presented here.
-                  </p>
-                </div>
-              </div>
+              <?!= includePayTrackerHtml('Frontend/Pages/Goals'); ?>
             </section>
 
             <section
@@ -453,6 +420,12 @@
     <script>
       <?!= includePayTrackerHtml(
         'Frontend/Services/SavingsWorkspaceService'
+      ); ?>
+    </script>
+
+    <script>
+      <?!= includePayTrackerHtml(
+        'Frontend/Services/GoalsWorkspaceService'
       ); ?>
     </script>
 

@@ -1,0 +1,481 @@
+;(function() {
+  'use strict';
+
+  const state = {
+    loaded: false,
+    loading: false,
+    data: null
+  };
+
+  function init() {
+    const root =
+      document.querySelector(
+        '[data-goals-workspace]'
+      );
+
+    if (!root) {
+      return;
+    }
+
+    bind(root);
+
+    document.addEventListener(
+      'paytracker:route-changed',
+      function(event) {
+        if (
+          event.detail &&
+          event.detail.route ===
+            'goals'
+        ) {
+          load();
+        }
+      }
+    );
+
+    load();
+  }
+
+  function bind(root) {
+    root.addEventListener(
+      'click',
+      function(event) {
+        if (
+          event.target.closest(
+            '[data-goals-refresh]'
+          )
+        ) {
+          load(true);
+        }
+      }
+    );
+  }
+
+  function load(force) {
+    if (
+      state.loading ||
+      (
+        state.loaded &&
+        force !== true
+      )
+    ) {
+      return;
+    }
+
+    state.loading = true;
+    setLoading(true);
+
+    call(
+      'getPayTrackerLifeGoalsWorkspace',
+      function(data) {
+        state.loading = false;
+        setLoading(false);
+
+        if (
+          !data ||
+          typeof data !== 'object'
+        ) {
+          showNotice(
+            'The Life Goals service returned no data. Refresh the page or run the Savings setup again.',
+            true
+          );
+          return;
+        }
+
+        state.loaded = true;
+        state.data = data;
+        render(data);
+      },
+      function(error) {
+        state.loading = false;
+        setLoading(false);
+        showNotice(
+          getError(error),
+          true
+        );
+      }
+    );
+  }
+
+  function render(data) {
+    const summary =
+      data.summary || {};
+
+    setText(
+      '[data-goals-metric="saved"]',
+      money(
+        summary.totalSaved
+      )
+    );
+
+    setText(
+      '[data-goals-progress-label]',
+      percent(
+        summary.overallProgress
+      ) +
+      ' of target'
+    );
+
+    setText(
+      '[data-goals-metric="target"]',
+      money(
+        summary.totalTarget
+      )
+    );
+
+    setText(
+      '[data-goals-remaining-label]',
+      money(
+        summary.totalRemaining
+      ) +
+      ' remaining'
+    );
+
+    setText(
+      '[data-goals-metric="active"]',
+      String(
+        summary.activeGoals || 0
+      )
+    );
+
+    setText(
+      '[data-goals-completed-label]',
+      String(
+        summary.completedGoals || 0
+      ) +
+      ' completed'
+    );
+
+    renderGoals(data.goals || []);
+  }
+
+  function renderGoals(goals) {
+    html(
+      '[data-goals-grid]',
+      goals
+        .map(function(goal) {
+          return [
+            '<article class="goals-card',
+              goal.active === 'Yes'
+                ? ''
+                : ' goals-card--inactive',
+            '">',
+              '<div class="goals-card__header">',
+                '<div>',
+                  '<p class="goals-card__eyebrow">',
+                    escape(goal.category || 'Goal'),
+                  '</p>',
+                  '<h3>',
+                    escape(goal.name),
+                  '</h3>',
+                '</div>',
+                '<span class="goals-priority goals-priority--',
+                  String(goal.priority || 'low').toLowerCase(),
+                '">',
+                  escape(goal.priority || 'Low'),
+                '</span>',
+              '</div>',
+
+              '<div class="goals-progress-track">',
+                '<div class="goals-progress-fill" style="width:',
+                  String(
+                    Math.round(
+                      (
+                        Number(goal.progress) || 0
+                      ) * 100
+                    )
+                  ),
+                  '%"></div>',
+              '</div>',
+
+              '<div class="goals-card__amounts">',
+                '<span>',
+                  money(goal.currentSavings),
+                  ' of ',
+                  money(goal.targetAmount),
+                '</span>',
+                '<span>',
+                  percent(goal.progress),
+                '</span>',
+              '</div>',
+
+              '<div class="goals-card__meta">',
+                '<span>',
+                  money(goal.remaining),
+                  ' remaining',
+                '</span>',
+                '<span>',
+                  formatMonthsRemaining(goal.monthsRemaining),
+                '</span>',
+              '</div>',
+
+              '<div class="goals-card__footer">',
+                '<span class="goals-status ',
+                  statusClass(goal.targetStatus),
+                '">',
+                  escape(goal.targetStatus || 'No Target Date'),
+                '</span>',
+              '</div>',
+
+              renderLinkedPots(goal.linkedPots),
+            '</article>'
+          ].join('');
+        })
+        .join('') ||
+        empty(
+          'No life goals have been added yet.'
+        )
+    );
+  }
+
+  function renderLinkedPots(linkedPots) {
+    const pots =
+      Array.isArray(linkedPots)
+        ? linkedPots
+        : [];
+
+    if (pots.length === 0) {
+      return [
+        '<div class="goals-card__pots goals-card__pots--empty">',
+          'No linked savings pots',
+        '</div>'
+      ].join('');
+    }
+
+    return [
+      '<div class="goals-card__pots">',
+        pots
+          .map(function(pot) {
+            return [
+              '<span class="goals-pot-chip">',
+                escape(pot.name),
+                ' - ',
+                money(pot.currentBalance),
+              '</span>'
+            ].join('');
+          })
+          .join(''),
+      '</div>'
+    ].join('');
+  }
+
+  function statusClass(status) {
+    switch (
+      String(status || '').trim()
+    ) {
+      case 'Complete':
+        return 'goals-status--complete';
+
+      case 'Ahead of Target':
+        return 'goals-status--ahead';
+
+      case 'On Track':
+        return 'goals-status--ontrack';
+
+      case 'Behind Target':
+        return 'goals-status--behind';
+
+      default:
+        return 'goals-status--neutral';
+    }
+  }
+
+  function formatMonthsRemaining(months) {
+    if (
+      months === '' ||
+      months === null ||
+      typeof months === 'undefined'
+    ) {
+      return 'Not available';
+    }
+
+    const value =
+      Number(months) || 0;
+
+    if (value === 0) {
+      return 'Complete';
+    }
+
+    return (
+      String(value) +
+      (
+        value === 1
+          ? ' month left'
+          : ' months left'
+      )
+    );
+  }
+
+  function call(
+    functionName,
+    success,
+    failure
+  ) {
+    if (
+      !window.google ||
+      !google.script ||
+      !google.script.run
+    ) {
+      failure(
+        new Error(
+          'The Life Goals service is only available in the deployed Pay Tracker app.'
+        )
+      );
+      return;
+    }
+
+    if (
+      functionName !==
+      'getPayTrackerLifeGoalsWorkspace'
+    ) {
+      failure(
+        new Error(
+          'Unknown Life Goals service function: ' +
+          functionName
+        )
+      );
+      return;
+    }
+
+    google.script.run
+      .withSuccessHandler(success)
+      .withFailureHandler(failure)
+      .getPayTrackerLifeGoalsWorkspace();
+  }
+
+  function setLoading(loading) {
+    const loadingElement =
+      document.querySelector(
+        '[data-goals-loading]'
+      );
+
+    const content =
+      document.querySelector(
+        '[data-goals-content]'
+      );
+
+    if (loadingElement) {
+      loadingElement.hidden =
+        !loading;
+    }
+
+    if (content) {
+      content.hidden =
+        loading;
+    }
+  }
+
+  function showNotice(
+    message,
+    isError
+  ) {
+    const notice =
+      document.querySelector(
+        '[data-goals-notice]'
+      );
+
+    if (!notice) {
+      return;
+    }
+
+    notice.textContent =
+      message;
+    notice.hidden = false;
+    notice.classList.toggle(
+      'is-error',
+      isError === true
+    );
+  }
+
+  function money(value) {
+    return new Intl.NumberFormat(
+      'en-GB',
+      {
+        style: 'currency',
+        currency: 'GBP'
+      }
+    ).format(
+      Number(value) || 0
+    );
+  }
+
+  function percent(value) {
+    return (
+      (
+        Number(value) ||
+        0
+      ) *
+      100
+    ).toFixed(0) + '%';
+  }
+
+  function escape(value) {
+    const element =
+      document.createElement(
+        'span'
+      );
+
+    element.textContent =
+      String(
+        value === undefined ||
+        value === null
+          ? ''
+          : value
+      );
+
+    return element.innerHTML;
+  }
+
+  function empty(message) {
+    return [
+      '<div class="goals-empty">',
+        escape(message),
+      '</div>'
+    ].join('');
+  }
+
+  function html(selector, value) {
+    const element =
+      document.querySelector(
+        selector
+      );
+
+    if (element) {
+      element.innerHTML =
+        value;
+    }
+  }
+
+  function setText(selector, value) {
+    const element =
+      document.querySelector(
+        selector
+      );
+
+    if (element) {
+      element.textContent =
+        value;
+    }
+  }
+
+  function getError(error) {
+    return error &&
+      error.message
+      ? error.message
+      : String(
+          error ||
+          'An unexpected Life Goals error occurred.'
+        );
+  }
+
+  if (
+    document.readyState ===
+    'loading'
+  ) {
+    document.addEventListener(
+      'DOMContentLoaded',
+      init
+    );
+  } else {
+    init();
+  }
+})();
