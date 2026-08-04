@@ -1,5 +1,9 @@
 {
   "timeZone": "Europe/London",
+  "webapp": {
+    "executeAs": "USER_DEPLOYING",
+    "access": "MYSELF"
+  },
   "dependencies": {
     "enabledAdvancedServices": [
       {
