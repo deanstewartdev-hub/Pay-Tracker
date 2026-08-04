@@ -1,0 +1,92 @@
+<div
+  class="reports-workspace"
+  data-reports-workspace
+>
+  <div class="page-header reports-header">
+    <div>
+      <p class="page-header__eyebrow">
+        Financial insights
+      </p>
+
+      <h2 class="page-header__title">
+        Reports
+      </h2>
+
+      <p class="page-header__description">
+        Compare earnings, spending and savings across recent weeks and
+        months, built entirely from your existing Pay Tracker records.
+      </p>
+    </div>
+
+    <div class="reports-header__actions">
+      <button
+        class="button button--secondary"
+        type="button"
+        data-reports-refresh
+      >
+        Refresh
+      </button>
+    </div>
+  </div>
+
+  <div
+    class="reports-notice"
+    data-reports-notice
+    hidden
+  ></div>
+
+  <div class="reports-loading" data-reports-loading>
+    Loading your reports…
+  </div>
+
+  <div data-reports-content hidden>
+    <article class="card reports-card">
+      <div class="reports-card__header">
+        <div>
+          <p class="reports-card__eyebrow">Pay trend</p>
+          <h3>Weekly earnings</h3>
+        </div>
+      </div>
+
+      <div class="reports-chart" data-reports-weekly-chart></div>
+
+      <div class="reports-legend">
+        <span><i class="reports-legend-swatch reports-legend-swatch--gross"></i>Gross pay</span>
+        <span><i class="reports-legend-swatch reports-legend-swatch--take-home"></i>Take-home pay</span>
+      </div>
+    </article>
+
+    <article class="card reports-card">
+      <div class="reports-card__header">
+        <div>
+          <p class="reports-card__eyebrow">Monthly trend</p>
+          <h3>Income, spending and savings</h3>
+        </div>
+      </div>
+
+      <div class="reports-chart reports-chart--monthly" data-reports-monthly-chart></div>
+
+      <div class="reports-legend">
+        <span><i class="reports-legend-swatch reports-legend-swatch--income"></i>Take-home income</span>
+        <span><i class="reports-legend-swatch reports-legend-swatch--spending"></i>Bills and debt payments</span>
+        <span><i class="reports-legend-swatch reports-legend-swatch--saved"></i>Savings deposited</span>
+      </div>
+
+      <div class="reports-table-wrap">
+        <table class="reports-table">
+          <thead>
+            <tr>
+              <th>Month</th>
+              <th>Income</th>
+              <th>Spending</th>
+              <th>Saved</th>
+              <th>Net</th>
+            </tr>
+          </thead>
+
+          <tbody data-reports-monthly-table></tbody>
+        </table>
+      </div>
+    </article>
+  </div>
+</div>

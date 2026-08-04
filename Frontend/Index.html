@@ -150,45 +150,12 @@
 
             <section
               id="page-reports"
-              class="page-view placeholder-page"
+              class="page-view"
               data-page="reports"
               aria-hidden="true"
               hidden
             >
-              <div class="page-header">
-                <p class="page-header__eyebrow">
-                  Financial insights
-                </p>
-
-                <h2 class="page-header__title">
-                  Reports
-                </h2>
-
-                <p class="page-header__description">
-                  Compare earnings, deductions, spending, savings and progress
-                  across weeks and months.
-                </p>
-              </div>
-
-              <div class="card">
-                <div class="empty-state">
-                  <div
-                    class="empty-state__icon"
-                    aria-hidden="true"
-                  >
-                    ↗
-                  </div>
-
-                  <h3 class="empty-state__title">
-                    Reports will be added after live data integration
-                  </h3>
-
-                  <p class="empty-state__message">
-                    Charts and comparisons will use your existing Pay Tracker
-                    records rather than creating a second source of truth.
-                  </p>
-                </div>
-              </div>
+              <?!= includePayTrackerHtml('Frontend/Pages/Reports'); ?>
             </section>
 
             <section
@@ -426,6 +393,12 @@
     <script>
       <?!= includePayTrackerHtml(
         'Frontend/Services/GoalsWorkspaceService'
+      ); ?>
+    </script>
+
+    <script>
+      <?!= includePayTrackerHtml(
+        'Frontend/Services/ReportsWorkspaceService'
       ); ?>
     </script>
 

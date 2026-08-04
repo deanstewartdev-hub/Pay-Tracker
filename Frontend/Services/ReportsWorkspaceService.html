@@ -1,0 +1,445 @@
+;(function() {
+  'use strict';
+
+  const state = {
+    loaded: false,
+    loading: false,
+    data: null
+  };
+
+  function init() {
+    const root =
+      document.querySelector(
+        '[data-reports-workspace]'
+      );
+
+    if (!root) {
+      return;
+    }
+
+    bind(root);
+
+    document.addEventListener(
+      'paytracker:route-changed',
+      function(event) {
+        if (
+          event.detail &&
+          event.detail.route ===
+            'reports'
+        ) {
+          load();
+        }
+      }
+    );
+
+    load();
+  }
+
+  function bind(root) {
+    root.addEventListener(
+      'click',
+      function(event) {
+        if (
+          event.target.closest(
+            '[data-reports-refresh]'
+          )
+        ) {
+          load(true);
+        }
+      }
+    );
+  }
+
+  function load(force) {
+    if (
+      state.loading ||
+      (
+        state.loaded &&
+        force !== true
+      )
+    ) {
+      return;
+    }
+
+    state.loading = true;
+    setLoading(true);
+
+    call(
+      function(data) {
+        state.loading = false;
+        setLoading(false);
+
+        if (
+          !data ||
+          typeof data !== 'object'
+        ) {
+          showNotice(
+            'The Reports service returned no data. Refresh the page and try again.',
+            true
+          );
+          return;
+        }
+
+        state.loaded = true;
+        state.data = data;
+        render(data);
+      },
+      function(error) {
+        state.loading = false;
+        setLoading(false);
+        showNotice(
+          getError(error),
+          true
+        );
+      }
+    );
+  }
+
+  function render(data) {
+    renderWeeklyChart(
+      data.weeklyEarnings || []
+    );
+
+    renderMonthlyChart(
+      data.monthlySummary || []
+    );
+
+    renderMonthlyTable(
+      data.monthlySummary || []
+    );
+  }
+
+  function renderWeeklyChart(weeks) {
+    const container =
+      document.querySelector(
+        '[data-reports-weekly-chart]'
+      );
+
+    if (!container) {
+      return;
+    }
+
+    if (weeks.length === 0) {
+      container.innerHTML =
+        empty(
+          'No completed PaySheet weeks are available yet.'
+        );
+      return;
+    }
+
+    const maxValue =
+      weeks.reduce(
+        function(max, week) {
+          return Math.max(
+            max,
+            Number(week.gross) || 0,
+            Number(week.takeHome) || 0
+          );
+        },
+        0
+      ) || 1;
+
+    container.innerHTML =
+      weeks
+        .map(function(week) {
+          return [
+            '<div class="reports-column" title="',
+              escape(week.weekLabel),
+              ': ',
+              escape(money(week.gross)),
+              ' gross, ',
+              escape(money(week.takeHome)),
+              ' take-home">',
+              '<div class="reports-column__bars">',
+                '<span class="reports-bar reports-bar--gross" style="height:',
+                  barHeight(week.gross, maxValue),
+                  '%"></span>',
+                '<span class="reports-bar reports-bar--take-home" style="height:',
+                  barHeight(week.takeHome, maxValue),
+                  '%"></span>',
+              '</div>',
+              '<small>',
+                escape(week.weekLabel),
+              '</small>',
+            '</div>'
+          ].join('');
+        })
+        .join('');
+  }
+
+  function renderMonthlyChart(months) {
+    const container =
+      document.querySelector(
+        '[data-reports-monthly-chart]'
+      );
+
+    if (!container) {
+      return;
+    }
+
+    if (months.length === 0) {
+      container.innerHTML =
+        empty(
+          'No monthly activity has been recorded yet.'
+        );
+      return;
+    }
+
+    const maxValue =
+      months.reduce(
+        function(max, month) {
+          return Math.max(
+            max,
+            Number(month.income) || 0,
+            Number(month.spending) || 0,
+            Number(month.saved) || 0
+          );
+        },
+        0
+      ) || 1;
+
+    container.innerHTML =
+      months
+        .map(function(month) {
+          return [
+            '<div class="reports-column" title="',
+              escape(month.monthLabel),
+              ': ',
+              escape(money(month.income)),
+              ' income, ',
+              escape(money(month.spending)),
+              ' spending, ',
+              escape(money(month.saved)),
+              ' saved">',
+              '<div class="reports-column__bars">',
+                '<span class="reports-bar reports-bar--income" style="height:',
+                  barHeight(month.income, maxValue),
+                  '%"></span>',
+                '<span class="reports-bar reports-bar--spending" style="height:',
+                  barHeight(month.spending, maxValue),
+                  '%"></span>',
+                '<span class="reports-bar reports-bar--saved" style="height:',
+                  barHeight(month.saved, maxValue),
+                  '%"></span>',
+              '</div>',
+              '<small>',
+                escape(month.monthLabel),
+              '</small>',
+            '</div>'
+          ].join('');
+        })
+        .join('');
+  }
+
+  function renderMonthlyTable(months) {
+    html(
+      '[data-reports-monthly-table]',
+      months
+        .map(function(month) {
+          return [
+            '<tr>',
+              '<td>',
+                '<strong>',
+                  escape(month.monthLabel),
+                '</strong>',
+              '</td>',
+              '<td>',
+                money(month.income),
+              '</td>',
+              '<td>',
+                money(month.spending),
+              '</td>',
+              '<td>',
+                money(month.saved),
+              '</td>',
+              '<td class="',
+                month.net >= 0
+                  ? 'reports-net--positive'
+                  : 'reports-net--negative',
+              '">',
+                money(month.net),
+              '</td>',
+            '</tr>'
+          ].join('');
+        })
+        .join('') ||
+        tableEmpty(
+          5,
+          'No monthly activity has been recorded yet.'
+        )
+    );
+  }
+
+  function barHeight(value, maxValue) {
+    const ratio =
+      (Number(value) || 0) /
+      (maxValue || 1);
+
+    return String(
+      Math.max(
+        Math.min(
+          Math.round(
+            ratio * 100
+          ),
+          100
+        ),
+        0
+      )
+    );
+  }
+
+  function call(
+    success,
+    failure
+  ) {
+    if (
+      !window.google ||
+      !google.script ||
+      !google.script.run
+    ) {
+      failure(
+        new Error(
+          'The Reports service is only available in the deployed Pay Tracker app.'
+        )
+      );
+      return;
+    }
+
+    google.script.run
+      .withSuccessHandler(success)
+      .withFailureHandler(failure)
+      .getPayTrackerReportsWorkspace();
+  }
+
+  function setLoading(loading) {
+    const loadingElement =
+      document.querySelector(
+        '[data-reports-loading]'
+      );
+
+    const content =
+      document.querySelector(
+        '[data-reports-content]'
+      );
+
+    if (loadingElement) {
+      loadingElement.hidden =
+        !loading;
+    }
+
+    if (content) {
+      content.hidden =
+        loading;
+    }
+  }
+
+  function showNotice(
+    message,
+    isError
+  ) {
+    const notice =
+      document.querySelector(
+        '[data-reports-notice]'
+      );
+
+    if (!notice) {
+      return;
+    }
+
+    notice.textContent =
+      message;
+    notice.hidden = false;
+    notice.classList.toggle(
+      'is-error',
+      isError === true
+    );
+  }
+
+  function money(value) {
+    return new Intl.NumberFormat(
+      'en-GB',
+      {
+        style: 'currency',
+        currency: 'GBP'
+      }
+    ).format(
+      Number(value) || 0
+    );
+  }
+
+  function escape(value) {
+    const element =
+      document.createElement(
+        'span'
+      );
+
+    element.textContent =
+      String(
+        value === undefined ||
+        value === null
+          ? ''
+          : value
+      );
+
+    return element.innerHTML;
+  }
+
+  function empty(message) {
+    return [
+      '<div class="reports-empty">',
+        escape(message),
+      '</div>'
+    ].join('');
+  }
+
+  function tableEmpty(
+    columns,
+    message
+  ) {
+    return [
+      '<tr>',
+        '<td colspan="',
+          String(columns),
+        '">',
+          '<div class="reports-empty">',
+            escape(message),
+          '</div>',
+        '</td>',
+      '</tr>'
+    ].join('');
+  }
+
+  function html(selector, value) {
+    const element =
+      document.querySelector(
+        selector
+      );
+
+    if (element) {
+      element.innerHTML =
+        value;
+    }
+  }
+
+  function getError(error) {
+    return error &&
+      error.message
+      ? error.message
+      : String(
+          error ||
+          'An unexpected Reports error occurred.'
+        );
+  }
+
+  if (
+    document.readyState ===
+    'loading'
+  ) {
+    document.addEventListener(
+      'DOMContentLoaded',
+      init
+    );
+  } else {
+    init();
+  }
+})();
