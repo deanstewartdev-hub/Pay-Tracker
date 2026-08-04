@@ -35,6 +35,20 @@ const PAY_TRACKER_WEB_CONFIG = Object.freeze({
  */
 function doGet(event) {
   try {
+    const authorizationInfo =
+      ScriptApp.getAuthorizationInfo(
+        ScriptApp.AuthMode.FULL
+      );
+
+    if (
+      authorizationInfo.getAuthorizationStatus() ===
+      ScriptApp.AuthorizationStatus.REQUIRED
+    ) {
+      return buildPayTrackerAuthorizationRequiredPage_(
+        authorizationInfo.getAuthorizationUrl()
+      );
+    }
+
     if (
       event &&
       event.parameter &&
@@ -380,6 +394,78 @@ function buildPayTrackerStartupError_(error) {
   return HtmlService
     .createHtmlOutput(html)
     .setTitle('Pay Tracker | Startup Error')
+    .setXFrameOptionsMode(
+      HtmlService.XFrameOptionsMode.ALLOWALL
+    );
+}
+
+/**
+ * Builds a page asking the deploying user to grant the
+ * script's requested permissions.
+ *
+ * Apps Script web apps running as "Execute as: Me" need this
+ * one-time authorization completed by the deploying account
+ * before restricted services (such as UrlFetchApp for Monzo)
+ * can run. Without this check, a missing scope surfaces as a
+ * generic thrown error instead of a way to fix it.
+ *
+ * @param {string} authorizationUrl Google consent screen URL.
+ * @return {GoogleAppsScript.HTML.HtmlOutput} Authorization page.
+ * @private
+ */
+function buildPayTrackerAuthorizationRequiredPage_(
+  authorizationUrl
+) {
+  const safeUrl =
+    escapePayTrackerWebHtml_(authorizationUrl);
+
+  const html = [
+    '<!DOCTYPE html>',
+    '<html lang="en">',
+    '<head>',
+    '<meta charset="UTF-8">',
+    '<meta name="viewport" ',
+    'content="width=device-width, initial-scale=1">',
+    '<title>Pay Tracker | Authorization Required</title>',
+    '<style>',
+    'html,body{margin:0;min-height:100%;}',
+    'body{display:grid;place-items:center;',
+    'padding:24px;background:#f6f8fc;',
+    'color:#334155;font-family:Arial,sans-serif;}',
+    '.auth-card{width:min(620px,100%);',
+    'padding:30px;border:1px solid #e2e8f0;',
+    'border-radius:16px;background:#fff;',
+    'box-shadow:0 16px 40px rgba(15,23,42,.10);}',
+    'h1{margin:0;color:#0f172a;font-size:24px;}',
+    'p{margin:12px 0 0;line-height:1.6;}',
+    'a.button{display:inline-block;margin-top:18px;',
+    'padding:12px 20px;border-radius:10px;',
+    'background:#2563eb;color:#fff;font-weight:700;',
+    'text-decoration:none;}',
+    '</style>',
+    '</head>',
+    '<body>',
+    '<main class="auth-card">',
+    '<h1>One-time authorization required</h1>',
+    '<p>Pay Tracker needs your permission to use ',
+    'Google services it depends on (such as making ',
+    'requests to your connected bank). This is a ',
+    'one-time Google consent screen for your own script ',
+    '&mdash; approve it, then come back and refresh ',
+    'this page.</p>',
+    '<a class="button" href="',
+    safeUrl,
+    '" target="_blank" rel="noopener">',
+    'Review permissions',
+    '</a>',
+    '</main>',
+    '</body>',
+    '</html>'
+  ].join('');
+
+  return HtmlService
+    .createHtmlOutput(html)
+    .setTitle('Pay Tracker | Authorization Required')
     .setXFrameOptionsMode(
       HtmlService.XFrameOptionsMode.ALLOWALL
     );
