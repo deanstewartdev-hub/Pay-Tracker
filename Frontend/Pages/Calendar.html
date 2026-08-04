@@ -1,0 +1,105 @@
+<div
+  class="calendar-workspace"
+  data-calendar-workspace
+>
+  <div class="page-header calendar-header">
+    <div>
+      <p class="page-header__eyebrow">
+        Shift synchronisation
+      </p>
+
+      <h2 class="page-header__title">
+        Calendar
+      </h2>
+
+      <p class="page-header__description">
+        Review which Google Calendar events are recognised as NHS,
+        Relief Warden, Night Security or Logging Cash shifts before they
+        reach the PaySheet.
+      </p>
+    </div>
+
+    <div class="calendar-header__actions">
+      <button
+        class="button button--secondary"
+        type="button"
+        data-calendar-refresh
+      >
+        Refresh
+      </button>
+
+      <button
+        class="button button--primary"
+        type="button"
+        data-calendar-sync
+      >
+        Sync now
+      </button>
+    </div>
+  </div>
+
+  <div
+    class="calendar-notice"
+    data-calendar-notice
+    hidden
+  ></div>
+
+  <div class="calendar-loading" data-calendar-loading>
+    Loading your calendar preview…
+  </div>
+
+  <div data-calendar-content hidden>
+    <div class="calendar-metric-grid">
+      <article class="calendar-metric">
+        <span>Calendars connected</span>
+        <strong data-calendar-metric="calendars">0</strong>
+      </article>
+
+      <article class="calendar-metric">
+        <span>Review window</span>
+        <strong data-calendar-metric="window">--</strong>
+      </article>
+
+      <article class="calendar-metric calendar-metric--matched">
+        <span>Recognised as shifts</span>
+        <strong data-calendar-metric="matched">0</strong>
+      </article>
+
+      <article class="calendar-metric">
+        <span>Not recognised</span>
+        <strong data-calendar-metric="ignored">0</strong>
+      </article>
+    </div>
+
+    <div
+      class="calendar-sync-result"
+      data-calendar-sync-result
+      hidden
+    ></div>
+
+    <article class="card calendar-card">
+      <div class="calendar-card__header">
+        <div>
+          <p class="calendar-card__eyebrow">Preview</p>
+          <h3>Calendar events</h3>
+        </div>
+      </div>
+
+      <div class="calendar-table-wrap">
+        <table class="calendar-table">
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Title</th>
+              <th>Detected shift</th>
+              <th>Hours</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+
+          <tbody data-calendar-events></tbody>
+        </table>
+      </div>
+    </article>
+  </div>
+</div>

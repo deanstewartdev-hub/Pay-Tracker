@@ -1,0 +1,496 @@
+;(function() {
+  'use strict';
+
+  const state = {
+    loaded: false,
+    loading: false,
+    syncing: false,
+    data: null
+  };
+
+  function init() {
+    const root =
+      document.querySelector(
+        '[data-calendar-workspace]'
+      );
+
+    if (!root) {
+      return;
+    }
+
+    bind(root);
+
+    document.addEventListener(
+      'paytracker:route-changed',
+      function(event) {
+        if (
+          event.detail &&
+          event.detail.route ===
+            'calendar'
+        ) {
+          load();
+        }
+      }
+    );
+
+    load();
+  }
+
+  function bind(root) {
+    root.addEventListener(
+      'click',
+      function(event) {
+        if (
+          event.target.closest(
+            '[data-calendar-refresh]'
+          )
+        ) {
+          load(true);
+          return;
+        }
+
+        if (
+          event.target.closest(
+            '[data-calendar-sync]'
+          )
+        ) {
+          runSync();
+        }
+      }
+    );
+  }
+
+  function load(force) {
+    if (
+      state.loading ||
+      (
+        state.loaded &&
+        force !== true
+      )
+    ) {
+      return;
+    }
+
+    state.loading = true;
+    setLoading(true);
+
+    call(
+      'getPayTrackerCalendarWorkspace',
+      function(data) {
+        state.loading = false;
+        setLoading(false);
+
+        if (
+          !data ||
+          typeof data !== 'object'
+        ) {
+          showNotice(
+            'The Calendar service returned no data. Refresh the page and try again.',
+            true
+          );
+          return;
+        }
+
+        state.loaded = true;
+        state.data = data;
+        render(data);
+      },
+      function(error) {
+        state.loading = false;
+        setLoading(false);
+        showNotice(
+          getError(error),
+          true
+        );
+      }
+    );
+  }
+
+  function runSync() {
+    if (state.syncing) {
+      return;
+    }
+
+    const confirmed =
+      window.confirm(
+        'Sync now imports recognised shifts from your calendars into the PaySheet. Continue?'
+      );
+
+    if (!confirmed) {
+      return;
+    }
+
+    state.syncing = true;
+    setSyncing(true);
+
+    call(
+      'runPayTrackerCalendarSync',
+      function(data) {
+        state.syncing = false;
+        setSyncing(false);
+
+        if (
+          !data ||
+          typeof data !== 'object'
+        ) {
+          showNotice(
+            'The Calendar service returned no data. Refresh the page and try again.',
+            true
+          );
+          return;
+        }
+
+        state.data = data;
+        render(data);
+        showNotice(
+          'Calendar sync complete.'
+        );
+      },
+      function(error) {
+        state.syncing = false;
+        setSyncing(false);
+        showNotice(
+          getError(error),
+          true
+        );
+      }
+    );
+  }
+
+  function render(data) {
+    setText(
+      '[data-calendar-metric="calendars"]',
+      String(
+        data.calendarCount || 0
+      )
+    );
+
+    setText(
+      '[data-calendar-metric="window"]',
+      String(
+        data.debugDaysBehind || 0
+      ) +
+      'd back / ' +
+      String(
+        data.debugDaysAhead || 0
+      ) +
+      'd ahead'
+    );
+
+    const events =
+      Array.isArray(data.events)
+        ? data.events
+        : [];
+
+    const matched =
+      events.filter(function(event) {
+        return event.matched;
+      });
+
+    setText(
+      '[data-calendar-metric="matched"]',
+      String(matched.length)
+    );
+
+    setText(
+      '[data-calendar-metric="ignored"]',
+      String(
+        events.length -
+        matched.length
+      )
+    );
+
+    renderSyncResult(
+      data.lastSyncResult
+    );
+
+    renderEvents(events);
+  }
+
+  function renderSyncResult(result) {
+    const element =
+      document.querySelector(
+        '[data-calendar-sync-result]'
+      );
+
+    if (!element) {
+      return;
+    }
+
+    if (!result) {
+      element.hidden = true;
+      return;
+    }
+
+    element.hidden = false;
+
+    element.textContent =
+      'Last sync - imported ' +
+      String(result.imported || 0) +
+      ', skipped ' +
+      String(result.skipped || 0) +
+      ', ignored ' +
+      String(result.ignored || 0) +
+      ', duplicates ' +
+      String(result.duplicates || 0) +
+      '.';
+  }
+
+  function renderEvents(events) {
+    html(
+      '[data-calendar-events]',
+      events
+        .map(function(event) {
+          return [
+            '<tr>',
+              '<td>',
+                date(event.start),
+              '</td>',
+              '<td>',
+                '<strong>',
+                  escape(event.title),
+                '</strong>',
+              '</td>',
+              '<td>',
+                event.matched
+                  ? escape(event.tableName) +
+                    ' - ' +
+                    escape(event.shiftType)
+                  : '--',
+              '</td>',
+              '<td>',
+                event.matched &&
+                event.hours !== ''
+                  ? escape(String(event.hours))
+                  : '--',
+              '</td>',
+              '<td>',
+                '<span class="calendar-status ',
+                  event.matched
+                    ? 'calendar-status--matched'
+                    : 'calendar-status--ignored',
+                '">',
+                  event.matched
+                    ? 'Recognised'
+                    : 'Not recognised',
+                '</span>',
+              '</td>',
+            '</tr>'
+          ].join('');
+        })
+        .join('') ||
+        tableEmpty(
+          5,
+          'No calendar events were found in the review window.'
+        )
+    );
+  }
+
+  function call(
+    functionName,
+    success,
+    failure
+  ) {
+    if (
+      !window.google ||
+      !google.script ||
+      !google.script.run
+    ) {
+      failure(
+        new Error(
+          'The Calendar service is only available in the deployed Pay Tracker app.'
+        )
+      );
+      return;
+    }
+
+    const runner =
+      google.script.run
+        .withSuccessHandler(success)
+        .withFailureHandler(failure);
+
+    switch (functionName) {
+      case 'getPayTrackerCalendarWorkspace':
+        runner.getPayTrackerCalendarWorkspace();
+        break;
+
+      case 'runPayTrackerCalendarSync':
+        runner.runPayTrackerCalendarSync();
+        break;
+
+      default:
+        failure(
+          new Error(
+            'Unknown Calendar service function: ' +
+            functionName
+          )
+        );
+    }
+  }
+
+  function setLoading(loading) {
+    const loadingElement =
+      document.querySelector(
+        '[data-calendar-loading]'
+      );
+
+    const content =
+      document.querySelector(
+        '[data-calendar-content]'
+      );
+
+    if (loadingElement) {
+      loadingElement.hidden =
+        !loading;
+    }
+
+    if (content) {
+      content.hidden =
+        loading;
+    }
+  }
+
+  function setSyncing(syncing) {
+    const button =
+      document.querySelector(
+        '[data-calendar-sync]'
+      );
+
+    if (!button) {
+      return;
+    }
+
+    button.disabled =
+      syncing;
+
+    button.textContent =
+      syncing
+        ? 'Syncing…'
+        : 'Sync now';
+  }
+
+  function showNotice(
+    message,
+    isError
+  ) {
+    const notice =
+      document.querySelector(
+        '[data-calendar-notice]'
+      );
+
+    if (!notice) {
+      return;
+    }
+
+    notice.textContent =
+      message;
+    notice.hidden = false;
+    notice.classList.toggle(
+      'is-error',
+      isError === true
+    );
+  }
+
+  function date(value) {
+    if (!value) {
+      return '--';
+    }
+
+    const parsed =
+      new Date(value);
+
+    return Number.isNaN(
+      parsed.getTime()
+    )
+      ? '--'
+      : parsed.toLocaleDateString(
+          'en-GB',
+          {
+            weekday: 'short',
+            day: 'numeric',
+            month: 'short',
+            year: 'numeric'
+          }
+        );
+  }
+
+  function escape(value) {
+    const element =
+      document.createElement(
+        'span'
+      );
+
+    element.textContent =
+      String(
+        value === undefined ||
+        value === null
+          ? ''
+          : value
+      );
+
+    return element.innerHTML;
+  }
+
+  function tableEmpty(
+    columns,
+    message
+  ) {
+    return [
+      '<tr>',
+        '<td colspan="',
+          String(columns),
+        '">',
+          '<div class="calendar-empty">',
+            escape(message),
+          '</div>',
+        '</td>',
+      '</tr>'
+    ].join('');
+  }
+
+  function html(selector, value) {
+    const element =
+      document.querySelector(
+        selector
+      );
+
+    if (element) {
+      element.innerHTML =
+        value;
+    }
+  }
+
+  function setText(selector, value) {
+    const element =
+      document.querySelector(
+        selector
+      );
+
+    if (element) {
+      element.textContent =
+        value;
+    }
+  }
+
+  function getError(error) {
+    return error &&
+      error.message
+      ? error.message
+      : String(
+          error ||
+          'An unexpected Calendar error occurred.'
+        );
+  }
+
+  if (
+    document.readyState ===
+    'loading'
+  ) {
+    document.addEventListener(
+      'DOMContentLoaded',
+      init
+    );
+  } else {
+    init();
+  }
+})();
