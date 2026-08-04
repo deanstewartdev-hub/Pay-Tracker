@@ -1,0 +1,221 @@
+<div
+  class="savings-workspace"
+  data-savings-workspace
+>
+  <div class="page-header savings-header">
+    <div>
+      <p class="page-header__eyebrow">
+        Savings allocation
+      </p>
+
+      <h2 class="page-header__title">
+        Savings
+      </h2>
+
+      <p class="page-header__description">
+        Track savings pots, contribution schedules, allocation percentages
+        and interest and goal forecasts.
+      </p>
+    </div>
+
+    <div class="savings-header__actions">
+      <button
+        class="button button--secondary"
+        type="button"
+        data-savings-refresh
+      >
+        Refresh
+      </button>
+    </div>
+  </div>
+
+  <div
+    class="savings-notice"
+    data-savings-notice
+    hidden
+  ></div>
+
+  <div class="savings-tabs" role="tablist">
+    <button class="savings-tab is-active" type="button" data-savings-tab="overview">Overview</button>
+    <button class="savings-tab" type="button" data-savings-tab="pots">Pots</button>
+    <button class="savings-tab" type="button" data-savings-tab="contributions">Contributions</button>
+    <button class="savings-tab" type="button" data-savings-tab="history">History</button>
+  </div>
+
+  <div class="savings-loading" data-savings-loading>
+    Loading your savings workspace…
+  </div>
+
+  <div data-savings-content hidden>
+    <section class="savings-panel is-active" data-savings-panel="overview">
+      <div class="savings-metric-grid">
+        <article class="savings-metric savings-metric--available">
+          <span>Available to save each month</span>
+          <strong data-savings-metric="available">£0.00</strong>
+          <small data-savings-mode-label>Based on disposable income</small>
+        </article>
+
+        <article class="savings-metric">
+          <span>Total saved</span>
+          <strong data-savings-metric="saved">£0.00</strong>
+          <small data-savings-progress-label>0% of goals</small>
+        </article>
+
+        <article class="savings-metric">
+          <span>Total goal amount</span>
+          <strong data-savings-metric="goal">£0.00</strong>
+          <small data-savings-remaining-label>£0.00 remaining</small>
+        </article>
+
+        <article class="savings-metric">
+          <span>Active pots</span>
+          <strong data-savings-metric="active-pots">0</strong>
+          <small data-savings-completed-label>0 completed</small>
+        </article>
+      </div>
+
+      <div
+        class="savings-allocation-warning"
+        data-savings-allocation-warning
+        hidden
+      ></div>
+
+      <div class="savings-overview-grid">
+        <article class="card savings-card">
+          <div class="savings-card__header">
+            <div>
+              <p class="savings-card__eyebrow">Next actions</p>
+              <h3>Upcoming contributions</h3>
+            </div>
+            <span class="savings-count" data-savings-upcoming-count>0</span>
+          </div>
+
+          <div class="savings-list" data-savings-upcoming></div>
+        </article>
+
+        <article class="card savings-card">
+          <div class="savings-card__header">
+            <div>
+              <p class="savings-card__eyebrow">Recent activity</p>
+              <h3>Latest deposits</h3>
+            </div>
+            <button class="button button--secondary" type="button" data-savings-undo>Undo last deposit</button>
+          </div>
+
+          <div class="savings-list" data-savings-recent-history></div>
+        </article>
+      </div>
+    </section>
+
+    <section class="savings-panel" data-savings-panel="pots">
+      <div class="savings-section-heading">
+        <div>
+          <p class="savings-card__eyebrow">Savings pots</p>
+          <h3>All pots</h3>
+        </div>
+        <span class="savings-count" data-savings-pot-count>0</span>
+      </div>
+
+      <div class="savings-table-wrap">
+        <table class="savings-table">
+          <thead>
+            <tr>
+              <th>Pot</th>
+              <th>Balance</th>
+              <th>Goal</th>
+              <th>Progress</th>
+              <th>Contribution</th>
+              <th>Months to goal</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+
+          <tbody data-savings-pots></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="savings-panel" data-savings-panel="contributions">
+      <div class="savings-section-heading">
+        <div>
+          <p class="savings-card__eyebrow">Contribution queue</p>
+          <h3>Upcoming contributions</h3>
+        </div>
+      </div>
+
+      <div class="savings-contribution-tools">
+        <label class="savings-contribution-search">
+          <span class="savings-control-label">Search</span>
+
+          <input
+            class="savings-control-input"
+            type="search"
+            placeholder="Search by pot name"
+            autocomplete="off"
+            data-savings-contribution-search
+          >
+        </label>
+
+        <label class="savings-contribution-control">
+          <span class="savings-control-label">Status</span>
+
+          <select class="savings-control-input" data-savings-contribution-filter>
+            <option value="all">All contributions</option>
+            <option value="overdue">Overdue</option>
+            <option value="upcoming">Upcoming</option>
+          </select>
+        </label>
+
+        <button
+          class="button button--secondary savings-contribution-clear"
+          type="button"
+          data-savings-contribution-clear
+        >
+          Clear filters
+        </button>
+      </div>
+
+      <div class="savings-table-wrap">
+        <table class="savings-table">
+          <thead>
+            <tr>
+              <th>Due</th>
+              <th>Pot</th>
+              <th>Amount</th>
+              <th>Method</th>
+              <th>Status</th>
+              <th></th>
+            </tr>
+          </thead>
+
+          <tbody data-savings-contributions></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="savings-panel" data-savings-panel="history">
+      <div class="savings-section-heading">
+        <div>
+          <p class="savings-card__eyebrow">Audit trail</p>
+          <h3>Deposit history</h3>
+        </div>
+      </div>
+
+      <div class="savings-table-wrap">
+        <table class="savings-table">
+          <thead>
+            <tr>
+              <th>Deposited</th>
+              <th>Pot</th>
+              <th>Amount</th>
+              <th>Balance after</th>
+              <th>Schedule</th>
+            </tr>
+          </thead>
+
+          <tbody data-savings-history></tbody>
+        </table>
+      </div>
+    </section>
+  </div>
+</div>

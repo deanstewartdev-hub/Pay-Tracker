@@ -1,0 +1,124 @@
+.savings-tabs { display: flex; gap: .35rem; overflow-x: auto; padding: .35rem; border: 1px solid var(--color-border, #e2e8f0); border-radius: 14px; background: var(--color-surface, #fff); }
+.savings-tab { border: 0; background: transparent; color: var(--color-text-muted, #64748b); padding: .7rem 1rem; border-radius: 10px; font: inherit; font-weight: 700; cursor: pointer; white-space: nowrap; }
+.savings-tab.is-active { background: #ecfdf5; color: #047857; }
+.savings-loading, .savings-notice { padding: 1rem 1.1rem; border-radius: 12px; background: #ecfdf5; color: #047857; }
+.savings-notice.is-error { background: #fef2f2; color: #b91c1c; }
+.savings-panel { display: none; }
+.savings-panel.is-active { display: block; }
+
+.savings-header { margin-bottom: 1.25rem; }
+.savings-header__actions { display: flex; gap: .6rem; }
+
+.savings-metric-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1rem; margin-bottom: 1rem; }
+.savings-metric { display: grid; gap: .35rem; padding: 1.15rem; border: 1px solid var(--color-border, #e2e8f0); border-radius: 16px; background: var(--color-surface, #fff); box-shadow: 0 8px 24px rgba(15,23,42,.05); }
+.savings-metric span, .savings-metric small { color: var(--color-text-muted, #64748b); }
+.savings-metric strong { font-size: clamp(1.35rem, 2.5vw, 2rem); color: var(--color-text, #0f172a); }
+.savings-metric--available { border-top: 4px solid #10b981; }
+
+.savings-allocation-warning { margin-bottom: 1rem; padding: .85rem 1rem; border: 1px solid #fde68a; border-radius: 12px; background: #fffbeb; color: #92400e; font-weight: 600; font-size: .85rem; }
+
+.savings-overview-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; }
+
+.savings-card { padding: 1.15rem; border-radius: 16px; }
+.savings-card__header, .savings-section-heading { display: flex; justify-content: space-between; align-items: center; gap: 1rem; margin-bottom: 1rem; }
+.savings-card__header h3, .savings-section-heading h3 { margin: .1rem 0 0; }
+.savings-card__eyebrow { margin: 0; color: #059669; font-size: .75rem; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+.savings-count { padding: .35rem .65rem; border-radius: 999px; background: #ecfdf5; color: #047857; font-size: .78rem; font-weight: 800; }
+
+.savings-list { display: grid; gap: .65rem; }
+.savings-list-item { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: .7rem 0; border-bottom: 1px solid var(--color-border, #e2e8f0); }
+.savings-list-item:last-child { border-bottom: 0; }
+.savings-list-item small { display: block; color: var(--color-text-muted, #64748b); margin-top: .15rem; }
+
+.savings-table-wrap { overflow-x: auto; }
+.savings-table { width: 100%; border-collapse: collapse; min-width: 760px; }
+.savings-table th, .savings-table td { padding: .85rem 1rem; text-align: left; border-bottom: 1px solid var(--color-border, #e2e8f0); vertical-align: middle; }
+.savings-table th { color: var(--color-text-muted, #64748b); font-size: .75rem; text-transform: uppercase; letter-spacing: .06em; }
+.savings-table tr:last-child td { border-bottom: 0; }
+.savings-table td small { display: block; color: var(--color-text-muted, #64748b); margin-top: .1rem; }
+
+.savings-mini-button { border: 1px solid #cbd5e1; background: #fff; border-radius: 8px; padding: .45rem .65rem; font: inherit; font-weight: 700; cursor: pointer; }
+.savings-mini-button--confirm { color: #047857; border-color: #a7f3d0; }
+
+.savings-empty { padding: 1.5rem; color: var(--color-text-muted, #64748b); text-align: center; }
+
+.savings-status { display: inline-flex; align-items: center; justify-content: center; min-width: 88px; padding: .35rem .65rem; border: 1px solid transparent; border-radius: 999px; font-size: .76rem; font-weight: 800; line-height: 1; white-space: nowrap; }
+.savings-status--complete { color: #166534; background: #dcfce7; border-color: #bbf7d0; }
+.savings-status--ahead { color: #065f46; background: #d1fae5; border-color: #a7f3d0; }
+.savings-status--ontrack { color: #1e40af; background: #dbeafe; border-color: #bfdbfe; }
+.savings-status--behind { color: #b91c1c; background: #fef2f2; border-color: #fecaca; }
+.savings-status--neutral { color: #92400e; background: #fef3c7; border-color: #fde68a; }
+
+.savings-contribution-tools {
+  display: grid;
+  grid-template-columns: minmax(220px, 1.5fr) minmax(160px, .75fr) auto;
+  gap: .85rem;
+  align-items: end;
+  margin-bottom: .8rem;
+  padding: 1rem;
+  border: 1px solid var(--color-border, #e2e8f0);
+  border-radius: 14px;
+  background: var(--color-surface, #fff);
+}
+
+.savings-contribution-search,
+.savings-contribution-control {
+  display: grid;
+  gap: .4rem;
+  min-width: 0;
+}
+
+.savings-control-label {
+  color: var(--color-text-muted, #64748b);
+  font-size: .73rem;
+  font-weight: 800;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+}
+
+.savings-control-input {
+  width: 100%;
+  min-height: 44px;
+  padding: .7rem .8rem;
+  border: 1px solid var(--color-border, #cbd5e1);
+  border-radius: 10px;
+  outline: none;
+  background: var(--color-surface, #fff);
+  color: var(--color-text, #0f172a);
+  font: inherit;
+  font-size: .9rem;
+  transition: border-color .2s ease, box-shadow .2s ease;
+}
+
+.savings-control-input:focus {
+  border-color: #10b981;
+  box-shadow: 0 0 0 3px rgba(16, 185, 129, .15);
+}
+
+.savings-contribution-clear { min-height: 44px; white-space: nowrap; }
+
+[data-theme="dark"] .savings-contribution-tools,
+.theme-dark .savings-contribution-tools {
+  background: var(--color-surface, #111c31);
+}
+
+[data-theme="dark"] .savings-control-input,
+.theme-dark .savings-control-input {
+  background: var(--color-surface, #111c31);
+  color: var(--color-text, #f8fafc);
+}
+
+@media (max-width: 980px) {
+  .savings-metric-grid { grid-template-columns: repeat(2, 1fr); }
+  .savings-overview-grid { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 720px) {
+  .savings-header { align-items: stretch; flex-direction: column; }
+  .savings-contribution-tools { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 480px) {
+  .savings-metric-grid { grid-template-columns: 1fr; }
+  .savings-header__actions .button { flex: 1; }
+}
