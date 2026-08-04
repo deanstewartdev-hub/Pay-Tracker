@@ -1,0 +1,45 @@
+.reports-loading, .reports-notice { padding: 1rem 1.1rem; border-radius: 12px; background: #eef2ff; color: #4338ca; }
+.reports-notice.is-error { background: #fef2f2; color: #b91c1c; }
+
+.reports-header { margin-bottom: 1.25rem; }
+.reports-header__actions { display: flex; gap: .6rem; }
+
+.reports-card { display: grid; gap: 1rem; padding: 1.15rem; border-radius: 16px; margin-bottom: 1.25rem; }
+.reports-card__header { display: flex; justify-content: space-between; align-items: center; gap: 1rem; }
+.reports-card__header h3 { margin: .1rem 0 0; }
+.reports-card__eyebrow { margin: 0; color: #4338ca; font-size: .75rem; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+
+.reports-chart { display: flex; align-items: flex-end; gap: .6rem; min-height: 200px; padding: 1rem .5rem .25rem; border: 1px solid var(--color-border, #e2e8f0); border-radius: 14px; background: var(--color-surface, #fff); overflow-x: auto; }
+.reports-empty { padding: 1.5rem; color: var(--color-text-muted, #64748b); text-align: center; width: 100%; }
+
+.reports-column { display: flex; flex-direction: column; align-items: center; gap: .5rem; min-width: 56px; flex: 1; }
+.reports-column__bars { display: flex; align-items: flex-end; gap: 3px; height: 160px; width: 100%; justify-content: center; }
+.reports-column small { color: var(--color-text-muted, #64748b); font-size: .72rem; white-space: nowrap; }
+
+.reports-bar { display: block; width: 12px; min-height: 2px; border-radius: 4px 4px 0 0; }
+.reports-bar--gross { background: #a5b4fc; }
+.reports-bar--take-home { background: #4338ca; }
+.reports-bar--income { background: #4338ca; }
+.reports-bar--spending { background: #f59e0b; }
+.reports-bar--saved { background: #10b981; }
+
+.reports-legend { display: flex; flex-wrap: wrap; gap: 1rem; font-size: .8rem; color: var(--color-text-muted, #64748b); }
+.reports-legend span { display: inline-flex; align-items: center; gap: .4rem; }
+.reports-legend-swatch { display: inline-block; width: 10px; height: 10px; border-radius: 3px; }
+.reports-legend-swatch--gross { background: #a5b4fc; }
+.reports-legend-swatch--take-home { background: #4338ca; }
+.reports-legend-swatch--income { background: #4338ca; }
+.reports-legend-swatch--spending { background: #f59e0b; }
+.reports-legend-swatch--saved { background: #10b981; }
+
+.reports-table-wrap { overflow-x: auto; }
+.reports-table { width: 100%; border-collapse: collapse; min-width: 560px; }
+.reports-table th, .reports-table td { padding: .85rem 1rem; text-align: left; border-bottom: 1px solid var(--color-border, #e2e8f0); }
+.reports-table th { color: var(--color-text-muted, #64748b); font-size: .75rem; text-transform: uppercase; letter-spacing: .06em; }
+.reports-table tr:last-child td { border-bottom: 0; }
+.reports-net--positive { color: #047857; font-weight: 700; }
+.reports-net--negative { color: #b91c1c; font-weight: 700; }
+
+@media (max-width: 720px) {
+  .reports-header { align-items: stretch; flex-direction: column; }
+}
