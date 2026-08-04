@@ -160,45 +160,12 @@
 
             <section
               id="page-calendar"
-              class="page-view placeholder-page"
+              class="page-view"
               data-page="calendar"
               aria-hidden="true"
               hidden
             >
-              <div class="page-header">
-                <p class="page-header__eyebrow">
-                  Shift synchronisation
-                </p>
-
-                <h2 class="page-header__title">
-                  Calendar
-                </h2>
-
-                <p class="page-header__description">
-                  Review Google Calendar shift imports and the earnings detected
-                  from your NHS, council and security work.
-                </p>
-              </div>
-
-              <div class="card">
-                <div class="empty-state">
-                  <div
-                    class="empty-state__icon"
-                    aria-hidden="true"
-                  >
-                    31
-                  </div>
-
-                  <h3 class="empty-state__title">
-                    Calendar workspace coming soon
-                  </h3>
-
-                  <p class="empty-state__message">
-                    Your existing Calendar sync will remain responsible for
-                    importing shifts into the Pay sheet.
-                  </p>
-                </div>
-              </div>
+              <?!= includePayTrackerHtml('Frontend/Pages/Calendar'); ?>
             </section>
 
             <section
@@ -372,6 +339,12 @@
     <script>
       <?!= includePayTrackerHtml(
         'Frontend/Services/SettingsWorkspaceService'
+      ); ?>
+    </script>
+
+    <script>
+      <?!= includePayTrackerHtml(
+        'Frontend/Services/CalendarWorkspaceService'
       ); ?>
     </script>
 
