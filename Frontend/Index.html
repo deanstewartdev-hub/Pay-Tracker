@@ -82,11 +82,14 @@
 
             <section
               id="page-finance"
-              class="page-view placeholder-page"
+              class="page-view"
               data-page="finance"
               aria-hidden="true"
               hidden
             >
+              <?!= includePayTrackerHtml('Frontend/Pages/Finance'); ?>
+
+              <div hidden>
               <div class="page-header">
                 <p class="page-header__eyebrow">
                   Bills and debts
@@ -121,6 +124,7 @@
                     stage.
                   </p>
                 </div>
+              </div>
               </div>
             </section>
 
@@ -455,10 +459,28 @@
         'Frontend/Services/PayForecastService'
       ); ?>
     </script>
-    
+
+    <script>
+      <?!= includePayTrackerHtml(
+        'Frontend/Services/PayrollCentreService'
+      ); ?>
+    </script>
+
+    <script>
+      <?!= includePayTrackerHtml(
+        'Frontend/Services/PayAnalyticsService'
+      ); ?>
+    </script>
+
     <script>
       <?!= includePayTrackerHtml(
         'Frontend/Services/PayWorkspaceService'
+      ); ?>
+    </script>
+
+    <script>
+      <?!= includePayTrackerHtml(
+        'Frontend/Services/FinanceWorkspaceService'
       ); ?>
     </script>
   

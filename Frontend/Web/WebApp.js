@@ -35,6 +35,19 @@ const PAY_TRACKER_WEB_CONFIG = Object.freeze({
  */
 function doGet(event) {
   try {
+    if (
+      event &&
+      event.parameter &&
+      (
+        event.parameter.code ||
+        event.parameter.error
+      ) &&
+      event.parameter.state
+    ) {
+      return PayTrackerMonzoService
+        .handleCallback(event);
+    }
+
     const applicationState =
       buildPayTrackerApplicationState_(event);
 

@@ -1,0 +1,1513 @@
+;(function() {
+  'use strict';
+
+  const state = {
+    loaded: false,
+    loading: false,
+    data: null,
+    paymentRecords: [],
+    paymentSearch: '',
+    paymentFilter: 'all',
+    paymentSort: 'date-asc'
+  };
+
+function init() {
+    const root =
+      document.querySelector(
+        '[data-finance-workspace]'
+      );
+
+    if (!root) {
+      return;
+    }
+
+    bind(root);
+
+    document.addEventListener(
+      'paytracker:route-changed',
+      function(event) {
+        if (
+          event.detail &&
+          event.detail.route ===
+            'finance'
+        ) {
+          load();
+        }
+      }
+    );
+
+    load();
+  }
+
+function bind(root) {
+    root.addEventListener(
+      'click',
+      function(event) {
+        const tab =
+          event.target.closest(
+            '[data-finance-tab]'
+          );
+
+        const jump =
+          event.target.closest(
+            '[data-finance-jump]'
+          );
+
+        const pay =
+          event.target.closest(
+            '[data-finance-pay]'
+          );
+
+        const subscriptionAction =
+          event.target.closest(
+            '[data-finance-subscription-action]'
+          );
+
+        if (tab) {
+          selectTab(
+            tab.getAttribute(
+              'data-finance-tab'
+            )
+          );
+        } else if (jump) {
+          selectTab(
+            jump.getAttribute(
+              'data-finance-jump'
+            )
+          );
+        } else if (
+          event.target.closest(
+            '[data-finance-refresh]'
+          )
+        ) {
+          load(true);
+        } else if (
+          event.target.closest(
+            '[data-finance-payment-clear]'
+          )
+        ) {
+          clearPaymentFilters(root);
+        } else if (pay) {
+          run(
+            'markPayTrackerFinancePaymentPaid',
+            [
+              pay.getAttribute(
+                'data-finance-pay'
+              )
+            ],
+            'Payment marked as paid.'
+          );
+        } else if (
+          event.target.closest(
+            '[data-finance-undo]'
+          )
+        ) {
+          run(
+            'undoPayTrackerFinancePayment',
+            [],
+            'The last payment was restored.'
+          );
+        } else if (
+          event.target.closest(
+            '[data-finance-bank-action]'
+          )
+        ) {
+          startBankConnection();
+        } else if (
+          subscriptionAction
+        ) {
+          const action =
+            subscriptionAction
+              .getAttribute(
+                'data-finance-subscription-action'
+              );
+
+          const id =
+            subscriptionAction
+              .getAttribute(
+                'data-subscription-id'
+              );
+
+          run(
+            action === 'confirm'
+              ? 'confirmPayTrackerSubscription'
+              : 'rejectPayTrackerSubscription',
+            [id],
+            action === 'confirm'
+              ? 'Subscription confirmed.'
+              : 'Suggestion dismissed.'
+          );
+        }
+      }
+    );
+
+    root.addEventListener(
+      'input',
+      function(event) {
+        if (
+          event.target.matches(
+            '[data-finance-payment-search]'
+          )
+        ) {
+          state.paymentSearch =
+            String(
+              event.target.value || ''
+            )
+              .trim()
+              .toLowerCase();
+
+          renderPaymentView();
+        }
+      }
+    );
+
+    root.addEventListener(
+      'change',
+      function(event) {
+        if (
+          event.target.matches(
+            '[data-finance-payment-filter]'
+          )
+        ) {
+          state.paymentFilter =
+            String(
+              event.target.value || 'all'
+            );
+
+          renderPaymentView();
+          return;
+        }
+
+        if (
+          event.target.matches(
+            '[data-finance-payment-sort]'
+          )
+        ) {
+          state.paymentSort =
+            String(
+              event.target.value ||
+              'date-asc'
+            );
+
+          renderPaymentView();
+        }
+      }
+    );
+  }
+
+  function load(force) {
+    if (
+      state.loading ||
+      (
+        state.loaded &&
+        force !== true
+      )
+    ) {
+      return;
+    }
+
+    state.loading = true;
+    setLoading(true);
+
+    call(
+      'getPayTrackerFinanceWorkspace',
+      [],
+      function(data) {
+        state.loading = false;
+        setLoading(false);
+
+        if (
+          !data ||
+          typeof data !== 'object'
+        ) {
+          showNotice(
+            'The Finance service returned no data. Refresh the page or run the Finance setup again.',
+            true
+          );
+          return;
+        }
+
+        state.loaded = true;
+        state.data = data;
+        render(data);
+      },
+      function(error) {
+        state.loading = false;
+        setLoading(false);
+        showNotice(
+          getError(error),
+          true
+        );
+      }
+    );
+  }
+
+  function render(data) {
+    const dashboard =
+      data.dashboard || {};
+
+    setText(
+      '[data-finance-metric="income"]',
+      money(
+        dashboard
+          .estimatedMonthlyTakeHome
+      )
+    );
+
+    setText(
+      '[data-finance-metric="committed"]',
+      money(
+        dashboard.committedIncome
+      )
+    );
+
+    setText(
+      '[data-finance-metric="disposable"]',
+      money(
+        dashboard.disposableIncome
+      )
+    );
+
+    setText(
+      '[data-finance-metric="debt"]',
+      money(
+        dashboard.totalDebtRemaining
+      )
+    );
+
+    setText(
+      '[data-finance-commitment-label]',
+      percent(
+        dashboard.committedPercentage
+      ) +
+      ' of income'
+    );
+
+    setText(
+      '[data-finance-debt-label]',
+      percent(
+        dashboard.totalDebtProgress
+      ) +
+      ' repaid'
+    );
+
+    renderAlerts(
+      data.payments || [],
+      dashboard
+    );
+
+    renderAllocation(dashboard);
+    renderPayments(data.payments || []);
+    renderBills(data.bills || []);
+    renderDebts(data.debts || []);
+    renderSubscriptions(
+      data.subscriptions || [],
+      data.subscriptionSummary || {}
+    );
+    renderHistory(data.history || []);
+    renderBank(data.bank || {});
+  }
+
+  function renderAlerts(
+    records,
+    dashboard
+  ) {
+    const unpaid =
+      records.filter(function(record) {
+        return record.paid !== true;
+      });
+
+    const overdue =
+      unpaid.filter(function(record) {
+        return record.status === 'Overdue';
+      });
+
+    const dueToday =
+      unpaid.filter(function(record) {
+        return record.status === 'Due Today';
+      });
+
+    const now =
+      new Date();
+
+    now.setHours(
+      0,
+      0,
+      0,
+      0
+    );
+
+    const sevenDaysFromNow =
+      new Date(now);
+
+    sevenDaysFromNow.setDate(
+      sevenDaysFromNow.getDate() + 7
+    );
+
+    const dueThisWeek =
+      unpaid.filter(function(record) {
+        const dueDate =
+          new Date(record.dueDate);
+
+        if (
+          Number.isNaN(
+            dueDate.getTime()
+          )
+        ) {
+          return false;
+        }
+
+        dueDate.setHours(
+          0,
+          0,
+          0,
+          0
+        );
+
+       const dueTime =
+        dueDate.getTime();
+
+      const nowTime =
+        now.getTime();
+
+      const sevenDaysTime =
+        sevenDaysFromNow.getTime();
+
+      if (
+        Math.sign(
+          dueTime - nowTime
+        ) === -1
+      ) {
+        return false;
+      }
+
+      if (
+        Math.sign(
+          dueTime - sevenDaysTime
+        ) === 1
+      ) {
+        return false;
+      }
+
+      return true;
+      });
+
+    const dueThisWeekTotal =
+      dueThisWeek.reduce(
+        function(total, record) {
+          return (
+            total +
+            (
+              Number(record.amount) ||
+              0
+            )
+          );
+        },
+        0
+      );
+
+    const alerts = [
+      {
+        type:
+          overdue.length > 0
+            ? 'danger'
+            : 'success',
+        label:
+          overdue.length === 1
+            ? '1 overdue payment'
+            : String(overdue.length) +
+              ' overdue payments',
+        value:
+          overdue.length > 0
+            ? 'Needs attention'
+            : 'Nothing overdue'
+      },
+      {
+        type:
+          dueToday.length > 0
+            ? 'warning'
+            : 'neutral',
+        label:
+          dueToday.length === 1
+            ? '1 payment due today'
+            : String(dueToday.length) +
+              ' payments due today',
+        value:
+          dueToday.length > 0
+            ? money(
+                dueToday.reduce(
+                  function(total, record) {
+                    return (
+                      total +
+                      (
+                        Number(record.amount) ||
+                        0
+                      )
+                    );
+                  },
+                  0
+                )
+              )
+            : 'Clear today'
+      },
+      {
+        type: 'info',
+        label:
+          dueThisWeek.length === 1
+            ? '1 payment due in 7 days'
+            : String(dueThisWeek.length) +
+              ' payments due in 7 days',
+        value:
+          money(dueThisWeekTotal)
+      },
+      {
+        type:
+          Number(
+            dashboard.disposableIncome
+          ) >= 0
+            ? 'success'
+            : 'danger',
+        label:
+          'Disposable income',
+        value:
+          money(
+            dashboard.disposableIncome
+          )
+      }
+    ];
+
+    html(
+      '[data-finance-alerts]',
+      alerts.map(function(alert) {
+        return [
+          '<article class="finance-alert-card">',
+            '<span class="finance-alert-card__indicator"></span>',
+            '<div>',
+              '<small>',
+                escape(alert.label),
+              '</small>',
+              '<strong>',
+                escape(alert.value),
+              '</strong>',
+            '</div>',
+          '</article>'
+        ].join('');
+      }).join('')
+    );
+
+    document.querySelectorAll(
+      '[data-finance-alerts] .finance-alert-card'
+    ).forEach(function(element, index) {
+      const alert =
+        alerts[index];
+
+      element.classList.add(
+        'finance-alert-card--' +
+        alert.type
+      );
+    });
+  }
+
+  function renderAllocation(data) {
+  const income =
+    Number(
+      data.estimatedMonthlyTakeHome
+    ) || 0;
+
+  const rows = [
+    ['Bills', data.monthlyBills],
+    ['Debt', data.monthlyDebtRepayments],
+    ['Savings', data.monthlySavings],
+    ['Available', data.disposableIncome]
+  ];
+
+  const widths = [];
+
+  html(
+    '[data-finance-allocation]',
+    rows.map(function(row) {
+      const amount =
+        Number(row[1]) || 0;
+
+      const width =
+        income > 0
+          ? Math.max(
+              0,
+              Math.min(
+                100,
+                amount /
+                income *
+                100
+              )
+            )
+          : 0;
+
+      widths.push(width);
+
+      return (
+        '<div class="finance-allocation__row">' +
+          '<span>' +
+            escape(row[0]) +
+          '</span>' +
+          '<div class="finance-allocation__track">' +
+            '<div class="finance-allocation__fill"></div>' +
+          '</div>' +
+          '<strong>' +
+            money(amount) +
+          '</strong>' +
+        '</div>'
+      );
+    }).join('')
+  );
+
+  document.querySelectorAll(
+    '[data-finance-allocation] .finance-allocation__fill'
+  ).forEach(function(element, index) {
+    element.style.width =
+      (widths[index] || 0).toFixed(1) +
+      '%';
+  });
+}
+
+function renderPayments(records) {
+    state.paymentRecords =
+      records.filter(function(record) {
+        return record.paid !== true;
+      });
+
+    setText(
+      '[data-finance-upcoming-count]',
+      String(
+        state.paymentRecords.length
+      )
+    );
+
+    html(
+      '[data-finance-upcoming]',
+      state.paymentRecords
+        .slice(0, 5)
+        .map(function(record) {
+          return [
+            '<div class="finance-list-item">',
+              '<div>',
+                '<strong>',
+                  escape(record.name),
+                '</strong>',
+                '<small>',
+                  date(record.dueDate),
+                  ' - ',
+                  escape(record.type),
+                  ' - ',
+                  escape(record.status),
+                '</small>',
+              '</div>',
+              '<strong>',
+                money(record.amount),
+              '</strong>',
+            '</div>'
+          ].join('');
+        })
+        .join('') ||
+        empty(
+          'No upcoming payments.'
+        )
+    );
+
+    renderPaymentView();
+  }
+
+  function renderPaymentView() {
+    const records =
+      Array.isArray(
+        state.paymentRecords
+      )
+        ? state.paymentRecords.slice()
+        : [];
+
+    const filtered =
+      records.filter(function(record) {
+        if (
+          !paymentMatchesSearch(record)
+        ) {
+          return false;
+        }
+
+        if (
+          !paymentMatchesFilter(record)
+        ) {
+          return false;
+        }
+
+        return true;
+      });
+
+    sortPaymentRecords(filtered);
+    renderPaymentRows(filtered);
+
+    const total =
+      records.length;
+
+    const visible =
+      filtered.length;
+
+    setText(
+      '[data-finance-payment-results]',
+      visible === total
+        ? (
+            'Showing all ' +
+            String(total) +
+            ' upcoming payments'
+          )
+        : (
+            'Showing ' +
+            String(visible) +
+            ' of ' +
+            String(total) +
+            ' upcoming payments'
+          )
+    );
+  }
+
+  function paymentMatchesSearch(record) {
+    if (
+      state.paymentSearch === ''
+    ) {
+      return true;
+    }
+
+    const searchable =
+      [
+        record.name,
+        record.type,
+        record.status,
+        record.notes
+      ]
+        .map(function(value) {
+          return String(value || '')
+            .toLowerCase();
+        })
+        .join(' ');
+
+    return (
+      searchable.indexOf(
+        state.paymentSearch
+      ) !== -1
+    );
+  }
+
+  function paymentMatchesFilter(record) {
+    const filter =
+      state.paymentFilter;
+
+    if (filter === 'all') {
+      return true;
+    }
+
+    if (filter === 'overdue') {
+      return record.status === 'Overdue';
+    }
+
+    if (filter === 'today') {
+      return record.status === 'Due Today';
+    }
+
+    if (filter === 'upcoming') {
+      return record.status === 'Upcoming';
+    }
+
+    if (filter === 'bills') {
+      return record.type === 'Bill Payment';
+    }
+
+    if (filter === 'debts') {
+      return (
+        record.type ===
+        'Debt Repayment'
+      );
+    }
+
+    return true;
+  }
+
+  function sortPaymentRecords(records) {
+    records.sort(function(first, second) {
+      const sort =
+        state.paymentSort;
+
+      if (sort === 'amount-desc') {
+        return (
+          Number(second.amount || 0) -
+          Number(first.amount || 0)
+        );
+      }
+
+      if (sort === 'amount-asc') {
+        return (
+          Number(first.amount || 0) -
+          Number(second.amount || 0)
+        );
+      }
+
+      if (sort === 'name-asc') {
+        return String(first.name || '')
+          .localeCompare(
+            String(second.name || '')
+          );
+      }
+
+      if (sort === 'name-desc') {
+        return String(second.name || '')
+          .localeCompare(
+            String(first.name || '')
+          );
+      }
+
+      const firstTime =
+        new Date(
+          first.dueDate
+        ).getTime();
+
+      const secondTime =
+        new Date(
+          second.dueDate
+        ).getTime();
+
+      if (sort === 'date-desc') {
+        return secondTime - firstTime;
+      }
+
+      return firstTime - secondTime;
+    });
+  }
+
+  function renderPaymentRows(records) {
+    html(
+      '[data-finance-payments]',
+      records.map(function(record) {
+        return [
+          '<tr>',
+            '<td>',
+              date(record.dueDate),
+            '</td>',
+            '<td>',
+              '<strong>',
+                escape(record.name),
+              '</strong>',
+            '</td>',
+            '<td>',
+              escape(record.type),
+            '</td>',
+            '<td>',
+              money(record.amount),
+            '</td>',
+            '<td>',
+              '<span class="finance-payment-status" data-finance-payment-status></span>',
+            '</td>',
+            '<td>',
+              '<button class="finance-mini-button finance-mini-button--confirm" type="button" data-finance-pay-button>',
+                'Mark paid',
+              '</button>',
+            '</td>',
+          '</tr>'
+        ].join('');
+      }).join('') ||
+      tableEmpty(
+        6,
+        'No payments match these filters.'
+      )
+    );
+
+    document.querySelectorAll(
+      '[data-finance-pay-button]'
+    ).forEach(function(button, index) {
+      button.setAttribute(
+        'data-finance-pay',
+        String(
+          records[index].id || ''
+        )
+      );
+    });
+
+    document.querySelectorAll(
+      '[data-finance-payment-status]'
+    ).forEach(function(element, index) {
+      applyPaymentStatus(
+        element,
+        records[index].status
+      );
+    });
+  }
+
+  function applyPaymentStatus(
+    element,
+    value
+  ) {
+    const status =
+      String(
+        value || 'Upcoming'
+      );
+
+    element.textContent =
+      status;
+
+    element.classList.remove(
+      'finance-payment-status--upcoming',
+      'finance-payment-status--today',
+      'finance-payment-status--overdue',
+      'finance-payment-status--paid'
+    );
+
+    if (status === 'Overdue') {
+      element.classList.add(
+        'finance-payment-status--overdue'
+      );
+      return;
+    }
+
+    if (status === 'Due Today') {
+      element.classList.add(
+        'finance-payment-status--today'
+      );
+      return;
+    }
+
+    if (status === 'Paid') {
+      element.classList.add(
+        'finance-payment-status--paid'
+      );
+      return;
+    }
+
+    element.classList.add(
+      'finance-payment-status--upcoming'
+    );
+  }
+
+  function clearPaymentFilters(root) {
+    state.paymentSearch = '';
+    state.paymentFilter = 'all';
+    state.paymentSort = 'date-asc';
+
+    const search =
+      root.querySelector(
+        '[data-finance-payment-search]'
+      );
+
+    const filter =
+      root.querySelector(
+        '[data-finance-payment-filter]'
+      );
+
+    const sort =
+      root.querySelector(
+        '[data-finance-payment-sort]'
+      );
+
+    if (search) {
+      search.value = '';
+    }
+
+    if (filter) {
+      filter.value = 'all';
+    }
+
+    if (sort) {
+      sort.value = 'date-asc';
+    }
+
+    renderPaymentView();
+  }
+
+    function renderBills(records) {
+    html(
+      '[data-finance-bills]',
+      records.map(function(record) {
+        return (
+          '<tr><td><strong>' + escape(record.name) +
+          '</strong></td><td>' + escape(record.category) +
+          '</td><td>' + escape(record.frequency) +
+          '</td><td>' + date(record.nextDueDate) +
+          '</td><td>' + money(record.amount) +
+          '</td><td>' + money(record.monthlyCost) +
+          '</td></tr>'
+        );
+      }).join('') ||
+      tableEmpty(6, 'No bills found.')
+    );
+  }
+
+  function renderDebts(records) {
+  const progressValues = [];
+
+  html(
+    '[data-finance-debts]',
+    records.map(function(record) {
+      const progress =
+        Math.max(
+          0,
+          Math.min(
+            100,
+            Number(
+              record.percentageRepaid
+            ) *
+            100
+          )
+        );
+
+      progressValues.push(progress);
+
+      return (
+        '<article class="finance-debt-card">' +
+          '<div class="finance-debt-card__top">' +
+            '<div>' +
+              '<h4>' +
+                escape(record.name) +
+              '</h4>' +
+              '<p>' +
+                escape(record.type) +
+                ' - ' +
+                Number(record.apr).toFixed(2) +
+                '% APR' +
+              '</p>' +
+            '</div>' +
+            '<strong>' +
+              money(record.currentBalance) +
+            '</strong>' +
+          '</div>' +
+          '<div class="finance-progress">' +
+            '<div class="finance-progress__fill"></div>' +
+          '</div>' +
+          '<div class="finance-card-stats">' +
+            '<span>' +
+              progress.toFixed(0) +
+              '% repaid' +
+            '</span>' +
+            '<span>' +
+              money(record.monthlyRepayment) +
+              '/month' +
+            '</span>' +
+          '</div>' +
+        '</article>'
+      );
+    }).join('') ||
+    empty(
+      'No active debts found.'
+    )
+  );
+
+  document.querySelectorAll(
+    '[data-finance-debts] .finance-progress__fill'
+  ).forEach(function(element, index) {
+    element.style.width =
+      (progressValues[index] || 0).toFixed(1) +
+      '%';
+  });
+}
+
+  function renderSubscriptions(
+  records,
+  summary
+) {
+  html(
+    '[data-finance-subscription-summary]',
+    '<div>' +
+      '<span>Monthly</span>' +
+      '<strong>' +
+        money(summary.monthlyCost) +
+      '</strong>' +
+    '</div>' +
+    '<div>' +
+      '<span>Annual</span>' +
+      '<strong>' +
+        money(summary.annualCost) +
+      '</strong>' +
+    '</div>' +
+    '<div>' +
+      '<span>Active</span>' +
+      '<strong>' +
+        String(summary.active || 0) +
+      '</strong>' +
+    '</div>'
+  );
+
+  setText(
+    '[data-finance-review-count]',
+    String(
+      summary.needsReview || 0
+    ) +
+    ' need review'
+  );
+
+  const reviewRecords = [];
+
+  html(
+    '[data-finance-subscriptions]',
+    records.map(function(record) {
+      const needsReview =
+        record.reviewStatus ===
+        'Needs Review';
+
+      if (needsReview) {
+        reviewRecords.push(record);
+      }
+
+      return (
+        '<article class="finance-subscription-card">' +
+          '<div class="finance-subscription-card__top">' +
+            '<div>' +
+              '<h4>' +
+                escape(record.subscriptionName) +
+              '</h4>' +
+              '<p>' +
+                escape(record.frequency) +
+                ' - ' +
+                escape(record.sourceType) +
+              '</p>' +
+            '</div>' +
+            '<strong>' +
+              money(record.latestAmount) +
+            '</strong>' +
+          '</div>' +
+          '<div class="finance-card-stats">' +
+            '<span>' +
+              money(record.monthlyCost) +
+              '/month' +
+            '</span>' +
+            '<span>' +
+              money(record.annualCost) +
+              '/year' +
+            '</span>' +
+          '</div>' +
+          (
+            needsReview
+              ? (
+                  '<div class="finance-subscription-actions">' +
+                    '<button class="finance-mini-button finance-mini-button--confirm" type="button" data-finance-subscription-action="confirm" data-finance-review-button>' +
+                      'Confirm' +
+                    '</button>' +
+                    '<button class="finance-mini-button" type="button" data-finance-subscription-action="reject" data-finance-review-button>' +
+                      'Dismiss' +
+                    '</button>' +
+                  '</div>'
+                )
+              : (
+                  '<div class="finance-card-stats">' +
+                    '<span>' +
+                      escape(record.reviewStatus) +
+                    '</span>' +
+                    '<span>' +
+                      escape(record.subscriptionStatus) +
+                    '</span>' +
+                  '</div>'
+                )
+          ) +
+        '</article>'
+      );
+    }).join('') ||
+    empty(
+      'No subscriptions found yet. Connect Monzo or categorise a bill as Subscriptions.'
+    )
+  );
+
+  document.querySelectorAll(
+    '[data-finance-review-button]'
+  ).forEach(function(button, index) {
+    const recordIndex =
+      Math.floor(
+        index / 2
+      );
+
+    const record =
+      reviewRecords[recordIndex];
+
+    button.setAttribute(
+      'data-subscription-id',
+      record
+        ? String(
+            record.subscriptionId || ''
+          )
+        : ''
+    );
+  });
+}
+
+  function renderHistory(records) {
+    html(
+      '[data-finance-history]',
+      records.map(function(record) {
+        return (
+          '<tr><td>' + date(record.paidDate) +
+          '</td><td><strong>' + escape(record.name) +
+          '</strong></td><td>' + escape(record.type) +
+          '</td><td>' + money(record.amount) +
+          '</td><td>' + money(record.principal) +
+          '</td><td>' + money(record.interest) +
+          '</td></tr>'
+        );
+      }).join('') ||
+      tableEmpty(
+        6,
+        'No payment history yet.'
+      )
+    );
+  }
+
+  function renderBank(bank) {
+    setText(
+      '[data-finance-bank-status]',
+      bank.status ||
+      'Not Connected'
+    );
+
+    setText(
+      '[data-finance-bank-copy]',
+      bank.connected
+        ? (
+            (bank.accountName || 'Monzo account') +
+            ' is connected. Last sync: ' +
+            (
+              bank.lastSuccessfulSync
+                ? date(
+                    bank.lastSuccessfulSync
+                  )
+                : 'not synced yet'
+            ) +
+            '.'
+          )
+        : 'Connect your own Monzo account with read-only access to import transactions and find recurring payments.'
+    );
+
+    setText(
+      '[data-finance-bank-action]',
+      bank.connected
+        ? 'Sync Monzo'
+        : 'Connect Monzo'
+    );
+  }
+
+  function startBankConnection() {
+    call(
+      'getPayTrackerMonzoAction',
+      [],
+      function(result) {
+        if (
+          result &&
+          result.authorizationUrl
+        ) {
+          window.open(
+            result.authorizationUrl,
+            '_blank',
+            'noopener'
+          );
+        } else {
+          showNotice(
+            result.message ||
+            'Monzo setup is not complete yet.'
+          );
+        }
+      },
+      function(error) {
+        showNotice(
+          getError(error),
+          true
+        );
+      }
+    );
+  }
+
+  function run(
+    functionName,
+    args,
+    message
+  ) {
+    setLoading(true);
+
+    call(
+      functionName,
+      args,
+      function(data) {
+        setLoading(false);
+        state.data = data;
+        render(data);
+        showNotice(message);
+      },
+      function(error) {
+        setLoading(false);
+        showNotice(
+          getError(error),
+          true
+        );
+      }
+    );
+  }
+
+function call(
+  functionName,
+  args,
+  success,
+  failure
+) {
+  if (
+    !window.google ||
+    !google.script ||
+    !google.script.run
+  ) {
+    failure(
+      new Error(
+        'The Finance service is only available in the deployed Pay Tracker app.'
+      )
+    );
+    return;
+  }
+
+  const runner =
+    google.script.run
+      .withSuccessHandler(success)
+      .withFailureHandler(failure);
+
+  const values =
+    Array.isArray(args)
+      ? args
+      : [];
+
+  switch (functionName) {
+    case 'getPayTrackerFinanceWorkspace':
+      runner.getPayTrackerFinanceWorkspace();
+      break;
+
+    case 'markPayTrackerFinancePaymentPaid':
+      runner.markPayTrackerFinancePaymentPaid(
+        values[0]
+      );
+      break;
+
+    case 'undoPayTrackerFinancePayment':
+      runner.undoPayTrackerFinancePayment();
+      break;
+
+    case 'confirmPayTrackerSubscription':
+      runner.confirmPayTrackerSubscription(
+        values[0]
+      );
+      break;
+
+    case 'rejectPayTrackerSubscription':
+      runner.rejectPayTrackerSubscription(
+        values[0]
+      );
+      break;
+
+    case 'getPayTrackerMonzoAction':
+      runner.getPayTrackerMonzoAction();
+      break;
+
+    default:
+      failure(
+        new Error(
+          'Unknown Finance service function: ' +
+          functionName
+        )
+      );
+  }
+}
+
+  function selectTab(name) {
+    document.querySelectorAll(
+      '[data-finance-tab]'
+    ).forEach(function(button) {
+      button.classList.toggle(
+        'is-active',
+        button.getAttribute(
+          'data-finance-tab'
+        ) === name
+      );
+    });
+
+    document.querySelectorAll(
+      '[data-finance-panel]'
+    ).forEach(function(panel) {
+      panel.classList.toggle(
+        'is-active',
+        panel.getAttribute(
+          'data-finance-panel'
+        ) === name
+      );
+    });
+  }
+
+  function setLoading(loading) {
+    const loadingElement =
+      document.querySelector(
+        '[data-finance-loading]'
+      );
+
+    const content =
+      document.querySelector(
+        '[data-finance-content]'
+      );
+
+    if (loadingElement) {
+      loadingElement.hidden =
+        !loading;
+    }
+
+    if (content) {
+      content.hidden =
+        loading;
+    }
+  }
+
+  function showNotice(
+    message,
+    isError
+  ) {
+    const notice =
+      document.querySelector(
+        '[data-finance-notice]'
+      );
+
+    if (!notice) {
+      return;
+    }
+
+    notice.textContent =
+      message;
+    notice.hidden = false;
+    notice.classList.toggle(
+      'is-error',
+      isError === true
+    );
+  }
+
+  function money(value) {
+    return new Intl.NumberFormat(
+      'en-GB',
+      {
+        style: 'currency',
+        currency: 'GBP'
+      }
+    ).format(
+      Number(value) || 0
+    );
+  }
+
+  function percent(value) {
+    return (
+      (
+        Number(value) ||
+        0
+      ) *
+      100
+    ).toFixed(0) + '%';
+  }
+
+  function date(value) {
+    if (!value) {
+      return '--';
+    }
+
+    const parsed =
+      new Date(value);
+
+    return Number.isNaN(
+      parsed.getTime()
+    )
+      ? '--'
+      : parsed.toLocaleDateString(
+          'en-GB',
+          {
+            day: 'numeric',
+            month: 'short',
+            year: 'numeric'
+          }
+        );
+  }
+
+  function escape(value) {
+    const element =
+      document.createElement(
+        'span'
+      );
+
+    element.textContent =
+      String(
+        value === undefined ||
+        value === null
+          ? ''
+          : value
+      );
+
+    return element.innerHTML;
+  }
+
+  function empty(message) {
+  return [
+    '<div class="finance-empty">',
+      escape(message),
+    '</div>'
+  ].join('');
+}
+
+  function tableEmpty(
+  columns,
+  message
+) {
+  return [
+    '<tr>',
+      '<td colspan="',
+        String(columns),
+      '">',
+        '<div class="finance-empty">',
+          escape(message),
+        '</div>',
+      '</td>',
+    '</tr>'
+  ].join('');
+}
+
+  function html(selector, value) {
+    const element =
+      document.querySelector(
+        selector
+      );
+
+    if (element) {
+      element.innerHTML =
+        value;
+    }
+  }
+
+  function setText(selector, value) {
+    const element =
+      document.querySelector(
+        selector
+      );
+
+    if (element) {
+      element.textContent =
+        value;
+    }
+  }
+
+  function getError(error) {
+    return error &&
+      error.message
+      ? error.message
+      : String(
+          error ||
+          'An unexpected Finance error occurred.'
+        );
+  }
+
+  if (
+    document.readyState ===
+    'loading'
+  ) {
+    document.addEventListener(
+      'DOMContentLoaded',
+      init
+    );
+  } else {
+    init();
+  }
+})();

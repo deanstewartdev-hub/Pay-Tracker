@@ -222,6 +222,9 @@ function setupFinanceModule() {
     const result =
       PayTrackerFinanceService.setupFinanceModule();
 
+    PayTrackerFinanceIntegrationSetupService
+      .setup();
+
     PayTrackerFinanceDashboard.refresh();
 
     PayTrackerUtils.showMessage(

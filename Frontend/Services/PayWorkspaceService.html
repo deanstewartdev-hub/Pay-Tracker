@@ -591,6 +591,19 @@ const PayTrackerPayWorkspaceService = Object.freeze({
         );
     }
 
+    if (
+      PayTrackerPayWorkspaceService
+        .state
+        .activeTab === 'analytics' &&
+      window.PayTrackerPayAnalyticsService &&
+      typeof window
+        .PayTrackerPayAnalyticsService
+        .render === 'function'
+    ) {
+      window.PayTrackerPayAnalyticsService
+        .render();
+    }
+
     PayTrackerPayWorkspaceService
       .renderNavigation(
         response.navigation || {}
