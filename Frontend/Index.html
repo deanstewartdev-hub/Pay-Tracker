@@ -130,46 +130,12 @@
 
             <section
               id="page-savings"
-              class="page-view placeholder-page"
+              class="page-view"
               data-page="savings"
               aria-hidden="true"
               hidden
             >
-              <div class="page-header">
-                <p class="page-header__eyebrow">
-                  Savings allocation
-                </p>
-
-                <h2 class="page-header__title">
-                  Savings
-                </h2>
-
-                <p class="page-header__description">
-                  Track savings pots, contribution schedules, allocation
-                  percentages, interest and goal forecasts.
-                </p>
-              </div>
-
-              <div class="card">
-                <div class="empty-state">
-                  <div
-                    class="empty-state__icon"
-                    aria-hidden="true"
-                  >
-                    %
-                  </div>
-
-                  <h3 class="empty-state__title">
-                    Savings dashboard coming soon
-                  </h3>
-
-                  <p class="empty-state__message">
-                    This page will calculate disposable income from your weekly
-                    pay, spending and bills before allocating your selected
-                    percentage across savings pots.
-                  </p>
-                </div>
-              </div>
+              <?!= includePayTrackerHtml('Frontend/Pages/Savings'); ?>
             </section>
 
             <section
@@ -483,7 +449,13 @@
         'Frontend/Services/FinanceWorkspaceService'
       ); ?>
     </script>
-  
+
+    <script>
+      <?!= includePayTrackerHtml(
+        'Frontend/Services/SavingsWorkspaceService'
+      ); ?>
+    </script>
+
 
   </body>
 </html>

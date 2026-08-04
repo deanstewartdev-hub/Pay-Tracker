@@ -1,0 +1,900 @@
+;(function() {
+  'use strict';
+
+  const state = {
+    loaded: false,
+    loading: false,
+    data: null,
+    contributionRecords: [],
+    contributionSearch: '',
+    contributionFilter: 'all'
+  };
+
+  function init() {
+    const root =
+      document.querySelector(
+        '[data-savings-workspace]'
+      );
+
+    if (!root) {
+      return;
+    }
+
+    bind(root);
+
+    document.addEventListener(
+      'paytracker:route-changed',
+      function(event) {
+        if (
+          event.detail &&
+          event.detail.route ===
+            'savings'
+        ) {
+          load();
+        }
+      }
+    );
+
+    load();
+  }
+
+  function bind(root) {
+    root.addEventListener(
+      'click',
+      function(event) {
+        const tab =
+          event.target.closest(
+            '[data-savings-tab]'
+          );
+
+        const deposit =
+          event.target.closest(
+            '[data-savings-deposit]'
+          );
+
+        if (tab) {
+          selectTab(
+            tab.getAttribute(
+              'data-savings-tab'
+            )
+          );
+        } else if (
+          event.target.closest(
+            '[data-savings-refresh]'
+          )
+        ) {
+          load(true);
+        } else if (
+          event.target.closest(
+            '[data-savings-contribution-clear]'
+          )
+        ) {
+          clearContributionFilters(root);
+        } else if (deposit) {
+          run(
+            'markPayTrackerSavingsContributionDeposited',
+            [
+              deposit.getAttribute(
+                'data-savings-deposit'
+              )
+            ],
+            'Contribution marked as deposited.'
+          );
+        } else if (
+          event.target.closest(
+            '[data-savings-undo]'
+          )
+        ) {
+          run(
+            'undoPayTrackerSavingsContribution',
+            [],
+            'The last deposit was restored.'
+          );
+        }
+      }
+    );
+
+    root.addEventListener(
+      'input',
+      function(event) {
+        if (
+          event.target.matches(
+            '[data-savings-contribution-search]'
+          )
+        ) {
+          state.contributionSearch =
+            String(
+              event.target.value || ''
+            )
+              .trim()
+              .toLowerCase();
+
+          renderContributionView();
+        }
+      }
+    );
+
+    root.addEventListener(
+      'change',
+      function(event) {
+        if (
+          event.target.matches(
+            '[data-savings-contribution-filter]'
+          )
+        ) {
+          state.contributionFilter =
+            String(
+              event.target.value || 'all'
+            );
+
+          renderContributionView();
+        }
+      }
+    );
+  }
+
+  function load(force) {
+    if (
+      state.loading ||
+      (
+        state.loaded &&
+        force !== true
+      )
+    ) {
+      return;
+    }
+
+    state.loading = true;
+    setLoading(true);
+
+    call(
+      'getPayTrackerSavingsWorkspace',
+      [],
+      function(data) {
+        state.loading = false;
+        setLoading(false);
+
+        if (
+          !data ||
+          typeof data !== 'object'
+        ) {
+          showNotice(
+            'The Savings service returned no data. Refresh the page or run the Savings setup again.',
+            true
+          );
+          return;
+        }
+
+        state.loaded = true;
+        state.data = data;
+        render(data);
+      },
+      function(error) {
+        state.loading = false;
+        setLoading(false);
+        showNotice(
+          getError(error),
+          true
+        );
+      }
+    );
+  }
+
+  function render(data) {
+    const dashboard =
+      data.dashboard || {};
+
+    const settings =
+      data.settings || {};
+
+    setText(
+      '[data-savings-metric="available"]',
+      money(
+        dashboard.monthlySavingsAvailable
+      )
+    );
+
+    setText(
+      '[data-savings-mode-label]',
+      settings.mode ===
+        'Fixed Monthly Amount'
+        ? 'Fixed monthly amount'
+        : percent(
+            settings.percentage
+          ) +
+          ' of disposable income'
+    );
+
+    setText(
+      '[data-savings-metric="saved"]',
+      money(
+        dashboard.totalSavings
+      )
+    );
+
+    setText(
+      '[data-savings-progress-label]',
+      percent(
+        dashboard.overallSavingsProgress
+      ) +
+      ' of goals'
+    );
+
+    setText(
+      '[data-savings-metric="goal"]',
+      money(
+        dashboard.totalSavingsGoals
+      )
+    );
+
+    setText(
+      '[data-savings-remaining-label]',
+      money(
+        dashboard.totalAmountRemaining
+      ) +
+      ' remaining'
+    );
+
+    setText(
+      '[data-savings-metric="active-pots"]',
+      String(
+        dashboard.activePots || 0
+      )
+    );
+
+    setText(
+      '[data-savings-completed-label]',
+      String(
+        dashboard.completedPots || 0
+      ) +
+      ' completed'
+    );
+
+    renderAllocationWarning(dashboard);
+    renderUpcoming(data.contributions || []);
+    renderRecentHistory(data.history || []);
+    renderPots(data.pots || []);
+    renderContributions(data.contributions || []);
+    renderHistory(data.history || []);
+  }
+
+  function renderAllocationWarning(dashboard) {
+    const element =
+      document.querySelector(
+        '[data-savings-allocation-warning]'
+      );
+
+    if (!element) {
+      return;
+    }
+
+    if (dashboard.allocationValid !== false) {
+      element.hidden = true;
+      return;
+    }
+
+    element.hidden = false;
+
+    element.textContent =
+      'Active Percentage Allocation pots total ' +
+      percent(
+        dashboard.allocationTotal
+      ) +
+      '. They should total 100%.';
+  }
+
+  function renderUpcoming(records) {
+    const upcoming =
+      records.slice(0, 5);
+
+    setText(
+      '[data-savings-upcoming-count]',
+      String(records.length)
+    );
+
+    html(
+      '[data-savings-upcoming]',
+      upcoming
+        .map(function(record) {
+          return [
+            '<div class="savings-list-item">',
+              '<div>',
+                '<strong>',
+                  escape(record.potName),
+                '</strong>',
+                '<small>',
+                  date(record.dueDate),
+                  ' - ',
+                  escape(record.frequency),
+                '</small>',
+              '</div>',
+              '<strong>',
+                money(record.amount),
+              '</strong>',
+            '</div>'
+          ].join('');
+        })
+        .join('') ||
+        empty(
+          'No upcoming contributions.'
+        )
+    );
+  }
+
+  function renderRecentHistory(records) {
+    const recent =
+      records.slice(0, 5);
+
+    html(
+      '[data-savings-recent-history]',
+      recent
+        .map(function(record) {
+          return [
+            '<div class="savings-list-item">',
+              '<div>',
+                '<strong>',
+                  escape(record.potName),
+                '</strong>',
+                '<small>',
+                  date(record.depositedDate),
+                '</small>',
+              '</div>',
+              '<strong>',
+                money(record.amount),
+              '</strong>',
+            '</div>'
+          ].join('');
+        })
+        .join('') ||
+        empty(
+          'No deposits yet.'
+        )
+    );
+  }
+
+  function renderPots(records) {
+    setText(
+      '[data-savings-pot-count]',
+      String(records.length)
+    );
+
+    html(
+      '[data-savings-pots]',
+      records
+        .map(function(pot) {
+          return [
+            '<tr>',
+              '<td>',
+                '<strong>',
+                  escape(pot.name),
+                '</strong>',
+                pot.provider
+                  ? '<small>' + escape(pot.provider) + '</small>'
+                  : '',
+              '</td>',
+              '<td>',
+                money(pot.currentBalance),
+              '</td>',
+              '<td>',
+                pot.goalAmount > 0
+                  ? money(pot.goalAmount)
+                  : '--',
+              '</td>',
+              '<td>',
+                percent(pot.progress),
+              '</td>',
+              '<td>',
+                pot.contributionAmount > 0
+                  ? money(pot.contributionAmount) +
+                    ' ' +
+                    escape(
+                      String(
+                        pot.contributionFrequency || ''
+                      ).toLowerCase()
+                    )
+                  : 'No contribution',
+              '</td>',
+              '<td>',
+                formatMonthsToGoal(pot.monthsToGoal),
+              '</td>',
+              '<td>',
+                '<span class="savings-status ',
+                  statusClass(pot.targetStatus),
+                '">',
+                  escape(pot.targetStatus || 'No Target Date'),
+                '</span>',
+              '</td>',
+            '</tr>'
+          ].join('');
+        })
+        .join('') ||
+        tableEmpty(
+          7,
+          'No savings pots have been added yet.'
+        )
+    );
+  }
+
+  function renderContributions(records) {
+    state.contributionRecords =
+      records.slice();
+
+    renderContributionView();
+  }
+
+  function renderContributionView() {
+    const records =
+      Array.isArray(
+        state.contributionRecords
+      )
+        ? state.contributionRecords.slice()
+        : [];
+
+    const filtered =
+      records.filter(function(record) {
+        if (
+          state.contributionSearch !== '' &&
+          String(record.potName || '')
+            .toLowerCase()
+            .indexOf(
+              state.contributionSearch
+            ) === -1
+        ) {
+          return false;
+        }
+
+        if (
+          state.contributionFilter === 'overdue' &&
+          !record.overdue
+        ) {
+          return false;
+        }
+
+        if (
+          state.contributionFilter === 'upcoming' &&
+          record.overdue
+        ) {
+          return false;
+        }
+
+        return true;
+      });
+
+    html(
+      '[data-savings-contributions]',
+      filtered
+        .map(function(record) {
+          return [
+            '<tr>',
+              '<td>',
+                date(record.dueDate),
+              '</td>',
+              '<td>',
+                '<strong>',
+                  escape(record.potName),
+                '</strong>',
+              '</td>',
+              '<td>',
+                money(record.amount),
+              '</td>',
+              '<td>',
+                escape(record.method),
+              '</td>',
+              '<td>',
+                '<span class="savings-status ',
+                  record.overdue
+                    ? 'savings-status--behind'
+                    : 'savings-status--ontrack',
+                '">',
+                  record.overdue
+                    ? 'Overdue'
+                    : 'Upcoming',
+                '</span>',
+              '</td>',
+              '<td>',
+                '<button class="savings-mini-button savings-mini-button--confirm" type="button" data-savings-deposit="',
+                  escape(record.id),
+                '">',
+                  'Mark deposited',
+                '</button>',
+              '</td>',
+            '</tr>'
+          ].join('');
+        })
+        .join('') ||
+        tableEmpty(
+          6,
+          'No contributions match these filters.'
+        )
+    );
+  }
+
+  function clearContributionFilters(root) {
+    state.contributionSearch = '';
+    state.contributionFilter = 'all';
+
+    const search =
+      root.querySelector(
+        '[data-savings-contribution-search]'
+      );
+
+    const filter =
+      root.querySelector(
+        '[data-savings-contribution-filter]'
+      );
+
+    if (search) {
+      search.value = '';
+    }
+
+    if (filter) {
+      filter.value = 'all';
+    }
+
+    renderContributionView();
+  }
+
+  function renderHistory(records) {
+    html(
+      '[data-savings-history]',
+      records
+        .map(function(record) {
+          return [
+            '<tr>',
+              '<td>',
+                date(record.depositedDate),
+              '</td>',
+              '<td>',
+                '<strong>',
+                  escape(record.potName),
+                '</strong>',
+              '</td>',
+              '<td>',
+                money(record.amount),
+              '</td>',
+              '<td>',
+                money(record.balanceAfter),
+              '</td>',
+              '<td>',
+                escape(record.method),
+                ' - ',
+                escape(record.frequency),
+              '</td>',
+            '</tr>'
+          ].join('');
+        })
+        .join('') ||
+        tableEmpty(
+          5,
+          'No savings deposits yet.'
+        )
+    );
+  }
+
+  function statusClass(status) {
+    switch (
+      String(status || '').trim()
+    ) {
+      case 'Complete':
+        return 'savings-status--complete';
+
+      case 'Ahead of Target':
+        return 'savings-status--ahead';
+
+      case 'On Track':
+        return 'savings-status--ontrack';
+
+      case 'Behind Target':
+        return 'savings-status--behind';
+
+      default:
+        return 'savings-status--neutral';
+    }
+  }
+
+  function formatMonthsToGoal(months) {
+    if (
+      months === '' ||
+      months === null ||
+      typeof months === 'undefined'
+    ) {
+      return '--';
+    }
+
+    const value =
+      Number(months) || 0;
+
+    if (value === 0) {
+      return 'Complete';
+    }
+
+    return (
+      String(value) +
+      (
+        value === 1
+          ? ' month'
+          : ' months'
+      )
+    );
+  }
+
+  function run(
+    functionName,
+    args,
+    message
+  ) {
+    setLoading(true);
+
+    call(
+      functionName,
+      args,
+      function(data) {
+        setLoading(false);
+        state.data = data;
+        render(data);
+        showNotice(message);
+      },
+      function(error) {
+        setLoading(false);
+        showNotice(
+          getError(error),
+          true
+        );
+      }
+    );
+  }
+
+  function call(
+    functionName,
+    args,
+    success,
+    failure
+  ) {
+    if (
+      !window.google ||
+      !google.script ||
+      !google.script.run
+    ) {
+      failure(
+        new Error(
+          'The Savings service is only available in the deployed Pay Tracker app.'
+        )
+      );
+      return;
+    }
+
+    const runner =
+      google.script.run
+        .withSuccessHandler(success)
+        .withFailureHandler(failure);
+
+    const values =
+      Array.isArray(args)
+        ? args
+        : [];
+
+    switch (functionName) {
+      case 'getPayTrackerSavingsWorkspace':
+        runner.getPayTrackerSavingsWorkspace();
+        break;
+
+      case 'markPayTrackerSavingsContributionDeposited':
+        runner.markPayTrackerSavingsContributionDeposited(
+          values[0]
+        );
+        break;
+
+      case 'undoPayTrackerSavingsContribution':
+        runner.undoPayTrackerSavingsContribution();
+        break;
+
+      default:
+        failure(
+          new Error(
+            'Unknown Savings service function: ' +
+            functionName
+          )
+        );
+    }
+  }
+
+  function selectTab(name) {
+    document.querySelectorAll(
+      '[data-savings-tab]'
+    ).forEach(function(button) {
+      button.classList.toggle(
+        'is-active',
+        button.getAttribute(
+          'data-savings-tab'
+        ) === name
+      );
+    });
+
+    document.querySelectorAll(
+      '[data-savings-panel]'
+    ).forEach(function(panel) {
+      panel.classList.toggle(
+        'is-active',
+        panel.getAttribute(
+          'data-savings-panel'
+        ) === name
+      );
+    });
+  }
+
+  function setLoading(loading) {
+    const loadingElement =
+      document.querySelector(
+        '[data-savings-loading]'
+      );
+
+    const content =
+      document.querySelector(
+        '[data-savings-content]'
+      );
+
+    if (loadingElement) {
+      loadingElement.hidden =
+        !loading;
+    }
+
+    if (content) {
+      content.hidden =
+        loading;
+    }
+  }
+
+  function showNotice(
+    message,
+    isError
+  ) {
+    const notice =
+      document.querySelector(
+        '[data-savings-notice]'
+      );
+
+    if (!notice) {
+      return;
+    }
+
+    notice.textContent =
+      message;
+    notice.hidden = false;
+    notice.classList.toggle(
+      'is-error',
+      isError === true
+    );
+  }
+
+  function money(value) {
+    return new Intl.NumberFormat(
+      'en-GB',
+      {
+        style: 'currency',
+        currency: 'GBP'
+      }
+    ).format(
+      Number(value) || 0
+    );
+  }
+
+  function percent(value) {
+    return (
+      (
+        Number(value) ||
+        0
+      ) *
+      100
+    ).toFixed(0) + '%';
+  }
+
+  function date(value) {
+    if (!value) {
+      return '--';
+    }
+
+    const parsed =
+      new Date(value);
+
+    return Number.isNaN(
+      parsed.getTime()
+    )
+      ? '--'
+      : parsed.toLocaleDateString(
+          'en-GB',
+          {
+            day: 'numeric',
+            month: 'short',
+            year: 'numeric'
+          }
+        );
+  }
+
+  function escape(value) {
+    const element =
+      document.createElement(
+        'span'
+      );
+
+    element.textContent =
+      String(
+        value === undefined ||
+        value === null
+          ? ''
+          : value
+      );
+
+    return element.innerHTML;
+  }
+
+  function empty(message) {
+    return [
+      '<div class="savings-empty">',
+        escape(message),
+      '</div>'
+    ].join('');
+  }
+
+  function tableEmpty(
+    columns,
+    message
+  ) {
+    return [
+      '<tr>',
+        '<td colspan="',
+          String(columns),
+        '">',
+          '<div class="savings-empty">',
+            escape(message),
+          '</div>',
+        '</td>',
+      '</tr>'
+    ].join('');
+  }
+
+  function html(selector, value) {
+    const element =
+      document.querySelector(
+        selector
+      );
+
+    if (element) {
+      element.innerHTML =
+        value;
+    }
+  }
+
+  function setText(selector, value) {
+    const element =
+      document.querySelector(
+        selector
+      );
+
+    if (element) {
+      element.textContent =
+        value;
+    }
+  }
+
+  function getError(error) {
+    return error &&
+      error.message
+      ? error.message
+      : String(
+          error ||
+          'An unexpected Savings error occurred.'
+        );
+  }
+
+  if (
+    document.readyState ===
+    'loading'
+  ) {
+    document.addEventListener(
+      'DOMContentLoaded',
+      init
+    );
+  } else {
+    init();
+  }
+})();
