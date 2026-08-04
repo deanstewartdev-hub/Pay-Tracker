@@ -352,7 +352,14 @@ const PayTrackerWebFinanceWorkspaceService =
                 row[column.PAID - 1] ===
                 true,
               status:
-                row[column.STATUS - 1],
+                PayTrackerWebFinanceWorkspaceService
+                  .getPaymentStatus(
+                    row[
+                      column.DUE_DATE -
+                      1
+                    ],
+                    row[column.PAID - 1] === true
+                  ),
               notes:
                 row[column.NOTES - 1]
             };
@@ -360,6 +367,7 @@ const PayTrackerWebFinanceWorkspaceService =
         )
         .sort(
           PayTrackerWebFinanceWorkspaceService
+          
             .sortByDate('dueDate')
         );
     },
@@ -434,9 +442,18 @@ const PayTrackerWebFinanceWorkspaceService =
                 ]
             };
           }
-        )
+                )
+        .filter(function(record) {
+          return (
+            record.undoStatus !==
+            PayTrackerFinanceConfig
+              .UNDO_STATUSES
+              .UNDONE
+          );
+        })
         .sort(
           PayTrackerWebFinanceWorkspaceService
+          
             .sortByDate(
               'paidDate',
               true
@@ -534,6 +551,58 @@ const PayTrackerWebFinanceWorkspaceService =
           return Boolean(record.id);
         });
     },
+getPaymentStatus: function(
+  dueDate,
+  paid
+) {
+  if (paid === true) {
+    return 'Paid';
+  }
+
+  if (!dueDate) {
+    return 'Upcoming';
+  }
+
+  const timezone =
+    Session.getScriptTimeZone();
+
+  const todayKey =
+    Utilities.formatDate(
+      new Date(),
+      timezone,
+      'yyyy-MM-dd'
+    );
+
+  const dueDateObject =
+    dueDate instanceof Date
+      ? dueDate
+      : new Date(dueDate);
+
+  if (
+    Number.isNaN(
+      dueDateObject.getTime()
+    )
+  ) {
+    return 'Upcoming';
+  }
+
+  const dueKey =
+    Utilities.formatDate(
+      dueDateObject,
+      timezone,
+      'yyyy-MM-dd'
+    );
+
+  if (dueKey < todayKey) {
+    return 'Overdue';
+  }
+
+  if (dueKey === todayKey) {
+    return 'Due Today';
+  }
+
+  return 'Upcoming';
+},
 
     sortByDate: function(
       field,
@@ -598,11 +667,7 @@ const PayTrackerWebFinanceWorkspaceService =
     }
   });
 
-function getPayTrackerFinanceWorkspace() {
-  const data =
-    PayTrackerWebFinanceWorkspaceService
-      .getData();
-
+  function makePayTrackerFinanceResponseBrowserSafe(data) {
   return JSON.parse(
     JSON.stringify(
       data,
@@ -628,34 +693,32 @@ function getPayTrackerFinanceWorkspace() {
   );
 }
 
-function markPayTrackerFinancePaymentPaid(
-  paymentId
-) {
-  return PayTrackerWebFinanceWorkspaceService
-    .markPaymentPaid(
-      paymentId
-    );
+function getPayTrackerFinanceWorkspace() {
+  return makePayTrackerFinanceResponseBrowserSafe(
+    PayTrackerWebFinanceWorkspaceService.getData()
+  );
+}
+
+function markPayTrackerFinancePaymentPaid(paymentId) {
+  return makePayTrackerFinanceResponseBrowserSafe(
+    PayTrackerWebFinanceWorkspaceService.markPaymentPaid(paymentId)
+  );
 }
 
 function undoPayTrackerFinancePayment() {
-  return PayTrackerWebFinanceWorkspaceService
-    .undoLastPayment();
+  return makePayTrackerFinanceResponseBrowserSafe(
+    PayTrackerWebFinanceWorkspaceService.undoLastPayment()
+  );
 }
 
-function confirmPayTrackerSubscription(
-  subscriptionId
-) {
-  return PayTrackerWebFinanceWorkspaceService
-    .confirmSubscription(
-      subscriptionId
-    );
+function confirmPayTrackerSubscription(subscriptionId) {
+  return makePayTrackerFinanceResponseBrowserSafe(
+    PayTrackerWebFinanceWorkspaceService.confirmSubscription(subscriptionId)
+  );
 }
 
-function rejectPayTrackerSubscription(
-  subscriptionId
-) {
-  return PayTrackerWebFinanceWorkspaceService
-    .rejectSubscription(
-      subscriptionId
-    );
+function rejectPayTrackerSubscription(subscriptionId) {
+  return makePayTrackerFinanceResponseBrowserSafe(
+    PayTrackerWebFinanceWorkspaceService.rejectSubscription(subscriptionId)
+  );
 }

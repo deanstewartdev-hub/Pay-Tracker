@@ -57,6 +57,11 @@
 
   <div data-finance-content hidden>
     <section class="finance-panel is-active" data-finance-panel="overview">
+      <div
+        class="finance-alert-grid"
+        data-finance-alerts
+      ></div>
+
       <div class="finance-metric-grid">
         <article class="finance-metric finance-metric--income">
           <span>Monthly take-home</span>
@@ -139,16 +144,148 @@
       </div>
     </section>
 
-    <section class="finance-panel" data-finance-panel="payments">
-      <div class="finance-section-heading">
-        <div>
-          <p class="finance-card__eyebrow">Payment queue</p>
-          <h3>Upcoming payments</h3>
-        </div>
-        <button class="button button--secondary" type="button" data-finance-undo>Undo last payment</button>
-      </div>
-      <div class="finance-table-wrap"><table class="finance-table"><thead><tr><th>Due</th><th>Name</th><th>Type</th><th>Amount</th><th>Status</th><th></th></tr></thead><tbody data-finance-payments></tbody></table></div>
-    </section>
+    <section
+  class="finance-panel"
+  data-finance-panel="payments"
+>
+  <div class="finance-section-heading">
+    <div>
+      <p class="finance-card__eyebrow">
+        Payment queue
+      </p>
+
+      <h3>
+        Upcoming payments
+      </h3>
+    </div>
+
+    <button
+      class="button button--secondary"
+      type="button"
+      data-finance-undo
+    >
+      Undo last payment
+    </button>
+  </div>
+
+  <div class="finance-payment-tools">
+    <label class="finance-payment-search">
+      <span class="finance-control-label">
+        Search payments
+      </span>
+
+      <input
+        class="finance-control-input"
+        type="search"
+        placeholder="Search by name or type"
+        autocomplete="off"
+        data-finance-payment-search
+      >
+    </label>
+
+    <label class="finance-payment-control">
+      <span class="finance-control-label">
+        Status
+      </span>
+
+      <select
+        class="finance-control-input"
+        data-finance-payment-filter
+      >
+        <option value="all">
+          All payments
+        </option>
+
+        <option value="overdue">
+          Overdue
+        </option>
+
+        <option value="today">
+          Due today
+        </option>
+
+        <option value="upcoming">
+          Upcoming
+        </option>
+
+        <option value="bills">
+          Bills only
+        </option>
+
+        <option value="debts">
+          Debt repayments
+        </option>
+      </select>
+    </label>
+
+    <label class="finance-payment-control">
+      <span class="finance-control-label">
+        Sort by
+      </span>
+
+      <select
+        class="finance-control-input"
+        data-finance-payment-sort
+      >
+        <option value="date-asc">
+          Due date — earliest
+        </option>
+
+        <option value="date-desc">
+          Due date — latest
+        </option>
+
+        <option value="amount-desc">
+          Amount — highest
+        </option>
+
+        <option value="amount-asc">
+          Amount — lowest
+        </option>
+
+        <option value="name-asc">
+          Name — A to Z
+        </option>
+
+        <option value="name-desc">
+          Name — Z to A
+        </option>
+      </select>
+    </label>
+
+    <button
+      class="button button--secondary finance-payment-clear"
+      type="button"
+      data-finance-payment-clear
+    >
+      Clear filters
+    </button>
+  </div>
+
+  <div
+    class="finance-payment-results"
+    data-finance-payment-results
+  >
+    Showing all upcoming payments
+  </div>
+
+  <div class="finance-table-wrap">
+    <table class="finance-table">
+      <thead>
+        <tr>
+          <th>Due</th>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Amount</th>
+          <th>Status</th>
+          <th></th>
+        </tr>
+      </thead>
+
+      <tbody data-finance-payments></tbody>
+    </table>
+  </div>
+</section>
 
     <section class="finance-panel" data-finance-panel="bills">
       <div class="finance-section-heading"><div><p class="finance-card__eyebrow">Regular commitments</p><h3>Bills</h3></div></div>
