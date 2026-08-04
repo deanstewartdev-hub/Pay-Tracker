@@ -1,0 +1,137 @@
+<div
+  class="settings-workspace"
+  data-settings-workspace
+>
+  <div class="page-header settings-header">
+    <div>
+      <p class="page-header__eyebrow">
+        Application configuration
+      </p>
+
+      <h2 class="page-header__title">
+        Settings
+      </h2>
+
+      <p class="page-header__description">
+        Configure how Pay Tracker allocates savings from your disposable
+        income. Payroll and bank integrations keep their own guided setup.
+      </p>
+    </div>
+  </div>
+
+  <div
+    class="settings-notice"
+    data-settings-notice
+    hidden
+  ></div>
+
+  <div class="settings-loading" data-settings-loading>
+    Loading your settings…
+  </div>
+
+  <div data-settings-content hidden>
+    <article class="card settings-card">
+      <div class="settings-card__header">
+        <div>
+          <p class="settings-card__eyebrow">Savings behaviour</p>
+          <h3>Savings Settings</h3>
+        </div>
+
+        <span class="settings-status" data-settings-last-recalculated>
+          Not yet recalculated
+        </span>
+      </div>
+
+      <form class="settings-form" data-settings-form>
+        <label class="settings-field">
+          <span class="settings-field__label">Savings mode</span>
+
+          <select class="settings-control-input" data-settings-mode>
+            <option value="Percentage of Disposable Income">
+              Percentage of disposable income
+            </option>
+            <option value="Fixed Monthly Amount">
+              Fixed monthly amount
+            </option>
+          </select>
+        </label>
+
+        <label class="settings-field">
+          <span class="settings-field__label">Disposable income savings %</span>
+
+          <input
+            class="settings-control-input"
+            type="number"
+            min="0"
+            max="100"
+            step="0.1"
+            data-settings-percentage
+          >
+
+          <small class="settings-field__hint">
+            Used when the mode above is set to percentage of disposable income.
+          </small>
+        </label>
+
+        <label class="settings-field">
+          <span class="settings-field__label">Fixed monthly savings amount</span>
+
+          <input
+            class="settings-control-input"
+            type="number"
+            min="0"
+            step="0.01"
+            data-settings-fixed-amount
+          >
+
+          <small class="settings-field__hint">
+            Used only when the mode above is set to fixed monthly amount.
+          </small>
+        </label>
+
+        <label class="settings-field">
+          <span class="settings-field__label">Maximum monthly savings</span>
+
+          <input
+            class="settings-control-input"
+            type="number"
+            min="0"
+            step="0.01"
+            data-settings-maximum-amount
+          >
+
+          <small class="settings-field__hint">
+            Optional cap on total monthly savings. Enter 0 for no maximum.
+          </small>
+        </label>
+
+        <label class="settings-field">
+          <span class="settings-field__label">Default deposit day</span>
+
+          <input
+            class="settings-control-input"
+            type="number"
+            min="1"
+            max="28"
+            step="1"
+            data-settings-deposit-day
+          >
+
+          <small class="settings-field__hint">
+            Day of the month used when a savings pot has no next deposit date.
+          </small>
+        </label>
+
+        <div class="settings-form__actions">
+          <button
+            class="button button--primary"
+            type="submit"
+            data-settings-save
+          >
+            Save Savings Settings
+          </button>
+        </div>
+      </form>
+    </article>
+  </div>
+</div>
