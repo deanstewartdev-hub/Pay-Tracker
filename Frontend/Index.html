@@ -203,45 +203,12 @@
 
             <section
               id="page-settings"
-              class="page-view placeholder-page"
+              class="page-view"
               data-page="settings"
               aria-hidden="true"
               hidden
             >
-              <div class="page-header">
-                <p class="page-header__eyebrow">
-                  Application configuration
-                </p>
-
-                <h2 class="page-header__title">
-                  Settings
-                </h2>
-
-                <p class="page-header__description">
-                  Configure Pay Tracker preferences, savings behaviour, display
-                  options and integration settings.
-                </p>
-              </div>
-
-              <div class="card">
-                <div class="empty-state">
-                  <div
-                    class="empty-state__icon"
-                    aria-hidden="true"
-                  >
-                    ⚙
-                  </div>
-
-                  <h3 class="empty-state__title">
-                    Settings workspace coming soon
-                  </h3>
-
-                  <p class="empty-state__message">
-                    Existing spreadsheet settings will be exposed here in a
-                    controlled interface without removing direct sheet access.
-                  </p>
-                </div>
-              </div>
+              <?!= includePayTrackerHtml('Frontend/Pages/Settings'); ?>
             </section>
           </div>
         </main>
@@ -399,6 +366,12 @@
     <script>
       <?!= includePayTrackerHtml(
         'Frontend/Services/ReportsWorkspaceService'
+      ); ?>
+    </script>
+
+    <script>
+      <?!= includePayTrackerHtml(
+        'Frontend/Services/SettingsWorkspaceService'
       ); ?>
     </script>
 

@@ -1,0 +1,434 @@
+;(function() {
+  'use strict';
+
+  const state = {
+    loaded: false,
+    loading: false,
+    saving: false,
+    data: null
+  };
+
+  function init() {
+    const root =
+      document.querySelector(
+        '[data-settings-workspace]'
+      );
+
+    if (!root) {
+      return;
+    }
+
+    bind(root);
+
+    document.addEventListener(
+      'paytracker:route-changed',
+      function(event) {
+        if (
+          event.detail &&
+          event.detail.route ===
+            'settings'
+        ) {
+          load();
+        }
+      }
+    );
+
+    load();
+  }
+
+  function bind(root) {
+    root.addEventListener(
+      'submit',
+      function(event) {
+        const form =
+          event.target.closest(
+            '[data-settings-form]'
+          );
+
+        if (!form) {
+          return;
+        }
+
+        event.preventDefault();
+        save(root);
+      }
+    );
+  }
+
+  function load(force) {
+    if (
+      state.loading ||
+      (
+        state.loaded &&
+        force !== true
+      )
+    ) {
+      return;
+    }
+
+    state.loading = true;
+    setLoading(true);
+
+    call(
+      'getPayTrackerSettingsWorkspace',
+      null,
+      function(data) {
+        state.loading = false;
+        setLoading(false);
+
+        if (
+          !data ||
+          typeof data !== 'object'
+        ) {
+          showNotice(
+            'The Settings service returned no data. Refresh the page and try again.',
+            true
+          );
+          return;
+        }
+
+        state.loaded = true;
+        state.data = data;
+        render(data);
+      },
+      function(error) {
+        state.loading = false;
+        setLoading(false);
+        showNotice(
+          getError(error),
+          true
+        );
+      }
+    );
+  }
+
+  function save(root) {
+    if (state.saving) {
+      return;
+    }
+
+    const payload = {
+      mode:
+        fieldValue(
+          root,
+          '[data-settings-mode]'
+        ),
+      percentage:
+        Number(
+          fieldValue(
+            root,
+            '[data-settings-percentage]'
+          )
+        ),
+      fixedAmount:
+        Number(
+          fieldValue(
+            root,
+            '[data-settings-fixed-amount]'
+          )
+        ),
+      maximumAmount:
+        Number(
+          fieldValue(
+            root,
+            '[data-settings-maximum-amount]'
+          )
+        ),
+      defaultDepositDay:
+        Number(
+          fieldValue(
+            root,
+            '[data-settings-deposit-day]'
+          )
+        )
+    };
+
+    state.saving = true;
+    setSaving(true);
+
+    call(
+      'updatePayTrackerSavingsSettings',
+      [payload],
+      function(data) {
+        state.saving = false;
+        setSaving(false);
+
+        if (
+          !data ||
+          typeof data !== 'object'
+        ) {
+          showNotice(
+            'The Settings service returned no data. Refresh the page and try again.',
+            true
+          );
+          return;
+        }
+
+        state.data = data;
+        render(data);
+        showNotice(
+          'Savings Settings saved.'
+        );
+      },
+      function(error) {
+        state.saving = false;
+        setSaving(false);
+        showNotice(
+          getError(error),
+          true
+        );
+      }
+    );
+  }
+
+  function render(data) {
+    const savings =
+      data.savings || {};
+
+    const root =
+      document.querySelector(
+        '[data-settings-workspace]'
+      );
+
+    if (!root) {
+      return;
+    }
+
+    setFieldValue(
+      root,
+      '[data-settings-mode]',
+      savings.mode
+    );
+
+    setFieldValue(
+      root,
+      '[data-settings-percentage]',
+      round1(
+        (
+          Number(savings.percentage) ||
+          0
+        ) * 100
+      )
+    );
+
+    setFieldValue(
+      root,
+      '[data-settings-fixed-amount]',
+      Number(savings.fixedAmount) || 0
+    );
+
+    setFieldValue(
+      root,
+      '[data-settings-maximum-amount]',
+      Number(savings.maximumAmount) || 0
+    );
+
+    setFieldValue(
+      root,
+      '[data-settings-deposit-day]',
+      Number(savings.defaultDepositDay) || 1
+    );
+
+    setText(
+      '[data-settings-last-recalculated]',
+      savings.lastRecalculated
+        ? 'Last recalculated ' +
+          date(savings.lastRecalculated)
+        : 'Not yet recalculated'
+    );
+  }
+
+  function round1(value) {
+    return Math.round(
+      (Number(value) || 0) * 10
+    ) / 10;
+  }
+
+  function fieldValue(root, selector) {
+    const element =
+      root.querySelector(selector);
+
+    return element
+      ? element.value
+      : '';
+  }
+
+  function setFieldValue(root, selector, value) {
+    const element =
+      root.querySelector(selector);
+
+    if (element) {
+      element.value =
+        value === undefined ||
+        value === null
+          ? ''
+          : value;
+    }
+  }
+
+  function call(
+    functionName,
+    args,
+    success,
+    failure
+  ) {
+    if (
+      !window.google ||
+      !google.script ||
+      !google.script.run
+    ) {
+      failure(
+        new Error(
+          'The Settings service is only available in the deployed Pay Tracker app.'
+        )
+      );
+      return;
+    }
+
+    const runner =
+      google.script.run
+        .withSuccessHandler(success)
+        .withFailureHandler(failure);
+
+    switch (functionName) {
+      case 'getPayTrackerSettingsWorkspace':
+        runner.getPayTrackerSettingsWorkspace();
+        break;
+
+      case 'updatePayTrackerSavingsSettings':
+        runner.updatePayTrackerSavingsSettings(
+          args[0]
+        );
+        break;
+
+      default:
+        failure(
+          new Error(
+            'Unknown Settings service function: ' +
+            functionName
+          )
+        );
+    }
+  }
+
+  function setLoading(loading) {
+    const loadingElement =
+      document.querySelector(
+        '[data-settings-loading]'
+      );
+
+    const content =
+      document.querySelector(
+        '[data-settings-content]'
+      );
+
+    if (loadingElement) {
+      loadingElement.hidden =
+        !loading;
+    }
+
+    if (content) {
+      content.hidden =
+        loading;
+    }
+  }
+
+  function setSaving(saving) {
+    const button =
+      document.querySelector(
+        '[data-settings-save]'
+      );
+
+    if (!button) {
+      return;
+    }
+
+    button.disabled =
+      saving;
+
+    button.textContent =
+      saving
+        ? 'Saving…'
+        : 'Save Savings Settings';
+  }
+
+  function showNotice(
+    message,
+    isError
+  ) {
+    const notice =
+      document.querySelector(
+        '[data-settings-notice]'
+      );
+
+    if (!notice) {
+      return;
+    }
+
+    notice.textContent =
+      message;
+    notice.hidden = false;
+    notice.classList.toggle(
+      'is-error',
+      isError === true
+    );
+  }
+
+  function date(value) {
+    if (!value) {
+      return '--';
+    }
+
+    const parsed =
+      new Date(value);
+
+    return Number.isNaN(
+      parsed.getTime()
+    )
+      ? '--'
+      : parsed.toLocaleString(
+          'en-GB',
+          {
+            day: 'numeric',
+            month: 'short',
+            year: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit'
+          }
+        );
+  }
+
+  function setText(selector, value) {
+    const element =
+      document.querySelector(
+        selector
+      );
+
+    if (element) {
+      element.textContent =
+        value;
+    }
+  }
+
+  function getError(error) {
+    return error &&
+      error.message
+      ? error.message
+      : String(
+          error ||
+          'An unexpected Settings error occurred.'
+        );
+  }
+
+  if (
+    document.readyState ===
+    'loading'
+  ) {
+    document.addEventListener(
+      'DOMContentLoaded',
+      init
+    );
+  } else {
+    init();
+  }
+})();
