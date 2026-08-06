@@ -62,8 +62,31 @@ const PayTrackerWebFinanceWorkspaceService =
             .getSummary(),
         bank:
           PayTrackerWebFinanceWorkspaceService
-            .getBankStatus(spreadsheet)
+            .getBankStatus(spreadsheet),
+        bankMatches:
+          PayTrackerTransactionMatchingService
+            .getSuggestedMatches()
       };
+    },
+
+    confirmBankMatch: function(transactionId) {
+      PayTrackerTransactionMatchingService
+        .confirmMatch(
+          transactionId
+        );
+
+      return PayTrackerWebFinanceWorkspaceService
+        .getData();
+    },
+
+    rejectBankMatch: function(transactionId) {
+      PayTrackerTransactionMatchingService
+        .rejectMatch(
+          transactionId
+        );
+
+      return PayTrackerWebFinanceWorkspaceService
+        .getData();
     },
 
     markPaymentPaid: function(paymentId) {
@@ -714,6 +737,18 @@ function undoPayTrackerFinancePayment() {
 function confirmPayTrackerSubscription(subscriptionId) {
   return makePayTrackerFinanceResponseBrowserSafe(
     PayTrackerWebFinanceWorkspaceService.confirmSubscription(subscriptionId)
+  );
+}
+
+function confirmPayTrackerBankMatch(transactionId) {
+  return makePayTrackerFinanceResponseBrowserSafe(
+    PayTrackerWebFinanceWorkspaceService.confirmBankMatch(transactionId)
+  );
+}
+
+function rejectPayTrackerBankMatch(transactionId) {
+  return makePayTrackerFinanceResponseBrowserSafe(
+    PayTrackerWebFinanceWorkspaceService.rejectBankMatch(transactionId)
   );
 }
 
