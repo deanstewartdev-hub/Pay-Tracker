@@ -419,6 +419,46 @@ const PayTrackerWebSavingsWorkspaceService =
       return null;
     },
 
+    getMonzoPotOptions: function() {
+      if (
+        !PayTrackerMonzoService
+          .hasAccessToken()
+      ) {
+        return [];
+      }
+
+      return PayTrackerMonzoService
+        .listPots();
+    },
+
+    linkPotToMonzo: function(
+      potId,
+      monzoPotId,
+      monzoPotName
+    ) {
+      PayTrackerSavingsService
+        .linkPotToMonzo(
+          potId,
+          monzoPotId,
+          monzoPotName
+        );
+
+      return PayTrackerWebSavingsWorkspaceService
+        .getData();
+    },
+
+    unlinkPotFromMonzo: function(
+      potId
+    ) {
+      PayTrackerSavingsService
+        .unlinkPotFromMonzo(
+          potId
+        );
+
+      return PayTrackerWebSavingsWorkspaceService
+        .getData();
+    },
+
     serializeDate: function(value) {
       if (!value) {
         return '';
@@ -480,5 +520,27 @@ function markPayTrackerSavingsContributionDeposited(contributionId) {
 function undoPayTrackerSavingsContribution() {
   return makePayTrackerSavingsResponseBrowserSafe_(
     PayTrackerWebSavingsWorkspaceService.undoLastContribution()
+  );
+}
+
+function getPayTrackerMonzoPotOptions() {
+  return makePayTrackerSavingsResponseBrowserSafe_(
+    PayTrackerWebSavingsWorkspaceService.getMonzoPotOptions()
+  );
+}
+
+function linkPayTrackerSavingsPotToMonzo(potId, monzoPotId, monzoPotName) {
+  return makePayTrackerSavingsResponseBrowserSafe_(
+    PayTrackerWebSavingsWorkspaceService.linkPotToMonzo(
+      potId,
+      monzoPotId,
+      monzoPotName
+    )
+  );
+}
+
+function unlinkPayTrackerSavingsPotFromMonzo(potId) {
+  return makePayTrackerSavingsResponseBrowserSafe_(
+    PayTrackerWebSavingsWorkspaceService.unlinkPotFromMonzo(potId)
   );
 }

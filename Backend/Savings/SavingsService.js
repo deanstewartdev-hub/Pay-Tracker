@@ -670,7 +670,9 @@ const PayTrackerSavingsService = Object.freeze({
       140,
       145,
       155,
-      140
+      140,
+      190,
+      180
     ];
 
     widths.forEach(
@@ -714,6 +716,11 @@ const PayTrackerSavingsService = Object.freeze({
 
     const columns =
       config.COLUMNS;
+
+    PayTrackerFinanceService.ensureSheetColumns(
+      sheet,
+      config.HEADERS.length
+    );
 
     const rows =
       sheet
@@ -975,6 +982,16 @@ const PayTrackerSavingsService = Object.freeze({
 
     const columns =
       config.COLUMNS;
+
+    /*
+     * Sheets created before the Monzo Pot link columns
+     * existed may not be wide enough yet. Widen safely
+     * before reading or writing the full row.
+     */
+    PayTrackerFinanceService.ensureSheetColumns(
+      sheet,
+      config.HEADERS.length
+    );
 
     const values =
       sheet
@@ -2022,6 +2039,11 @@ const PayTrackerSavingsService = Object.freeze({
     const columns =
       config.COLUMNS;
 
+    PayTrackerFinanceService.ensureSheetColumns(
+      potsSheet,
+      config.HEADERS.length
+    );
+
     const rows =
       potsSheet
         .getRange(
@@ -2409,6 +2431,265 @@ const PayTrackerSavingsService = Object.freeze({
     }
 
     return null;
+  },
+
+
+  /**
+   * Links a Savings Pot to a Monzo Pot.
+   *
+   * The linked Monzo Pot's balance overwrites this pot's
+   * Current Balance on every future Monzo sync.
+   *
+   * @param {string} potId
+   * @param {string} monzoPotId
+   * @param {string} monzoPotName
+   */
+  linkPotToMonzo: function (
+    potId,
+    monzoPotId,
+    monzoPotName
+  ) {
+    const spreadsheet =
+      SpreadsheetApp.getActiveSpreadsheet();
+
+    const sheet =
+      spreadsheet.getSheetByName(
+        PayTrackerSavingsConfig.SHEETS.POTS
+      );
+
+    if (!sheet) {
+      throw new Error(
+        'Savings Pots sheet was not found.'
+      );
+    }
+
+    const row =
+      PayTrackerSavingsService.findPotRowById(
+        sheet,
+        potId
+      );
+
+    if (!row) {
+      throw new Error(
+        'Savings pot was not found: ' +
+        potId
+      );
+    }
+
+    const columns =
+      PayTrackerSavingsConfig.POTS.COLUMNS;
+
+    PayTrackerFinanceService.ensureSheetColumns(
+      sheet,
+      PayTrackerSavingsConfig.POTS.HEADERS.length
+    );
+
+    sheet
+      .getRange(
+        row,
+        columns.MONZO_POT_ID
+      )
+      .setValue(
+        String(monzoPotId || '').trim()
+      );
+
+    sheet
+      .getRange(
+        row,
+        columns.MONZO_POT_NAME
+      )
+      .setValue(
+        String(monzoPotName || '').trim()
+      );
+
+    PayTrackerSavingsService.updatePotRow(
+      sheet,
+      row
+    );
+  },
+
+
+  /**
+   * Removes a Savings Pot's link to a Monzo Pot.
+   *
+   * @param {string} potId
+   */
+  unlinkPotFromMonzo: function (
+    potId
+  ) {
+    PayTrackerSavingsService.linkPotToMonzo(
+      potId,
+      '',
+      ''
+    );
+  },
+
+
+  /**
+   * Finds a Savings Pot row by its linked Monzo Pot ID.
+   *
+   * @param {GoogleAppsScript.Spreadsheet.Sheet} sheet
+   * @param {string} monzoPotId
+   * @return {number|null}
+   */
+  findPotRowByMonzoPotId: function (
+    sheet,
+    monzoPotId
+  ) {
+    if (
+      !sheet ||
+      sheet.getLastRow() <
+      PayTrackerSavingsConfig.FIRST_DATA_ROW
+    ) {
+      return null;
+    }
+
+    const targetId =
+      String(
+        monzoPotId || ''
+      ).trim();
+
+    if (targetId === '') {
+      return null;
+    }
+
+    const column =
+      PayTrackerSavingsConfig
+        .POTS
+        .COLUMNS
+        .MONZO_POT_ID;
+
+    const values =
+      sheet
+        .getRange(
+          PayTrackerSavingsConfig.FIRST_DATA_ROW,
+          column,
+          sheet.getLastRow() -
+            PayTrackerSavingsConfig.FIRST_DATA_ROW +
+            1,
+          1
+        )
+        .getDisplayValues();
+
+    for (
+      let index = 0;
+      index < values.length;
+      index++
+    ) {
+      if (
+        String(
+          values[index][0] || ''
+        ).trim() ===
+        targetId
+      ) {
+        return (
+          index +
+          PayTrackerSavingsConfig.FIRST_DATA_ROW
+        );
+      }
+    }
+
+    return null;
+  },
+
+
+  /**
+   * Applies live Monzo Pot balances to every linked Savings
+   * Pot.
+   *
+   * Pots without a matching link are left untouched. This
+   * never creates or deletes Savings Pots - linking must be
+   * done explicitly first.
+   *
+   * @param {Array<{id: string, name: string, balance: number}>} monzoPots
+   * @return {number} Number of Savings Pots updated.
+   */
+  applyMonzoPotBalances: function (
+    monzoPots
+  ) {
+    const spreadsheet =
+      SpreadsheetApp.getActiveSpreadsheet();
+
+    const sheet =
+      spreadsheet.getSheetByName(
+        PayTrackerSavingsConfig.SHEETS.POTS
+      );
+
+    if (
+      !sheet ||
+      sheet.getLastRow() <
+      PayTrackerSavingsConfig.FIRST_DATA_ROW ||
+      !Array.isArray(monzoPots) ||
+      monzoPots.length === 0
+    ) {
+      return 0;
+    }
+
+    PayTrackerFinanceService.ensureSheetColumns(
+      sheet,
+      PayTrackerSavingsConfig.POTS.HEADERS.length
+    );
+
+    const columns =
+      PayTrackerSavingsConfig.POTS.COLUMNS;
+
+    let updatedCount =
+      0;
+
+    monzoPots.forEach(function (monzoPot) {
+      const monzoPotId =
+        String(
+          monzoPot.id || ''
+        ).trim();
+
+      if (monzoPotId === '') {
+        return;
+      }
+
+      const row =
+        PayTrackerSavingsService.findPotRowByMonzoPotId(
+          sheet,
+          monzoPotId
+        );
+
+      if (!row) {
+        return;
+      }
+
+      sheet
+        .getRange(
+          row,
+          columns.CURRENT_BALANCE
+        )
+        .setValue(
+          PayTrackerUtils.roundCurrency(
+            Number(monzoPot.balance) || 0
+          )
+        )
+        .setNumberFormat(
+          PayTrackerSavingsConfig.FORMATS.CURRENCY
+        );
+
+      if (monzoPot.name) {
+        sheet
+          .getRange(
+            row,
+            columns.MONZO_POT_NAME
+          )
+          .setValue(
+            String(monzoPot.name).trim()
+          );
+      }
+
+      PayTrackerSavingsService.updatePotRow(
+        sheet,
+        row
+      );
+
+      updatedCount++;
+    });
+
+    return updatedCount;
   },
 
 

@@ -769,6 +769,11 @@ const PayTrackerLifeGoalsService = Object.freeze({
     const columns =
       config.COLUMNS;
 
+    PayTrackerFinanceService.ensureSheetColumns(
+      potsSheet,
+      config.HEADERS.length
+    );
+
     return potsSheet
       .getRange(
         2,

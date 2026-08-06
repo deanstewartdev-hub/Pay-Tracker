@@ -195,6 +195,16 @@ const PayTrackerSavingsDashboardService = Object.freeze({
     const columns =
       config.COLUMNS;
 
+    /*
+     * Sheets created before the Monzo Pot link columns
+     * existed may not be wide enough yet. Widen safely
+     * before reading the full row width.
+     */
+    PayTrackerFinanceService.ensureSheetColumns(
+      potsSheet,
+      config.HEADERS.length
+    );
+
     const rows =
       potsSheet
         .getRange(
@@ -487,6 +497,20 @@ const PayTrackerSavingsDashboardService = Object.freeze({
             String(
               row[
                 columns.LINKED_GOAL_ID - 1
+              ] || ''
+            ).trim(),
+
+          monzoPotId:
+            String(
+              row[
+                columns.MONZO_POT_ID - 1
+              ] || ''
+            ).trim(),
+
+          monzoPotName:
+            String(
+              row[
+                columns.MONZO_POT_NAME - 1
               ] || ''
             ).trim()
         });

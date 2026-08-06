@@ -230,7 +230,18 @@ const PayTrackerFinanceIntegrationConfig =
 
       TRANSACTION_PAGE_LIMIT: 100,
       INITIAL_HISTORY_DAYS: 365,
-      NORMAL_SYNC_DAYS: 90
+
+      /*
+       * Monzo requires Strong Customer Authentication to
+       * access transactions older than 90 days, and the SCA
+       * grace period following an OAuth connection is short.
+       * A rolling 30-day window stays comfortably clear of
+       * that requirement for routine syncs; already-imported
+       * transactions are de-duplicated by ID regardless of
+       * window size, so this does not lose history already
+       * captured by earlier syncs.
+       */
+      NORMAL_SYNC_DAYS: 30
     }),
 
     DETECTION: Object.freeze({
