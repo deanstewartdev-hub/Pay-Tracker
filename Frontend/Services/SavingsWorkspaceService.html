@@ -7,7 +7,8 @@
     data: null,
     contributionRecords: [],
     contributionSearch: '',
-    contributionFilter: 'all'
+    contributionFilter: 'all',
+    monzoPotOptions: []
   };
 
   function init() {
@@ -52,6 +53,11 @@
             '[data-savings-deposit]'
           );
 
+        const unlinkMonzo =
+          event.target.closest(
+            '[data-savings-unlink-monzo]'
+          );
+
         if (tab) {
           selectTab(
             tab.getAttribute(
@@ -89,6 +95,16 @@
             'undoPayTrackerSavingsContribution',
             [],
             'The last deposit was restored.'
+          );
+        } else if (unlinkMonzo) {
+          run(
+            'unlinkPayTrackerSavingsPotFromMonzo',
+            [
+              unlinkMonzo.getAttribute(
+                'data-savings-unlink-monzo'
+              )
+            ],
+            'Pot unlinked from Monzo.'
           );
         }
       }
@@ -128,6 +144,49 @@
             );
 
           renderContributionView();
+          return;
+        }
+
+        if (
+          event.target.matches(
+            '[data-savings-link-monzo]'
+          )
+        ) {
+          const monzoPotId =
+            String(
+              event.target.value || ''
+            );
+
+          if (monzoPotId === '') {
+            return;
+          }
+
+          const potId =
+            event.target.getAttribute(
+              'data-savings-link-monzo'
+            );
+
+          const option =
+            state.monzoPotOptions.find(
+              function(candidate) {
+                return (
+                  candidate.id ===
+                  monzoPotId
+                );
+              }
+            );
+
+          run(
+            'linkPayTrackerSavingsPotToMonzo',
+            [
+              potId,
+              monzoPotId,
+              option
+                ? option.name
+                : ''
+            ],
+            'Pot linked to Monzo.'
+          );
         }
       }
     );
@@ -168,6 +227,7 @@
         state.loaded = true;
         state.data = data;
         render(data);
+        loadMonzoPotOptions();
       },
       function(error) {
         state.loading = false;
@@ -176,6 +236,31 @@
           getError(error),
           true
         );
+      }
+    );
+  }
+
+  function loadMonzoPotOptions() {
+    call(
+      'getPayTrackerMonzoPotOptions',
+      [],
+      function(options) {
+        state.monzoPotOptions =
+          Array.isArray(options)
+            ? options
+            : [];
+
+        if (
+          state.data &&
+          state.data.pots
+        ) {
+          renderPots(
+            state.data.pots
+          );
+        }
+      },
+      function() {
+        state.monzoPotOptions = [];
       }
     );
   }
@@ -404,15 +489,69 @@
                   escape(pot.targetStatus || 'No Target Date'),
                 '</span>',
               '</td>',
+              '<td>',
+                renderBankLinkCell(pot),
+              '</td>',
             '</tr>'
           ].join('');
         })
         .join('') ||
         tableEmpty(
-          7,
+          8,
           'No savings pots have been added yet.'
         )
     );
+  }
+
+  function renderBankLinkCell(pot) {
+    if (pot.monzoPotId) {
+      return [
+        '<div class="savings-bank-link">',
+          '<span class="savings-bank-link__badge">',
+            escape(pot.monzoPotName || 'Monzo Pot'),
+          '</span>',
+          '<button class="savings-mini-button" type="button" data-savings-unlink-monzo="',
+            escape(pot.id),
+          '">',
+            'Unlink',
+          '</button>',
+        '</div>'
+      ].join('');
+    }
+
+    const options =
+      Array.isArray(state.monzoPotOptions)
+        ? state.monzoPotOptions
+        : [];
+
+    if (options.length === 0) {
+      return [
+        '<span class="savings-bank-link__empty">',
+          'Connect Monzo to link',
+        '</span>'
+      ].join('');
+    }
+
+    return [
+      '<select class="savings-control-input savings-bank-link__select" data-savings-link-monzo="',
+        escape(pot.id),
+        '">',
+        '<option value="">Link to Monzo...</option>',
+        options
+          .map(function(option) {
+            return [
+              '<option value="',
+                escape(option.id),
+              '">',
+                escape(option.name),
+                ' - ',
+                escape(money(option.balance)),
+              '</option>'
+            ].join('');
+          })
+          .join(''),
+      '</select>'
+    ].join('');
   }
 
   function renderContributions(records) {
@@ -686,6 +825,24 @@
 
       case 'undoPayTrackerSavingsContribution':
         runner.undoPayTrackerSavingsContribution();
+        break;
+
+      case 'getPayTrackerMonzoPotOptions':
+        runner.getPayTrackerMonzoPotOptions();
+        break;
+
+      case 'linkPayTrackerSavingsPotToMonzo':
+        runner.linkPayTrackerSavingsPotToMonzo(
+          values[0],
+          values[1],
+          values[2]
+        );
+        break;
+
+      case 'unlinkPayTrackerSavingsPotFromMonzo':
+        runner.unlinkPayTrackerSavingsPotFromMonzo(
+          values[0]
+        );
         break;
 
       default:

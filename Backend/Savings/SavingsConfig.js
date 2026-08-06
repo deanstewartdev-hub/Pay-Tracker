@@ -157,8 +157,9 @@ const PayTrackerSavingsConfig = Object.freeze({
     /*
      * Existing v2.5 columns remain in positions 1–20.
      *
-     * New v2.6 contribution and forecasting columns are
-     * appended in positions 21–26 to preserve existing data.
+     * v2.6 contribution and forecasting columns are appended
+     * in positions 21–26, and v2.8 Monzo Pot linking columns
+     * in positions 27–28, to preserve existing data.
      */
     HEADERS: Object.freeze([
       'Pot ID',
@@ -187,7 +188,10 @@ const PayTrackerSavingsConfig = Object.freeze({
       'Contribution Amount',
       'Monthly Equivalent',
       'Estimated Months to Goal',
-      'Target Status'
+      'Target Status',
+
+      'Linked Monzo Pot ID',
+      'Linked Monzo Pot Name'
     ]),
 
     COLUMNS: Object.freeze({
@@ -217,7 +221,10 @@ const PayTrackerSavingsConfig = Object.freeze({
       CONTRIBUTION_AMOUNT: 23,
       MONTHLY_EQUIVALENT: 24,
       MONTHS_TO_GOAL: 25,
-      TARGET_STATUS: 26
+      TARGET_STATUS: 26,
+
+      MONZO_POT_ID: 27,
+      MONZO_POT_NAME: 28
     })
   }),
 

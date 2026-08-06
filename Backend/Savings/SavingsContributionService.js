@@ -428,6 +428,11 @@ const PayTrackerSavingsContributionService = Object.freeze({
   const columns =
     config.COLUMNS;
 
+  PayTrackerFinanceService.ensureSheetColumns(
+    potsSheet,
+    config.HEADERS.length
+  );
+
   const numberOfRows =
     potsSheet.getLastRow() -
     PayTrackerSavingsConfig.FIRST_DATA_ROW +
@@ -1163,6 +1168,11 @@ const PayTrackerSavingsContributionService = Object.freeze({
 
     const columns =
       PayTrackerSavingsConfig.POTS.COLUMNS;
+
+    PayTrackerFinanceService.ensureSheetColumns(
+      potsSheet,
+      PayTrackerSavingsConfig.POTS.HEADERS.length
+    );
 
     const values =
       potsSheet

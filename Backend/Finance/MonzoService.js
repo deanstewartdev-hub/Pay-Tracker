@@ -267,6 +267,19 @@ const PayTrackerMonzoService =
             detection.suggestions
           );
 
+      const monzoPots =
+        PayTrackerMonzoService
+          .fetchPots(
+            account.id,
+            accessToken
+          );
+
+      const potsUpdated =
+        PayTrackerSavingsService
+          .applyMonzoPotBalances(
+            monzoPots
+          );
+
       return {
         success: true,
         connected: true,
@@ -274,13 +287,98 @@ const PayTrackerMonzoService =
           imported,
         suggestions:
           suggestionsAdded,
+        potsUpdated:
+          potsUpdated,
         message:
           'Monzo sync complete: ' +
           imported +
-          ' new transactions and ' +
+          ' new transactions, ' +
           suggestionsAdded +
-          ' subscription suggestions.'
+          ' subscription suggestions and ' +
+          potsUpdated +
+          ' linked pot balances updated.'
       };
+    },
+
+
+    /**
+     * Lists the signed-in Monzo account's pots.
+     *
+     * Used by the Savings workspace to let the user pick
+     * which Monzo Pot to link a Savings Pot to.
+     *
+     * @return {Array<{id: string, name: string, balance: number, currency: string}>}
+     */
+    listPots: function() {
+      const accessToken =
+        PayTrackerMonzoService
+          .getAccessToken();
+
+      const accounts =
+        PayTrackerMonzoService
+          .request(
+            '/accounts',
+            {},
+            accessToken
+          )
+          .accounts ||
+        [];
+
+      if (!accounts.length) {
+        throw new Error(
+          'Monzo did not return an available account.'
+        );
+      }
+
+      return PayTrackerMonzoService
+        .fetchPots(
+          accounts[0].id,
+          accessToken
+        );
+    },
+
+
+    /**
+     * Reads active pots for one Monzo account.
+     *
+     * @param {string} accountId
+     * @param {string} accessToken
+     * @return {Array<{id: string, name: string, balance: number, currency: string}>}
+     */
+    fetchPots: function(
+      accountId,
+      accessToken
+    ) {
+      const response =
+        PayTrackerMonzoService
+          .request(
+            '/pots',
+            {
+              current_account_id:
+                accountId
+            },
+            accessToken
+          );
+
+      return (response.pots || [])
+        .filter(function(pot) {
+          return !pot.deleted;
+        })
+        .map(function(pot) {
+          return {
+            id:
+              pot.id,
+            name:
+              pot.name ||
+              'Monzo Pot',
+            balance:
+              Number(pot.balance || 0) /
+              100,
+            currency:
+              pot.currency ||
+              'GBP'
+          };
+        });
     },
 
     request: function(
