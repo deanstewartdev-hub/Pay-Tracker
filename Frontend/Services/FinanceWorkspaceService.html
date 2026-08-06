@@ -63,6 +63,11 @@ function bind(root) {
             '[data-finance-subscription-action]'
           );
 
+        const bankMatchAction =
+          event.target.closest(
+            '[data-finance-bank-match-action]'
+          );
+
         if (tab) {
           selectTab(
             tab.getAttribute(
@@ -136,6 +141,30 @@ function bind(root) {
             action === 'confirm'
               ? 'Subscription confirmed.'
               : 'Suggestion dismissed.'
+          );
+        } else if (
+          bankMatchAction
+        ) {
+          const action =
+            bankMatchAction
+              .getAttribute(
+                'data-finance-bank-match-action'
+              );
+
+          const transactionId =
+            bankMatchAction
+              .getAttribute(
+                'data-transaction-id'
+              );
+
+          run(
+            action === 'confirm'
+              ? 'confirmPayTrackerBankMatch'
+              : 'rejectPayTrackerBankMatch',
+            [transactionId],
+            action === 'confirm'
+              ? 'Payment marked as paid from your bank transaction.'
+              : 'Match dismissed.'
           );
         }
       }
@@ -306,6 +335,7 @@ function bind(root) {
     );
     renderHistory(data.history || []);
     renderBank(data.bank || {});
+    renderBankMatches(data.bankMatches || []);
   }
 
   function renderAlerts(
@@ -1185,6 +1215,87 @@ function renderPayments(records) {
     );
   }
 
+  function renderBankMatches(matches) {
+    const card =
+      document.querySelector(
+        '[data-finance-bank-matches-card]'
+      );
+
+    if (!card) {
+      return;
+    }
+
+    if (
+      !matches ||
+      matches.length === 0
+    ) {
+      card.hidden = true;
+      html(
+        '[data-finance-bank-matches]',
+        ''
+      );
+      setText(
+        '[data-finance-bank-matches-count]',
+        '0'
+      );
+      return;
+    }
+
+    card.hidden = false;
+
+    setText(
+      '[data-finance-bank-matches-count]',
+      String(matches.length)
+    );
+
+    html(
+      '[data-finance-bank-matches]',
+      matches
+        .map(function(match) {
+          return [
+            '<div class="finance-bank-match">',
+              '<div class="finance-bank-match__details">',
+                '<strong>',
+                  escape(
+                    match.merchantName ||
+                    match.description
+                  ),
+                '</strong>',
+                '<small>',
+                  date(match.settledAt),
+                  ' - ',
+                  money(match.amount),
+                  ' matched to ',
+                  escape(
+                    match.matchedItemName ||
+                    'a payment'
+                  ),
+                  ' (',
+                  escape(
+                    String(match.confidence)
+                  ),
+                  '% match)',
+                '</small>',
+              '</div>',
+              '<div class="finance-bank-match__actions">',
+                '<button class="finance-mini-button finance-mini-button--confirm" type="button" data-finance-bank-match-action="confirm" data-transaction-id="',
+                  escape(match.transactionId),
+                  '">',
+                  'Confirm paid',
+                '</button>',
+                '<button class="finance-mini-button" type="button" data-finance-bank-match-action="reject" data-transaction-id="',
+                  escape(match.transactionId),
+                  '">',
+                  'Not a match',
+                '</button>',
+              '</div>',
+            '</div>'
+          ].join('');
+        })
+        .join('')
+    );
+  }
+
   function startBankConnection() {
     call(
       'getPayTrackerMonzoAction',
@@ -1293,6 +1404,18 @@ function call(
 
     case 'rejectPayTrackerSubscription':
       runner.rejectPayTrackerSubscription(
+        values[0]
+      );
+      break;
+
+    case 'confirmPayTrackerBankMatch':
+      runner.confirmPayTrackerBankMatch(
+        values[0]
+      );
+      break;
+
+    case 'rejectPayTrackerBankMatch':
+      runner.rejectPayTrackerBankMatch(
         values[0]
       );
       break;

@@ -280,6 +280,10 @@ const PayTrackerMonzoService =
             monzoPots
           );
 
+      const paymentsMatched =
+        PayTrackerTransactionMatchingService
+          .matchTransactions();
+
       return {
         success: true,
         connected: true,
@@ -289,14 +293,18 @@ const PayTrackerMonzoService =
           suggestionsAdded,
         potsUpdated:
           potsUpdated,
+        paymentsMatched:
+          paymentsMatched,
         message:
           'Monzo sync complete: ' +
           imported +
           ' new transactions, ' +
           suggestionsAdded +
-          ' subscription suggestions and ' +
+          ' subscription suggestions, ' +
           potsUpdated +
-          ' linked pot balances updated.'
+          ' linked pot balances updated and ' +
+          paymentsMatched +
+          ' payment matches suggested.'
       };
     },
 
@@ -384,7 +392,8 @@ const PayTrackerMonzoService =
     request: function(
       path,
       parameters,
-      accessToken
+      accessToken,
+      isRetry
     ) {
       const query =
         Object.keys(parameters || {})
@@ -422,8 +431,106 @@ const PayTrackerMonzoService =
           }
         );
 
-      return PayTrackerMonzoService
-        .parseResponse(response);
+      try {
+        return PayTrackerMonzoService
+          .parseResponse(response);
+      } catch (error) {
+        if (
+          error.status === 401 &&
+          !isRetry
+        ) {
+          const refreshedToken =
+            PayTrackerMonzoService
+              .refreshAccessToken();
+
+          return PayTrackerMonzoService
+            .request(
+              path,
+              parameters,
+              refreshedToken,
+              true
+            );
+        }
+
+        throw error;
+      }
+    },
+
+    /**
+     * Exchanges the stored Monzo refresh token for a new
+     * access token when the current one has expired.
+     * Monzo access tokens are short-lived (a few hours).
+     *
+     * @return {string} the new access token
+     */
+    refreshAccessToken: function() {
+      const userProperties =
+        PropertiesService
+          .getUserProperties();
+
+      const refreshToken =
+        userProperties.getProperty(
+          PayTrackerMonzoService
+            .REFRESH_TOKEN_PROPERTY
+        );
+
+      if (!refreshToken) {
+        throw new Error(
+          'Your Monzo connection has expired. Reconnect Monzo from Finance to continue syncing.'
+        );
+      }
+
+      const credentials =
+        PayTrackerMonzoService
+          .getCredentials();
+
+      const response =
+        UrlFetchApp.fetch(
+          PayTrackerFinanceIntegrationConfig
+            .MONZO
+            .TOKEN_URL,
+          {
+            method: 'post',
+            payload: {
+              grant_type:
+                'refresh_token',
+              client_id:
+                credentials.clientId,
+              client_secret:
+                credentials.clientSecret,
+              refresh_token:
+                refreshToken
+            },
+            muteHttpExceptions:
+              true
+          }
+        );
+
+      let token;
+
+      try {
+        token =
+          PayTrackerMonzoService
+            .parseResponse(response);
+      } catch (refreshError) {
+        throw new Error(
+          'Your Monzo connection has expired. Reconnect Monzo from Finance to continue syncing.'
+        );
+      }
+
+      userProperties
+        .setProperties(
+          {
+            PAY_TRACKER_MONZO_ACCESS_TOKEN:
+              token.access_token,
+            PAY_TRACKER_MONZO_REFRESH_TOKEN:
+              token.refresh_token ||
+              refreshToken
+          },
+          false
+        );
+
+      return token.access_token;
     },
 
     storeTransactions: function(
@@ -779,14 +886,19 @@ const PayTrackerMonzoService =
         status < 200 ||
         status >= 300
       ) {
-        throw new Error(
-          value.message ||
-          value.error_description ||
-          value.error ||
-          'Monzo returned HTTP ' +
-          status +
-          '.'
-        );
+        const error =
+          new Error(
+            value.message ||
+            value.error_description ||
+            value.error ||
+            'Monzo returned HTTP ' +
+            status +
+            '.'
+          );
+
+        error.status = status;
+
+        throw error;
       }
 
       return value;

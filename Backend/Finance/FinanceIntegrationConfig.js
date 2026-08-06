@@ -66,7 +66,31 @@ const PayTrackerFinanceIntegrationConfig =
           'Match Reason',
           'Imported At',
           'Updated At'
-        ])
+        ]),
+
+        COLUMNS: Object.freeze({
+          ID: 1,
+          CONNECTION_ID: 2,
+          ACCOUNT_ID: 3,
+          CREATED_AT: 4,
+          SETTLED_AT: 5,
+          DESCRIPTION: 6,
+          MERCHANT_NAME: 7,
+          MERCHANT_ID: 8,
+          CATEGORY: 9,
+          AMOUNT: 10,
+          CURRENCY: 11,
+          DIRECTION: 12,
+          PENDING: 13,
+          DECLINED: 14,
+          MATCHED_FINANCE_TYPE: 15,
+          MATCHED_FINANCE_ID: 16,
+          MATCH_CONFIDENCE: 17,
+          MATCH_STATUS: 18,
+          MATCH_REASON: 19,
+          IMPORTED_AT: 20,
+          UPDATED_AT: 21
+        })
       }),
 
       SUBSCRIPTIONS: Object.freeze({
