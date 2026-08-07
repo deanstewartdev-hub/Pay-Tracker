@@ -4,30 +4,25 @@
 
 Pay Tracker is a production-quality Google Apps Script application designed to automate personal financial management.
 
-The project has evolved beyond a simple paysheet into a modular financial platform capable of tracking:
+The project has evolved beyond a simple paysheet into a full personal employment, payroll and financial reconciliation platform, connecting Calendar shifts, Staffline payslips, Monzo banking and financial planning in one Apps Script web app:
 
-- NHS earnings
-- Relief Warden earnings
-- Night Security earnings
-- Logging income
-- Finance
-- Bills
-- Debt repayment
-- Savings
-- Life goals
+- NHS, Relief Warden, Night Security and Logging Cash earnings
 - Google Calendar integration
-- Automatic week generation
-- Financial dashboards
+- Payroll Centre — Gmail/manual payslip import, PDF parsing, predicted-vs-actual comparison
+- Monzo bank connection — transactions, subscriptions, savings-pot balance sync, bill/debt matching
+- Finance (bills, debts, payments)
+- Savings and Life Goals
+- Reports
 
-The Google Sheet currently acts as the database while Google Apps Script provides the backend business logic.
+The Google Sheet acts as the database, Google Apps Script provides the backend business logic, and a standalone Apps Script web app (`Frontend/`) is the primary interface — see `docs/Architecture.md`.
 
-The long-term goal is to migrate the frontend to a standalone web application while continuing to use Apps Script as the backend API.
+The v3 roadmap (`docs/Roadmap.md`, detail in `docs/v3-Roadmap-Detail.md`) is the current active development plan: a unified Job Registry and Action Centre, Staffline schedule reconciliation, a per-job Annual Leave engine, and a pay-adjustment recovery ledger.
 
 ---
 
 ## Current Version
 
-Pay Tracker v2.6
+Pay Tracker v2.8 — see `docs/VERSION.md` for a note on version-number history.
 
 ---
 
@@ -35,49 +30,42 @@ Pay Tracker v2.6
 
 ### Pay Tracking
 
-- NHS shifts
-- Relief Warden shifts
-- Night Security shifts
-- Logging income
-- Weekly calculations
-- Estimated deductions
-- Running totals
-- Calendar import
-- Automatic week creation
+- NHS, Relief Warden, Night Security, Logging Cash shifts
+- Weekly calculations, estimated deductions, running totals
+- Calendar import, automatic week creation
+
+### Payroll Centre
+
+- Gmail and manual-PDF payslip import
+- PDF parsing into structured pay fields
+- Predicted-vs-actual comparison with configurable discrepancy thresholds
+- Multi-employer combined-payslip grouping
 
 ### Finance Module
 
-- Bills
-- Debts
-- Finance dashboard
-- Payment tracking
-- Payment history
-- Undo payments
+- Bills, debts, payment tracking, payment history, undo payments
+
+### Finance Integration (Monzo)
+
+- Bank connection with automatic token refresh
+- Transaction import and subscription detection
+- Bank transaction → Bills/Debts payment matching (confidence-scored, manual confirm/reject)
 
 ### Savings Module
 
-- Savings pots
-- Goal tracking
-- Interest forecasting
-- Contribution queue
-- Savings history
-- Progress bars
-- Life goals
+- Savings pots (with optional Monzo Pot balance linkage), goal tracking, interest forecasting, contribution queue, savings history, life goals
+
+### Reports, Calendar, Settings
+
+- Reporting workspace, calendar workspace, app settings
+
+See `docs/Database.md` for the full sheet inventory and `docs/v3-phase0-audit.md` for a detailed audit of what exists today.
 
 ---
 
-## Planned Features
+## Planned Features (v3)
 
-- Weekly disposable-income savings engine
-- Budget forecasting
-- Cash flow forecasting
-- Investment tracking
-- Mortgage planning
-- Vehicle finance planning
-- Net worth dashboard
-- Retirement planning
-- Standalone web application
-- Mobile support
+See `docs/Roadmap.md` and `docs/v3-Roadmap-Detail.md` for the full plan: Action Centre, Staffline schedule import and three-way reconciliation, per-job Annual Leave engine, Gmail Annual Leave import, pay-adjustment recovery ledger, deeper Monzo/money-movement tracking, transaction matching rules, and expanded analytics.
 
 ---
 

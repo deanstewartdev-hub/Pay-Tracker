@@ -6,6 +6,36 @@ The project follows Semantic Versioning where practical.
 
 ---
 
+# [Unreleased / v2.8] - Payroll Centre, Monzo integration and reconciliation (undocumented until this audit)
+
+The following shipped across many PRs after the v2.6.0 release below, but was never recorded in this changelog. Recorded now as part of the v3 Phase 0 audit (`docs/v3-phase0-audit.md`).
+
+### Standalone web application
+
+- Full Apps Script web app (`Frontend/`) serving Dashboard, Pay, Finance, Savings, Goals, Reports, Calendar and Settings as one single-page app — the "standalone web application" milestone from the old roadmap's Phase 3, delivered inside Apps Script rather than as a separate REST API.
+- Deployment-level authorization handling (`ScriptApp.getAuthorizationInfo`) so the app self-serves a "review permissions" page instead of failing silently.
+
+### Payroll Centre
+
+- Gmail and manual-PDF payslip import, PDF text extraction, structured field parsing.
+- Predicted-vs-actual payslip comparison engine with configurable discrepancy thresholds and statuses (Matched / Minor Variance / Review / Major Discrepancy).
+- Payroll Groups / Payroll Group Employers model for combined payslips spanning multiple employers.
+- Staffline timesheet-reference-to-employer mapping.
+
+### Finance integration / Monzo
+
+- Monzo OAuth2 connection, transaction import, and (this session) automatic access-token refresh on expiry.
+- Subscription detection from recurring transactions.
+- Savings Pot ↔ Monzo Pot linkage with automatic balance sync.
+- Bank transaction → Bills/Debts payment matching with confidence scoring; user confirms/rejects, nothing auto-confirms.
+
+### Fixes
+
+- Reports tab HtmlService templating bug (`>=` silently corrupted to `&gt;=` by the template evaluator).
+- Monzo Strong Customer Authentication failures caused by a 90-day sync window (reduced to 30 days).
+
+---
+
 # [v2.6.0] - Initial GitHub Release
 
 ## Added

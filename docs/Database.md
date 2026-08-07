@@ -1,43 +1,57 @@
 # Database
 
-The Google Sheet currently acts as the database.
+The Google Sheet currently acts as the database. Every sheet name below is centrally defined in a `*Config.js` `SHEETS` object — see `docs/v3-phase0-audit.md` §3 for the full audit this list is based on.
 
-Current Sheets
+## Pay / Calendar
 
-Pay
+- PaySheet
 
-Finance
+## Finance (bills, debts, payments)
 
-Bills
+- Bills
+- Debts
+- Finance Payments
+- Payment History
+- Finance Dashboard
 
-Debts
+## Finance Integration (Monzo / bank)
 
-Finance Payments
+- Bank Connections
+- Bank Transactions
+- Subscriptions
+- Subscription Transactions
+- Bank Sync History
 
-Payment History
+## Savings
 
-Finance Dashboard
+- Savings Settings
+- Savings Pots (incl. Monzo Pot linkage columns)
+- Savings Contributions
+- Savings History
+- Life Goals
 
-Savings Settings
+## Payroll / Staffline
 
-Savings Pots
+- Payroll Groups
+- Payroll Group Employers
+- Payslip Register
+- Payslip Email Rules
+- Payroll Scan History
+- Payroll Timesheet Mappings
 
-Savings Contributions
+## Future sheets (v3 roadmap — not yet built)
 
-Savings History
+- Job Registry
+- Annual Leave Job Settings / Annual Leave Earnings / Annual Leave Usage / Annual Leave Email Rules / Annual Leave Email Scan History
+- Staffline Timetable (actual scheduled shifts — does not exist yet; `Payroll Timesheet Mappings` is a reference lookup, not schedule data)
+- Pay Adjustments
+- Money Movements
+- Transaction Matching Rules
+- Action Centre
 
-Life Goals
+## Future sheets (older roadmap, not yet prioritised)
 
-Future Sheets
-
-Savings Weekly Summary
-
-Investments
-
-Mortgage
-
-Vehicles
-
-Net Worth
-
-Settings
+- Investments
+- Mortgage
+- Vehicles
+- Net Worth
