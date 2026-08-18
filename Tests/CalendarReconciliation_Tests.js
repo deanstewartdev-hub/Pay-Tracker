@@ -25,8 +25,11 @@ function runCalendarReconciliationTests() {
   const reliefLeave = event('Annual Leave', day, end, 'Relief Warden', true);
   const ambiguousLeave = event('Annual Leave', day, end, '', true);
   const securityShift = event('Night Security 8pm-12am', day, end, '', false);
+  const shortSecurityShift = event('NIGHT 8pm-12pm', day, end, '', false);
+  const slashLeave = event('A/L', day, end, '', true);
 
   check('recognises AL abbreviation', PayTrackerCalendarService.isAnnualLeaveTitle('al - nhs'));
+  check('recognises A/L abbreviation', PayTrackerCalendarService.isAnnualLeaveTitle('a/l'));
   check('does not treat public holiday as booked leave', !PayTrackerCalendarService.isAnnualLeaveTitle('nhs public holiday'));
   check('NHS leave uses basic pay',
     PayTrackerCalendarService.classifyAnnualLeaveEvent(nhsLeave, day, []).shiftType === 'Basic');
@@ -34,6 +37,8 @@ function runCalendarReconciliationTests() {
     PayTrackerCalendarService.classifyAnnualLeaveEvent(reliefLeave, day, []).jobId === 'JOB-RELIEF-WARDEN');
   check('role can come from same-day shift evidence',
     PayTrackerCalendarService.classifyAnnualLeaveEvent(ambiguousLeave, day, [ambiguousLeave, securityShift]).jobId === 'JOB-NIGHT-SECURITY');
+  check('short NIGHT title supplies A/L role evidence',
+    PayTrackerCalendarService.classifyAnnualLeaveEvent(slashLeave, day, [slashLeave, shortSecurityShift]).jobId === 'JOB-NIGHT-SECURITY');
   check('ambiguous leave is sent for review',
     PayTrackerCalendarService.classifyAnnualLeaveEvent(ambiguousLeave, day, []).needsReview === true);
   check('all-day leave does not become 24 paid hours',

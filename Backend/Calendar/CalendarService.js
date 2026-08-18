@@ -356,7 +356,8 @@ const PayTrackerCalendarService = Object.freeze({
         .classifyNightSecurityEvent(
           cleanTitle,
           isWeekend,
-          durationHours
+          durationHours,
+          timePatterns
         );
 
     if (nightSecurityMatch) {
@@ -413,6 +414,7 @@ const PayTrackerCalendarService = Object.freeze({
     return /\bannual\s+leave\b/.test(value) ||
       /\bannual\s+holiday\b/.test(value) ||
       /\bholiday\s+leave\b/.test(value) ||
+      /(?:^|[\s()[\]{}:;,_-])a\s*\/\s*l(?:$|[\s()[\]{}:;,_-])/.test(value) ||
       /(?:^|[\s()[\]{}:;,_-])al(?:$|[\s()[\]{}:;,_-])/.test(value);
   },
 
@@ -482,6 +484,7 @@ const PayTrackerCalendarService = Object.freeze({
       value.includes('night security') ||
       value.includes('security warden') ||
       value.includes('nightshift security') ||
+      (value.includes('night') && value.includes('8pm')) ||
       (value.includes('security') && !value.includes('nhs'))
     ) return 'security';
     if (
@@ -533,12 +536,14 @@ const PayTrackerCalendarService = Object.freeze({
    * @param {string} cleanTitle
    * @param {boolean} isWeekend
    * @param {number|null} durationHours
+   * @param {Object=} timePatterns Detected shift-time patterns.
    * @return {Object|null}
    */
   classifyNightSecurityEvent: function (
     cleanTitle,
     isWeekend,
-    durationHours
+    durationHours,
+    timePatterns
   ) {
     const isNightSecurityEvent =
       cleanTitle.includes(
@@ -549,6 +554,11 @@ const PayTrackerCalendarService = Object.freeze({
       ) ||
       cleanTitle.includes(
         'nightshift security'
+      ) ||
+      (
+        /\bnight\b/.test(cleanTitle) &&
+        timePatterns &&
+        timePatterns.hasEightToTwelve
       ) ||
       (
         cleanTitle.includes(
