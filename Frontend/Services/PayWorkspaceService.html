@@ -30,7 +30,8 @@ const PayTrackerPayWorkspaceService = Object.freeze({
     loaded: false,
     data: null,
     selectedWeekNumber: null,
-    activeTab: 'overview'
+    activeTab: 'overview',
+    calendarSyncing: false
   },
 
   /**
@@ -245,10 +246,80 @@ const PayTrackerPayWorkspaceService = Object.freeze({
       event.preventDefault();
 
       PayTrackerPayWorkspaceService
-        .showToast(
-          'Calendar synchronisation will be connected during the Calendar feature.',
-          'info'
+        .syncCalendar();
+    }
+  },
+
+  /**
+   * Reconciles Calendar-owned shifts, then reloads the selected week.
+   *
+   * @return {Promise<void>}
+   */
+  syncCalendar: async function() {
+    if (
+      PayTrackerPayWorkspaceService.state.calendarSyncing ||
+      PayTrackerPayWorkspaceService.state.loading
+    ) {
+      return;
+    }
+
+    const confirmed = window.confirm(
+      'Sync calendar reconciles recognised shifts and Annual Leave with your PaySheet. Calendar-owned shifts may be updated or removed; manual changes are preserved. Continue?'
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    const button = document.querySelector(
+      '#pay-sync-calendar-button'
+    );
+    const originalMarkup = button ? button.innerHTML : '';
+
+    PayTrackerPayWorkspaceService.state.calendarSyncing = true;
+    if (button) {
+      button.disabled = true;
+      button.setAttribute('aria-busy', 'true');
+      button.textContent = 'Syncing calendar...';
+    }
+
+    try {
+      if (
+        !window.PayTrackerAppController ||
+        typeof window.PayTrackerAppController.runServerFunction !== 'function'
+      ) {
+        throw new Error(
+          'Pay Tracker application controller is unavailable.'
         );
+      }
+
+      await window.PayTrackerAppController.runServerFunction(
+        'runPayTrackerCalendarSync'
+      );
+
+      await PayTrackerPayWorkspaceService.load({
+        force: true,
+        weekNumber:
+          PayTrackerPayWorkspaceService.state.selectedWeekNumber
+      });
+
+      PayTrackerPayWorkspaceService.showToast(
+        'Calendar sync complete. Annual Leave dates are highlighted in red.',
+        'success'
+      );
+    } catch (error) {
+      console.error('Calendar sync failed.', error);
+      PayTrackerPayWorkspaceService.showToast(
+        PayTrackerPayWorkspaceService.getErrorMessage(error),
+        'error'
+      );
+    } finally {
+      PayTrackerPayWorkspaceService.state.calendarSyncing = false;
+      if (button) {
+        button.disabled = false;
+        button.removeAttribute('aria-busy');
+        button.innerHTML = originalMarkup;
+      }
     }
   },
 
