@@ -10,7 +10,7 @@ function runReconciliationFoundationTests() {
   }
 
   const definitions = PayTrackerReconciliationConfig.getDefinitions();
-  check('three additive sheet definitions', definitions.length === 3);
+  check('four additive sheet definitions', definitions.length === 4);
   check('four stable default jobs', PayTrackerReconciliationConfig.DEFAULT_JOBS.length === 4);
   check('job IDs are unique', new Set(
     PayTrackerReconciliationConfig.DEFAULT_JOBS.map(function(job) { return job.jobId; })

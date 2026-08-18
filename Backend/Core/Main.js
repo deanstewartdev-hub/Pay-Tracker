@@ -51,6 +51,11 @@ function syncGoogleCalendarToPaySheet() {
       'Calendar Sync Complete',
       [
         'Imported: ' + result.imported,
+        'Updated: ' + result.updated,
+        'Adopted existing Calendar rows: ' + result.adopted,
+        'Removed cancelled/moved shifts: ' + result.removed,
+        'Manual changes preserved: ' + result.manualChangesPreserved,
+        'Items sent for review: ' + result.reviewItems,
         'Skipped existing/manual rows: ' + result.skipped,
         'Ignored non-work events: ' + result.ignored,
         'Duplicate events ignored: ' + result.duplicates

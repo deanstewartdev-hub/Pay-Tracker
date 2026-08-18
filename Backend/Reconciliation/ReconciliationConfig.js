@@ -4,7 +4,7 @@
  *******************************************************/
 
 const PayTrackerReconciliationConfig = Object.freeze({
-  VERSION: '3.0.0',
+  VERSION: '3.0.1',
 
   SHEETS: Object.freeze({
     JOBS: Object.freeze({
@@ -36,6 +36,16 @@ const PayTrackerReconciliationConfig = Object.freeze({
         'History ID', 'Action ID', 'Previous Status', 'New Status',
         'Previous Decision', 'New Decision', 'Notes', 'Changed By',
         'Changed At'
+      ])
+    }),
+    CALENDAR_SYNC_RECORDS: Object.freeze({
+      NAME: 'Calendar Sync Records',
+      HEADERS: Object.freeze([
+        'Sync Record ID', 'Event Key', 'Event ID', 'Event Title',
+        'Calendar ID', 'Event Start', 'Event End', 'Job ID',
+        'Table Name', 'Sheet Date', 'Sheet Row', 'Shift Type',
+        'Hours', 'Pay', 'Status', 'Last Seen At', 'Created At',
+        'Updated At'
       ])
     })
   }),

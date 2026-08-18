@@ -6,6 +6,15 @@ The project follows Semantic Versioning where practical.
 
 ---
 
+# v3.0.1 — Calendar and Annual Leave reconciliation
+
+- Recognises `AL` and `Annual Leave` events and assigns basic pay to NHS, Relief Warden, or Night Security using role evidence from event details or a same-day shift.
+- Sends ambiguous Annual Leave roles to the Action Centre instead of guessing.
+- Adds a Calendar ownership ledger so moved, edited, and deleted events update the PaySheet safely.
+- Preserves manually changed PaySheet rows and creates a review item when a deleted event conflicts with a manual edit.
+- Skips all removal reconciliation when any configured Calendar cannot be read.
+- Adds optional six-hour automatic Calendar reconciliation.
+
 # v3.0.0 — Reconciliation foundation
 
 - Added a canonical Jobs registry seeded from the existing employer and pay-rule definitions.

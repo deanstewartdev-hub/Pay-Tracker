@@ -44,6 +44,7 @@ The Google Sheet currently acts as the database. Every sheet name below is centr
 - `Jobs` — canonical per-job registry linked to existing employer and payroll-group keys.
 - `Action Centre` — unresolved, source-linked items requiring manual review.
 - `Action Centre History` — append-only audit trail of status and manual decisions.
+- `Calendar Sync Records` — Calendar event ownership ledger used to update/remove imported shifts without touching manually changed rows.
 
 ## Future sheets (v3 roadmap — not yet built)
 

@@ -22,7 +22,7 @@ The v3 roadmap (`docs/Roadmap.md`, detail in `docs/v3-Roadmap-Detail.md`) is the
 
 ## Current Version
 
-Pay Tracker v3.0 — Phase 1 adds the unified Job Registry and Action Centre.
+Pay Tracker v3.0.1 — reconciliation foundation plus safe Calendar/Annual Leave synchronisation.
 
 ---
 
@@ -33,8 +33,11 @@ Pay Tracker v3.0 — Phase 1 adds the unified Job Registry and Action Centre.
 - Unified Jobs registry seeded from the four existing employer/pay definitions
 - Action Centre for source-linked manual review items
 - Append-only decision history so manual corrections remain auditable
+- Annual Leave/AL Calendar events recorded at the matched role's basic pay
+- Calendar-owned shifts updated or removed when Calendar changes, while manual edits are preserved
+- Optional six-hour automatic Calendar reconciliation
 
-Run `setupPayTrackerReconciliationFoundation()` once after deployment; it is safe to run repeatedly. Safe schema/config checks are available through `runReconciliationFoundationTests()`.
+Run `setupPayTrackerReconciliationFoundation()` once after deployment; it is safe to run repeatedly. Safe schema/config checks are available through `runReconciliationFoundationTests()` and `runCalendarReconciliationTests()`.
 
 ### Pay Tracking
 

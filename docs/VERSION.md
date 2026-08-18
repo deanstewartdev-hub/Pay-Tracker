@@ -1,6 +1,6 @@
 # Pay Tracker
 
-**Current Version:** 3.0.0
+**Current Version:** 3.0.1
 
 ## Status
 

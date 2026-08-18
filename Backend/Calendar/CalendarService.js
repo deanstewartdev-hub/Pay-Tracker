@@ -64,6 +64,11 @@ const PayTrackerCalendarService = Object.freeze({
 
     const result = {
       imported: 0,
+      updated: 0,
+      adopted: 0,
+      removed: 0,
+      manualChangesPreserved: 0,
+      reviewItems: 0,
       skipped: 0,
       ignored: 0,
       duplicates: 0,
@@ -72,6 +77,22 @@ const PayTrackerCalendarService = Object.freeze({
 
     const processedEventKeys =
       new Set();
+
+    const currentEventKeys = new Set(
+      events.map(function(event) {
+        return PayTrackerCalendarService.createEventKey(event);
+      })
+    );
+
+    if (events.syncComplete !== false) {
+      PayTrackerCalendarService.reconcileRemovedEvents(
+        sheet,
+        currentEventKeys,
+        result
+      );
+    } else {
+      result.removalReconciliationSkipped = true;
+    }
 
     events
       .sort(
@@ -119,29 +140,47 @@ const PayTrackerCalendarService = Object.freeze({
             PayTrackerCalendarService
               .classifyEvent(
                 event,
-                eventDate
+                eventDate,
+                events
               );
+
+          if (
+            shiftMatch &&
+            shiftMatch.needsReview === true
+          ) {
+            PayTrackerCalendarService.createAnnualLeaveReviewItem(
+              event,
+              eventDate
+            );
+            result.reviewItems++;
+            return;
+          }
 
           if (!shiftMatch) {
             result.ignored++;
             return;
           }
 
-          const imported =
+          const writeResult =
             PayTrackerCalendarService
               .addShiftToSheet(
                 sheet,
                 eventDate,
                 shiftMatch.tableName,
                 shiftMatch.shiftType,
-                shiftMatch.hours
+                shiftMatch.hours,
+                {
+                  eventKey: eventKey,
+                  event: event,
+                  jobId: shiftMatch.jobId || '',
+                  isAnnualLeave: shiftMatch.isAnnualLeave === true
+                }
               );
 
-          if (imported) {
-            result.imported++;
-          } else {
-            result.skipped++;
-          }
+          const status = writeResult && writeResult.status
+            ? writeResult.status : 'skipped';
+          if (Object.prototype.hasOwnProperty.call(result, status)) result[status]++;
+          else result.skipped++;
         }
       );
 
@@ -185,6 +224,7 @@ const PayTrackerCalendarService = Object.freeze({
     );
 
     let events = [];
+    let syncComplete = true;
 
     PayTrackerConfig.CALENDAR.IDS
       .forEach(
@@ -196,6 +236,7 @@ const PayTrackerCalendarService = Object.freeze({
               );
 
             if (!calendar) {
+              syncComplete = false;
               console.warn(
                 'Calendar was not found or cannot be accessed: ' +
                 calendarId
@@ -215,6 +256,7 @@ const PayTrackerCalendarService = Object.freeze({
                 calendarEvents
               );
           } catch (error) {
+            syncComplete = false;
             PayTrackerUtils.logError(
               'Unable to read calendar ' +
               calendarId,
@@ -224,6 +266,7 @@ const PayTrackerCalendarService = Object.freeze({
         }
       );
 
+    events.syncComplete = syncComplete;
     return events;
   },
 
@@ -242,11 +285,13 @@ const PayTrackerCalendarService = Object.freeze({
    *
    * @param {GoogleAppsScript.Calendar.CalendarEvent} event
    * @param {Date} eventDate
+   * @param {Array<Object>=} contextEvents Events in the sync window.
    * @return {Object|null}
    */
   classifyEvent: function (
     event,
-    eventDate
+    eventDate,
+    contextEvents
   ) {
     if (
       !event ||
@@ -293,6 +338,18 @@ const PayTrackerCalendarService = Object.freeze({
         .detectTimePatterns(
           cleanTitle
         );
+
+    if (
+      PayTrackerCalendarService
+        .isAnnualLeaveTitle(cleanTitle)
+    ) {
+      return PayTrackerCalendarService
+        .classifyAnnualLeaveEvent(
+          event,
+          eventDate,
+          contextEvents || []
+        );
+    }
 
     const nightSecurityMatch =
       PayTrackerCalendarService
@@ -344,6 +401,126 @@ const PayTrackerCalendarService = Object.freeze({
     }
 
     return null;
+  },
+
+
+  /**
+   * Identifies Annual Leave event titles without confusing
+   * public/bank-holiday shift labels with booked leave.
+   */
+  isAnnualLeaveTitle: function(cleanTitle) {
+    const value = String(cleanTitle || '');
+    return /\bannual\s+leave\b/.test(value) ||
+      /\bannual\s+holiday\b/.test(value) ||
+      /\bholiday\s+leave\b/.test(value) ||
+      /(?:^|[\s()[\]{}:;,_-])al(?:$|[\s()[\]{}:;,_-])/.test(value);
+  },
+
+
+  /**
+   * Converts booked leave into the role's basic-pay shift.
+   * Role evidence is read from title/description/location,
+   * then from another recognised event on the same date.
+   */
+  classifyAnnualLeaveEvent: function(event, eventDate, contextEvents) {
+    const eventText = PayTrackerCalendarService.normaliseTitle([
+      event.getTitle(),
+      PayTrackerCalendarService.safeEventText(event, 'getDescription'),
+      PayTrackerCalendarService.safeEventText(event, 'getLocation')
+    ].join(' '));
+
+    let role = PayTrackerCalendarService.detectRole(eventText);
+    if (!role) {
+      const dateKey = PayTrackerUtils.stripTime(eventDate).getTime();
+      const candidates = (contextEvents || []).filter(function(candidate) {
+        if (!candidate || candidate === event) return false;
+        const candidateDate = PayTrackerUtils.stripTime(candidate.getStartTime());
+        const title = PayTrackerCalendarService.normaliseTitle(candidate.getTitle());
+        return candidateDate.getTime() === dateKey &&
+          !PayTrackerCalendarService.isAnnualLeaveTitle(title);
+      }).map(function(candidate) {
+        return PayTrackerCalendarService.detectRole(
+          PayTrackerCalendarService.normaliseTitle([
+            candidate.getTitle(),
+            PayTrackerCalendarService.safeEventText(candidate, 'getDescription'),
+            PayTrackerCalendarService.safeEventText(candidate, 'getLocation')
+          ].join(' '))
+        );
+      }).filter(Boolean);
+      const uniqueRoles = Array.from(new Set(candidates));
+      if (uniqueRoles.length === 1) role = uniqueRoles[0];
+    }
+
+    const duration = PayTrackerCalendarService.getLeaveDurationHours(event);
+    const mappings = {
+      nhs: {
+        jobId: 'JOB-NHS', tableName: 'NHS', shiftType: 'Basic', hours: ''
+      },
+      relief: {
+        jobId: 'JOB-RELIEF-WARDEN', tableName: 'Relief Assistant Warden',
+        shiftType: 'Basic', hours: duration || 10
+      },
+      security: {
+        jobId: 'JOB-NIGHT-SECURITY', tableName: 'Night Security Warden',
+        shiftType: 'Basic', hours: duration || 4
+      }
+    };
+
+    if (!role || !mappings[role]) {
+      return { needsReview: true, isAnnualLeave: true };
+    }
+
+    const match = mappings[role];
+    match.isAnnualLeave = true;
+    return match;
+  },
+
+
+  detectRole: function(text) {
+    const value = PayTrackerCalendarService.normaliseTitle(text);
+    if (
+      value.includes('night security') ||
+      value.includes('security warden') ||
+      value.includes('nightshift security') ||
+      (value.includes('security') && !value.includes('nhs'))
+    ) return 'security';
+    if (
+      value.includes('nhs') || value.includes('hsc') ||
+      value.includes('antrim hospital')
+    ) return 'nhs';
+    if (
+      value.includes('caravan') || value.includes('relief assistant') ||
+      value.includes('relief warden') || value.includes('assistant warden') ||
+      value.includes('site warden')
+    ) return 'relief';
+    if (
+      value.includes('logging') || value.includes('logs') ||
+      value.includes('firewood')
+    ) return 'logging';
+    return '';
+  },
+
+
+  getLeaveDurationHours: function(event) {
+    try {
+      if (typeof event.isAllDayEvent === 'function' && event.isAllDayEvent()) {
+        return null;
+      }
+    } catch (error) {
+      return null;
+    }
+    const duration = PayTrackerCalendarService.getEventDurationHours(event);
+    return duration && duration <= 16 ? duration : null;
+  },
+
+
+  safeEventText: function(event, methodName) {
+    try {
+      return event && typeof event[methodName] === 'function'
+        ? String(event[methodName]() || '') : '';
+    } catch (error) {
+      return '';
+    }
   },
 
 
@@ -622,14 +799,16 @@ const PayTrackerCalendarService = Object.freeze({
    * @param {string} tableName
    * @param {string} shiftType
    * @param {*} hours
-   * @return {boolean}
+   * @param {Object=} ownership Calendar ownership metadata.
+   * @return {Object} Write status and row metadata.
    */
   addShiftToSheet: function (
     sheet,
     eventDate,
     tableName,
     shiftType,
-    hours
+    hours,
+    ownership
   ) {
     PayTrackerUtils.validateSheet(
       sheet
@@ -646,7 +825,7 @@ const PayTrackerCalendarService = Object.freeze({
       );
 
     if (!table) {
-      return false;
+      return { status: 'skipped' };
     }
 
     if (
@@ -656,7 +835,7 @@ const PayTrackerCalendarService = Object.freeze({
           shiftType
         )
     ) {
-      return false;
+      return { status: 'skipped' };
     }
 
     const weekNumber =
@@ -666,7 +845,7 @@ const PayTrackerCalendarService = Object.freeze({
         );
 
     if (weekNumber < 1) {
-      return false;
+      return { status: 'skipped' };
     }
 
     PayTrackerSummaryService
@@ -719,11 +898,26 @@ const PayTrackerCalendarService = Object.freeze({
         firstDataRow,
         shiftColumn,
         7,
-        1
+        3
       )
-      .getDisplayValues();
+      .getValues();
+
+    const normalisedHours =
+      PayTrackerUtils.normaliseHours(hours);
+
+    const pay = PayTrackerPayCalculator.calculatePay(
+      table.name,
+      shiftType,
+      normalisedHours
+    );
+
+    const owner = ownership && ownership.eventKey
+      ? PayTrackerCalendarSyncRepository.findOwner(table.name, calendarDateOnly)
+      : null;
 
     let targetRow = null;
+    let existingValues = null;
+    let writeStatus = 'imported';
 
     for (
       let rowOffset = 0;
@@ -757,36 +951,38 @@ const PayTrackerCalendarService = Object.freeze({
         continue;
       }
 
-      const mayWriteShift =
-        existingShift === '' ||
-        PayTrackerConfig.CALENDAR
-          .OVERWRITE_EXISTING_SHIFTS;
+      const existingHours = shiftValues[rowOffset][1];
+      const existingPay = shiftValues[rowOffset][2];
+      const ownedByThisEvent = Boolean(
+        owner && owner.eventKey === ownership.eventKey
+      );
+      const exactLegacyMatch = !owner && existingShift === shiftType &&
+        PayTrackerCalendarService.valuesEqual(existingHours, normalisedHours) &&
+        PayTrackerCalendarService.valuesEqual(existingPay, pay);
+      const mayWriteShift = existingShift === '' || ownedByThisEvent ||
+        exactLegacyMatch || PayTrackerConfig.CALENDAR.OVERWRITE_EXISTING_SHIFTS;
 
       if (mayWriteShift) {
         targetRow =
           firstDataRow +
           rowOffset;
 
+        existingValues = [existingShift, existingHours, existingPay];
+        if (exactLegacyMatch) writeStatus = 'adopted';
+        else if (ownedByThisEvent) {
+          writeStatus = existingShift === shiftType &&
+            PayTrackerCalendarService.valuesEqual(existingHours, normalisedHours) &&
+            PayTrackerCalendarService.valuesEqual(existingPay, pay)
+            ? 'skipped' : 'updated';
+        }
+
         break;
       }
     }
 
     if (!targetRow) {
-      return false;
+      return { status: 'skipped' };
     }
-
-    const normalisedHours =
-      PayTrackerUtils.normaliseHours(
-        hours
-      );
-
-    const pay =
-      PayTrackerPayCalculator
-        .calculatePay(
-          table.name,
-          shiftType,
-          normalisedHours
-        );
 
     sheet
       .getRange(
@@ -832,7 +1028,103 @@ const PayTrackerCalendarService = Object.freeze({
         PayTrackerConfig.FORMATS.CURRENCY
       );
 
-    return true;
+    if (ownership && ownership.eventKey) {
+      const event = ownership.event;
+      PayTrackerCalendarSyncRepository.upsert({
+        eventKey: ownership.eventKey,
+        eventId: PayTrackerCalendarService.safeEventText(event, 'getId'),
+        eventTitle: PayTrackerCalendarService.safeEventText(event, 'getTitle'),
+        calendarId: PayTrackerCalendarService.safeEventText(event, 'getOriginalCalendarId'),
+        eventStart: event.getStartTime(),
+        eventEnd: event.getEndTime(),
+        jobId: ownership.jobId || '',
+        tableName: table.name,
+        sheetDate: calendarDateOnly,
+        sheetRow: targetRow,
+        shiftType: shiftType,
+        hours: normalisedHours,
+        pay: pay
+      });
+    }
+
+    return {
+      status: writeStatus,
+      rowNumber: targetRow,
+      previousValues: existingValues,
+      hours: normalisedHours,
+      pay: pay
+    };
+  },
+
+
+  valuesEqual: function(first, second) {
+    if ((first === '' || first === null) && (second === '' || second === null)) {
+      return true;
+    }
+    const firstNumber = Number(first);
+    const secondNumber = Number(second);
+    if (Number.isFinite(firstNumber) && Number.isFinite(secondNumber)) {
+      return Math.abs(firstNumber - secondNumber) < 0.005;
+    }
+    return String(first || '').trim() === String(second || '').trim();
+  },
+
+
+  /**
+   * Removes only PaySheet values that still exactly match a
+   * Calendar-owned ledger record. Manual edits are preserved.
+   */
+  reconcileRemovedEvents: function(sheet, currentEventKeys, result) {
+    PayTrackerCalendarSyncRepository.getActive().forEach(function(record) {
+      if (currentEventKeys.has(record.eventKey)) return;
+      const table = getConfiguredPayTableByName_(record.tableName);
+      const row = Number(record.sheetRow);
+      if (!table || !Number.isInteger(row) || row < 1) {
+        PayTrackerCalendarSyncRepository.setStatus(record, 'Detached');
+        return;
+      }
+      const current = sheet.getRange(row, table.startColumn + 2, 1, 3).getValues()[0];
+      const unchanged = String(current[0] || '').trim() === String(record.shiftType || '').trim() &&
+        PayTrackerCalendarService.valuesEqual(current[1], record.hours) &&
+        PayTrackerCalendarService.valuesEqual(current[2], record.pay);
+      if (unchanged) {
+        sheet.getRange(row, table.startColumn + 2, 1, 3).clearContent();
+        PayTrackerCalendarSyncRepository.setStatus(record, 'Removed');
+        result.removed++;
+      } else {
+        PayTrackerCalendarSyncRepository.setStatus(record, 'Manual Override');
+        result.manualChangesPreserved++;
+        PayTrackerActionCentreRepository.create({
+          actionType: 'Calendar Shift Changed Manually',
+          title: 'Review a removed Calendar shift with manual PaySheet changes',
+          description: 'The Calendar event no longer exists, but its PaySheet row was changed manually and was preserved.',
+          priority: 'Normal',
+          jobId: record.jobId || '',
+          sourceType: 'Google Calendar',
+          sourceId: record.eventKey,
+          sourceSheet: PayTrackerConfig.SHEET.NAME,
+          sourceRow: row,
+          confidence: 'Manual review required'
+        });
+      }
+    });
+  },
+
+
+  createAnnualLeaveReviewItem: function(event, eventDate) {
+    const eventKey = PayTrackerCalendarService.createEventKey(event);
+    PayTrackerActionCentreRepository.create({
+      actionType: 'Annual Leave Role Required',
+      title: 'Choose the role for an Annual Leave event',
+      description: 'Annual Leave on ' +
+        Utilities.formatDate(eventDate, Session.getScriptTimeZone(), 'dd MMM yyyy') +
+        ' could not be matched confidently to one role.',
+      priority: 'High',
+      sourceType: 'Google Calendar',
+      sourceId: eventKey,
+      confidence: 'Low',
+      suggestedResolution: 'Assign NHS, Relief Warden, or Night Security so basic pay can be recorded.'
+    });
   },
 
 
@@ -1103,7 +1395,8 @@ const PayTrackerCalendarService = Object.freeze({
             PayTrackerCalendarService
               .classifyEvent(
                 event,
-                eventDate
+                eventDate,
+                events
               );
 
           const record = {
