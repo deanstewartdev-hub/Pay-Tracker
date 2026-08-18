@@ -334,8 +334,44 @@ function bind(root) {
       data.subscriptionSummary || {}
     );
     renderHistory(data.history || []);
+    renderTransactions(data.transactions || []);
     renderBank(data.bank || {});
     renderBankMatches(data.bankMatches || []);
+  }
+
+  function renderTransactions(records) {
+    const currentMonth = new Date().toISOString().slice(0, 7);
+    const spent = records.reduce(function(total, record) {
+      return record.direction === 'Debit' &&
+        String(record.date || '').slice(0, 7) === currentMonth &&
+        record.declined !== true
+          ? total + Math.abs(Number(record.amount) || 0)
+          : total;
+    }, 0);
+
+    setText(
+      '[data-finance-transaction-summary]',
+      money(spent) + ' spent this month'
+    );
+
+    setHtml(
+      '[data-finance-transactions]',
+      records.length
+        ? records.map(function(record) {
+            const label = record.merchantName || record.description || 'Transaction';
+            const status = record.declined ? 'Declined' :
+              record.pending ? 'Pending' : record.matchStatus;
+            return '<tr>' +
+              '<td>' + escape(date(record.date)) + '</td>' +
+              '<td><strong>' + escape(label) + '</strong></td>' +
+              '<td>' + escape(record.category || 'Uncategorised') + '</td>' +
+              '<td>' + escape(record.direction || '') + '</td>' +
+              '<td><strong>' + escape(money(Math.abs(Number(record.amount) || 0))) + '</strong></td>' +
+              '<td>' + escape(status || 'Unmatched') + '</td>' +
+            '</tr>';
+          }).join('')
+        : '<tr><td colspan="6">No Monzo transactions have been imported yet.</td></tr>'
+    );
   }
 
   function renderAlerts(
@@ -1315,6 +1351,11 @@ function renderPayments(records) {
             result.message ||
             'Monzo setup is not complete yet.'
           );
+
+          if (result && result.success === true && result.connected === true) {
+            state.loaded = false;
+            load(true);
+          }
         }
       },
       function(error) {

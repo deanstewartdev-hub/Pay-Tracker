@@ -18,8 +18,19 @@ const PayTrackerWebFinanceWorkspaceService =
         );
       }
 
-      PayTrackerFinanceIntegrationSetupService
-        .setup();
+      // Sheet formatting is deliberately expensive. Only run setup when an
+      // integration sheet is actually missing; normal dashboard refreshes
+      // must remain read-focused and fast.
+      const missingIntegrationSheet =
+        PayTrackerFinanceIntegrationConfig
+          .getSheetDefinitions()
+          .some(function(definition) {
+            return !spreadsheet.getSheetByName(definition.NAME);
+          });
+
+      if (missingIntegrationSheet) {
+        PayTrackerFinanceIntegrationSetupService.setup();
+      }
 
       PayTrackerPaymentService
         .syncUpcomingPayments();
@@ -63,10 +74,52 @@ const PayTrackerWebFinanceWorkspaceService =
         bank:
           PayTrackerWebFinanceWorkspaceService
             .getBankStatus(spreadsheet),
+        transactions:
+          PayTrackerWebFinanceWorkspaceService
+            .readBankTransactions(spreadsheet),
         bankMatches:
           PayTrackerTransactionMatchingService
             .getSuggestedMatches()
       };
+    },
+
+    readBankTransactions: function(spreadsheet) {
+      const config = PayTrackerFinanceIntegrationConfig
+        .SHEETS.BANK_TRANSACTIONS;
+      const sheet = spreadsheet.getSheetByName(config.NAME);
+
+      if (!sheet || sheet.getLastRow() < 2) {
+        return [];
+      }
+
+      const column = config.COLUMNS;
+      const rowCount = Math.min(sheet.getLastRow() - 1, 250);
+      const startRow = sheet.getLastRow() - rowCount + 1;
+
+      return sheet.getRange(
+        startRow,
+        1,
+        rowCount,
+        config.HEADERS.length
+      ).getValues().map(function(row) {
+        return {
+          transactionId: String(row[column.ID - 1] || ''),
+          date: PayTrackerWebFinanceWorkspaceService.serializeDate(
+            row[column.SETTLED_AT - 1] || row[column.CREATED_AT - 1]
+          ),
+          description: String(row[column.DESCRIPTION - 1] || ''),
+          merchantName: String(row[column.MERCHANT_NAME - 1] || ''),
+          category: String(row[column.CATEGORY - 1] || 'Uncategorised'),
+          amount: Number(row[column.AMOUNT - 1]) || 0,
+          currency: String(row[column.CURRENCY - 1] || 'GBP'),
+          direction: String(row[column.DIRECTION - 1] || ''),
+          pending: String(row[column.PENDING - 1]).toLowerCase() === 'true',
+          declined: String(row[column.DECLINED - 1]).toLowerCase() === 'true',
+          matchStatus: String(row[column.MATCH_STATUS - 1] || 'Unmatched')
+        };
+      }).sort(function(left, right) {
+        return new Date(right.date).getTime() - new Date(left.date).getTime();
+      });
     },
 
     confirmBankMatch: function(transactionId) {
