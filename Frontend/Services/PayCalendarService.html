@@ -86,6 +86,10 @@ var PayTrackerPayCalendarService = {
         : 'is-empty'
     );
 
+    if (day.hasAnnualLeave) {
+      card.classList.add('has-annual-leave');
+    }
+
     var header =
       document.createElement(
         'div'
@@ -237,6 +241,10 @@ var PayTrackerPayCalendarService = {
       );
     }
 
+    if (entry.isAnnualLeave) {
+      card.classList.add('is-annual-leave');
+    }
+
     var header =
       document.createElement(
         'div'
@@ -287,7 +295,9 @@ var PayTrackerPayCalendarService = {
 
     shiftName.textContent =
       String(
-        entry.shiftName ||
+        entry.isAnnualLeave
+          ? 'Annual Leave — Basic pay'
+          : entry.shiftName ||
         'Recorded shift'
       );
 

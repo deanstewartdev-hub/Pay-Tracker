@@ -86,6 +86,11 @@ const PayTrackerWebPayWorkspaceService = Object.freeze({
             requestedWeekNumber
           );
 
+      PayTrackerWebPayWorkspaceService
+        .markAnnualLeaveEntries(
+          selected.week
+        );
+
       return {
         success: true,
 
@@ -190,6 +195,57 @@ const PayTrackerWebPayWorkspaceService = Object.freeze({
             .getErrorMessage(error)
       };
     }
+  },
+
+  /**
+   * Marks timeline entries backed by AL/A/L Calendar events.
+   * The PaySheet shift name remains Basic so calculations
+   * and manual editing continue to use configured pay rules.
+   */
+  markAnnualLeaveEntries: function(week) {
+    if (
+      !week ||
+      !Array.isArray(week.timeline) ||
+      typeof PayTrackerCalendarSyncRepository === 'undefined'
+    ) {
+      return;
+    }
+
+    const employerKeys = {
+      'NHS': 'nhs',
+      'Relief Assistant Warden': 'relief',
+      'Night Security Warden': 'security',
+      'Logging Cash': 'logging'
+    };
+
+    const leaveRecords = PayTrackerCalendarSyncRepository
+      .getActive()
+      .filter(function(record) {
+        return PayTrackerCalendarService
+          .isAnnualLeaveTitle(
+            PayTrackerCalendarService.normaliseTitle(record.eventTitle)
+          );
+      });
+
+    week.timeline.forEach(function(day) {
+      const dayKey = PayTrackerCalendarSyncRepository.dateKey(day.date);
+      const matches = leaveRecords.filter(function(record) {
+        return PayTrackerCalendarSyncRepository.dateKey(record.sheetDate) === dayKey;
+      });
+
+      matches.forEach(function(record) {
+        const employerKey = employerKeys[record.tableName] || '';
+        const entry = day.entries.filter(function(candidate) {
+          return candidate.employerKey === employerKey &&
+            String(candidate.shiftName || '') === String(record.shiftType || '');
+        })[0];
+        if (entry) {
+          entry.isAnnualLeave = true;
+          entry.calendarEventTitle = String(record.eventTitle || 'Annual Leave');
+          day.hasAnnualLeave = true;
+        }
+      });
+    });
   },
 
   /**
