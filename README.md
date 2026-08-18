@@ -22,11 +22,19 @@ The v3 roadmap (`docs/Roadmap.md`, detail in `docs/v3-Roadmap-Detail.md`) is the
 
 ## Current Version
 
-Pay Tracker v2.8 — see `docs/VERSION.md` for a note on version-number history.
+Pay Tracker v3.0 — Phase 1 adds the unified Job Registry and Action Centre.
 
 ---
 
 ## Current Features
+
+### Reconciliation Foundation
+
+- Unified Jobs registry seeded from the four existing employer/pay definitions
+- Action Centre for source-linked manual review items
+- Append-only decision history so manual corrections remain auditable
+
+Run `setupPayTrackerReconciliationFoundation()` once after deployment; it is safe to run repeatedly. Safe schema/config checks are available through `runReconciliationFoundationTests()`.
 
 ### Pay Tracking
 

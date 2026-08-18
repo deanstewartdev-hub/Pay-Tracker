@@ -13,7 +13,7 @@
 
     <meta
       name="description"
-      content="Pay Tracker v2.8 personal finance and income management workspace."
+      content="Pay Tracker v3.0 employment, payroll and finance reconciliation workspace."
     >
 
     <meta
@@ -68,6 +68,16 @@
               aria-hidden="false"
             >
               <?!= includePayTrackerHtml('Frontend/Pages/Dashboard'); ?>
+            </section>
+
+            <section
+              id="page-action-centre"
+              class="page-view"
+              data-page="action-centre"
+              aria-hidden="true"
+              hidden
+            >
+              <?!= includePayTrackerHtml('Frontend/Pages/ActionCentre'); ?>
             </section>
 
             <section
@@ -262,6 +272,12 @@
     <script>
       <?!= includePayTrackerHtml(
         'Frontend/App/AppController'
+      ); ?>
+    </script>
+
+    <script>
+      <?!= includePayTrackerHtml(
+        'Frontend/Services/ActionCentreService'
       ); ?>
     </script>
 

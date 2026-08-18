@@ -39,15 +39,19 @@ The Google Sheet currently acts as the database. Every sheet name below is centr
 - Payroll Scan History
 - Payroll Timesheet Mappings
 
+## v3 reconciliation foundation sheets
+
+- `Jobs` — canonical per-job registry linked to existing employer and payroll-group keys.
+- `Action Centre` — unresolved, source-linked items requiring manual review.
+- `Action Centre History` — append-only audit trail of status and manual decisions.
+
 ## Future sheets (v3 roadmap — not yet built)
 
-- Job Registry
 - Annual Leave Job Settings / Annual Leave Earnings / Annual Leave Usage / Annual Leave Email Rules / Annual Leave Email Scan History
 - Staffline Timetable (actual scheduled shifts — does not exist yet; `Payroll Timesheet Mappings` is a reference lookup, not schedule data)
 - Pay Adjustments
 - Money Movements
 - Transaction Matching Rules
-- Action Centre
 
 ## Future sheets (older roadmap, not yet prioritised)
 

@@ -6,6 +6,14 @@ The project follows Semantic Versioning where practical.
 
 ---
 
+# v3.0.0 — Reconciliation foundation
+
+- Added a canonical Jobs registry seeded from the existing employer and pay-rule definitions.
+- Added a source-linked Action Centre with priority/status filters and manual resolution controls.
+- Added append-only Action Centre decision history.
+- Added an idempotent, non-destructive reconciliation setup function.
+- Added safe reconciliation configuration tests and updated the web app route/version metadata.
+
 # [Unreleased / v2.8] - Payroll Centre, Monzo integration and reconciliation (undocumented until this audit)
 
 The following shipped across many PRs after the v2.6.0 release below, but was never recorded in this changelog. Recorded now as part of the v3 Phase 0 audit (`docs/v3-phase0-audit.md`).
