@@ -218,7 +218,7 @@ const PayTrackerWebPayWorkspaceService = Object.freeze({
       'Logging Cash': 'logging'
     };
 
-    const leaveRecords = PayTrackerCalendarSyncRepository
+    let leaveRecords = PayTrackerCalendarSyncRepository
       .getActive()
       .filter(function(record) {
         return PayTrackerCalendarService
@@ -226,6 +226,59 @@ const PayTrackerWebPayWorkspaceService = Object.freeze({
             PayTrackerCalendarService.normaliseTitle(record.eventTitle)
           );
       });
+
+    // Read the selected week's Calendar events as the source of truth too.
+    // This covers Annual Leave that adopted an already-existing Basic row,
+    // where an older ledger may not yet contain the ownership marker.
+    try {
+      if (week.timeline.length > 0) {
+        const startDate = new Date(week.timeline[0].date);
+        const endDate = new Date(
+          week.timeline[week.timeline.length - 1].date
+        );
+        endDate.setDate(endDate.getDate() + 1);
+
+        const events = PayTrackerCalendarService.getAllEvents(
+          startDate,
+          endDate
+        );
+
+        const liveLeaveRecords = events.map(function(event) {
+          const eventDate = PayTrackerUtils.stripTime(
+            event.getStartTime()
+          );
+          const classification = PayTrackerCalendarService.classifyEvent(
+            event,
+            eventDate,
+            events
+          );
+
+          if (
+            !classification ||
+            classification.needsReview === true ||
+            classification.isAnnualLeave !== true
+          ) {
+            return null;
+          }
+
+          return {
+            sheetDate: eventDate,
+            tableName: classification.tableName,
+            shiftType: classification.shiftType,
+            eventTitle: event.getTitle()
+          };
+        }).filter(function(record) {
+          return record !== null;
+        });
+
+        leaveRecords = leaveRecords.concat(liveLeaveRecords);
+      }
+    } catch (error) {
+      console.warn(
+        'Annual Leave calendar highlighting fell back to the sync ledger.',
+        error
+      );
+    }
 
     week.timeline.forEach(function(day) {
       const dayKey = PayTrackerCalendarSyncRepository.dateKey(day.date);

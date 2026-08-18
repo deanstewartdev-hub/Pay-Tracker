@@ -8,7 +8,7 @@ The project follows Semantic Versioning where practical.
 
 # v3.0.1 — Calendar and Annual Leave reconciliation
 
-- Highlights Annual Leave dates and their basic-pay shift cards in red on the weekly Pay calendar.
+- Highlights Annual Leave dates and their basic-pay shift cards in red on the weekly Pay calendar, labelled `A/L - [base shift name]`.
 - Connects the Pay page's Sync calendar button to live reconciliation and refreshes the selected week when it finishes.
 - Recognises the live Calendar abbreviations `A/L` and bare `NIGHT 8pm-12pm` events used for Night Security leave inference.
 - Recognises `AL` and `Annual Leave` events and assigns basic pay to NHS, Relief Warden, or Night Security using role evidence from event details or a same-day shift.

@@ -296,7 +296,7 @@ var PayTrackerPayCalendarService = {
     shiftName.textContent =
       String(
         entry.isAnnualLeave
-          ? 'Annual Leave — Basic pay'
+          ? 'A/L - ' + (entry.shiftName || 'Basic')
           : entry.shiftName ||
         'Recorded shift'
       );
