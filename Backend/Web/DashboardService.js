@@ -49,8 +49,7 @@ const PayTrackerWebDashboardService = Object.freeze({
           .buildCashFlow(
             pay,
             finance,
-            savings.settings,
-            subscriptions
+            savings.settings
           );
 
       const payBreakdown =
@@ -834,8 +833,7 @@ const PayTrackerWebDashboardService = Object.freeze({
   buildCashFlow: function(
     pay,
     finance,
-    savingsSettings,
-    subscriptions
+    savingsSettings
   ) {
     const monthlyToWeekly = 12 / 52;
 
@@ -853,19 +851,8 @@ const PayTrackerWebDashboardService = Object.freeze({
         ) || 0
       ) * monthlyToWeekly;
 
-    const standaloneSubscriptions =
-      (
-        subscriptions &&
-        Number(
-          subscriptions.monthlyCostExcludingBills
-        )
-      ) || 0;
-
     const committedPayments =
-      bills +
-      debtRepayments +
-      standaloneSubscriptions *
-        monthlyToWeekly;
+      bills + debtRepayments;
 
     const weeklySpending =
       PayTrackerWebDashboardService
@@ -927,18 +914,6 @@ const PayTrackerWebDashboardService = Object.freeze({
       bills:
         PayTrackerWebDashboardService
           .roundCurrency(committedPayments),
-      billsOnly:
-        PayTrackerWebDashboardService
-          .roundCurrency(bills),
-      debtsOnly:
-        PayTrackerWebDashboardService
-          .roundCurrency(debtRepayments),
-      subscriptionsOnly:
-        PayTrackerWebDashboardService
-          .roundCurrency(
-            standaloneSubscriptions *
-              monthlyToWeekly
-          ),
       weeklySpending:
         PayTrackerWebDashboardService
           .roundCurrency(weeklySpending),
@@ -998,8 +973,41 @@ const PayTrackerWebDashboardService = Object.freeze({
           totalPayrollDeductions
         );
 
+    /*
+     * Committed Costs is calculated independently here, not read
+     * from cashFlow.bills - that field is the established Weekly
+     * Cash Flow card's own contract (Bills + Debt repayments only)
+     * and must not change behaviour just because this feature also
+     * wants to fold in standalone Subscriptions.
+     */
+    const monthlyToWeekly = 12 / 52;
+
+    const billsOnly =
+      (
+        Number(finance.monthlyBills) || 0
+      ) * monthlyToWeekly;
+
+    const debtsOnly =
+      (
+        Number(finance.monthlyDebtRepayments) || 0
+      ) * monthlyToWeekly;
+
+    const standaloneSubscriptions =
+      (
+        subscriptions &&
+        Number(
+          subscriptions.monthlyCostExcludingBills
+        )
+      ) || 0;
+
+    const subscriptionsOnly =
+      standaloneSubscriptions * monthlyToWeekly;
+
     const committedCosts =
-      Math.max(Number(cashFlow.bills) || 0, 0);
+      Math.max(
+        billsOnly + debtsOnly + subscriptionsOnly,
+        0
+      );
 
     const weeklySpending =
       Math.max(
@@ -1113,21 +1121,13 @@ const PayTrackerWebDashboardService = Object.freeze({
         total: roundedCommittedCosts,
         bills:
           PayTrackerWebDashboardService
-            .roundCurrency(
-              Number(cashFlow.billsOnly) || 0
-            ),
+            .roundCurrency(billsOnly),
         debts:
           PayTrackerWebDashboardService
-            .roundCurrency(
-              Number(cashFlow.debtsOnly) || 0
-            ),
+            .roundCurrency(debtsOnly),
         subscriptions:
           PayTrackerWebDashboardService
-            .roundCurrency(
-              Number(
-                cashFlow.subscriptionsOnly
-              ) || 0
-            ),
+            .roundCurrency(subscriptionsOnly),
         subscriptionsAvailable:
           Boolean(
             subscriptions &&

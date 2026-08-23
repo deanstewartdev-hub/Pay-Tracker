@@ -229,6 +229,32 @@ const PayTrackerPayBreakdownService = Object.freeze({
   },
 
   /**
+   * Clamps a milestone marker's "amount consumed" into a safe
+   * [0, gross] range, so a milestone value that is missing,
+   * malformed, or exceeds gross can never push a marker line or
+   * label outside the chart.
+   *
+   * @param {number} amount
+   * @param {number} gross
+   * @return {number}
+   */
+  clampMarkerAmount: function(amount, gross) {
+    if (!Number.isFinite(amount)) {
+      return 0;
+    }
+
+    const safeGross =
+      Number.isFinite(gross)
+        ? Math.max(gross, 0)
+        : 0;
+
+    return Math.min(
+      Math.max(amount, 0),
+      safeGross
+    );
+  },
+
+  /**
    * Renders the SVG stacked column and its two milestone
    * marker lines (Take-home, Disposable income).
    *
@@ -402,21 +428,42 @@ const PayTrackerPayBreakdownService = Object.freeze({
     const markers =
       breakdown.markers || {};
 
+    /*
+     * The stacked bar accumulates downward from Gross at the top, so
+     * a milestone line marks the boundary AFTER the amount already
+     * consumed before reaching that milestone - not the milestone's
+     * own remaining value. Take-home's boundary is what Payroll
+     * Deductions consumed (gross - takeHome); Disposable Income's
+     * boundary is everything consumed before it reaches the wallet
+     * (gross - disposableIncome). Both are clamped into [0, gross]
+     * so malformed source data (e.g. a milestone value exceeding
+     * gross) can never push a line or label outside the chart.
+     */
+    const takeHomeConsumed =
+      PayTrackerPayBreakdownService
+        .clampMarkerAmount(
+          gross -
+            window.PayTrackerDashboardService
+              .toNumber(markers.takeHome),
+          gross
+        );
+
+    const disposableConsumed =
+      PayTrackerPayBreakdownService
+        .clampMarkerAmount(
+          gross -
+            window.PayTrackerDashboardService
+              .toNumber(markers.disposableIncome),
+          gross
+        );
+
     const takeHomeY =
       chartTop +
-      Math.max(
-        window.PayTrackerDashboardService
-          .toNumber(markers.takeHome),
-        0
-      ) * unitsPerPound;
+      takeHomeConsumed * unitsPerPound;
 
     const disposableY =
       chartTop +
-      Math.max(
-        window.PayTrackerDashboardService
-          .toNumber(markers.disposableIncome),
-        0
-      ) * unitsPerPound;
+      disposableConsumed * unitsPerPound;
 
     PayTrackerPayBreakdownService
       .appendMarkerLine(
@@ -515,8 +562,16 @@ const PayTrackerPayBreakdownService = Object.freeze({
     label.className =
       'pay-breakdown-marker-label';
 
+    const safeTopPercent =
+      Number.isFinite(topPercent)
+        ? Math.min(
+            Math.max(topPercent, 0),
+            100
+          )
+        : 0;
+
     label.style.top =
-      topPercent + '%';
+      safeTopPercent + '%';
 
     const titleElement =
       document.createElement('span');

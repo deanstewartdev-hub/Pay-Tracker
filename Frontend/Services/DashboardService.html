@@ -143,7 +143,13 @@ const PayTrackerDashboardService = Object.freeze({
         '[data-pay-breakdown-key]'
       );
 
-    if (payBreakdownTarget) {
+    if (
+      payBreakdownTarget &&
+      window.PayTrackerPayBreakdownService &&
+      typeof window
+        .PayTrackerPayBreakdownService
+        .selectCategory === 'function'
+    ) {
       window.PayTrackerPayBreakdownService
         .selectCategory(
           payBreakdownTarget.dataset
@@ -335,9 +341,16 @@ const PayTrackerDashboardService = Object.freeze({
       dashboardData.messages || {}
     );
 
-    window.PayTrackerPayBreakdownService.render(
-      dashboardData.payBreakdown || null
-    );
+    if (
+      window.PayTrackerPayBreakdownService &&
+      typeof window
+        .PayTrackerPayBreakdownService
+        .render === 'function'
+    ) {
+      window.PayTrackerPayBreakdownService.render(
+        dashboardData.payBreakdown || null
+      );
+    }
 
     PayTrackerDashboardService.renderSavingsPots(
       savingsPots
