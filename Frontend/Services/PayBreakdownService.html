@@ -1,0 +1,1291 @@
+/*******************************************************
+ * PAY TRACKER V2.6
+ * Frontend/Services/PayBreakdownService.html
+ *
+ * Purpose:
+ * - Render the Weekly Pay Breakdown card on the Dashboard
+ * - Build the stacked chart, category selector and detail panel
+ * - Handle category selection
+ *
+ * Reads the payBreakdown block already computed server-side by
+ * Backend/Web/DashboardService.js - this file only renders it and
+ * reuses window.PayTrackerDashboardService's existing formatMoney /
+ * formatPercent / toNumber / setText helpers, it does not duplicate
+ * them or recompute any financial figures itself.
+ *
+ * Included inside a script tag by:
+ * Frontend/Index.html
+ *******************************************************/
+
+const PayTrackerPayBreakdownService = Object.freeze({
+  state: {
+    selectedKey: 'moneyLeft',
+    lastBreakdown: null
+  },
+
+  render: function(breakdown) {
+    PayTrackerPayBreakdownService
+      .state
+      .lastBreakdown = breakdown;
+
+    const emptyState =
+      document.getElementById(
+        'pay-breakdown-empty'
+      );
+
+    const content =
+      document.getElementById(
+        'pay-breakdown-content'
+      );
+
+    const hasData =
+      Boolean(
+        breakdown &&
+        breakdown.hasData
+      );
+
+    if (emptyState) {
+      emptyState.hidden = hasData;
+    }
+
+    if (content) {
+      content.hidden = !hasData;
+    }
+
+    if (!hasData) {
+      return;
+    }
+
+    window.PayTrackerDashboardService.setText(
+      'pay-breakdown-gross-value',
+      window.PayTrackerDashboardService.formatMoney(
+        breakdown.gross
+      )
+    );
+
+    const categories =
+      PayTrackerPayBreakdownService
+        .buildCategories(
+          breakdown
+        );
+
+    const validKeys =
+      categories.map(function(category) {
+        return category.key;
+      });
+
+    if (
+      validKeys.indexOf(
+        PayTrackerPayBreakdownService
+          .state
+          .selectedKey
+      ) === -1
+    ) {
+      PayTrackerPayBreakdownService
+        .state
+        .selectedKey =
+        'moneyLeft';
+    }
+
+    PayTrackerPayBreakdownService
+      .renderChart(
+        categories,
+        breakdown
+      );
+
+    PayTrackerPayBreakdownService
+      .renderSelector(
+        categories
+      );
+
+    PayTrackerPayBreakdownService
+      .renderDetail(
+        breakdown
+      );
+  },
+
+  /**
+   * Builds the ordered list of chart categories from the
+   * breakdown response. When the server could not derive a
+   * real Tax/NI/Pension/Student Loan split (no payslip has
+   * been imported yet), the four payroll deductions collapse
+   * into one "Payroll deductions" category instead of a
+   * guessed split.
+   *
+   * @param {Object} breakdown Pay breakdown data.
+   * @return {Object[]} Ordered categories.
+   */
+  buildCategories: function(
+    breakdown
+  ) {
+    const deductions =
+      breakdown.deductions || {};
+
+    const categories = [];
+
+    if (deductions.available) {
+      categories.push(
+        {
+          key: 'tax',
+          label: 'Tax (Est.)',
+          value: deductions.tax,
+          colorVar: '--pay-breakdown-tax'
+        },
+        {
+          key: 'nationalInsurance',
+          label: 'National Insurance (Est.)',
+          value:
+            deductions.nationalInsurance,
+          colorVar: '--pay-breakdown-ni'
+        },
+        {
+          key: 'pension',
+          label: 'Pension (Est.)',
+          value: deductions.pension,
+          colorVar:
+            '--pay-breakdown-pension'
+        },
+        {
+          key: 'studentLoan',
+          label: 'Student Loan (Est.)',
+          value: deductions.studentLoan,
+          colorVar:
+            '--pay-breakdown-student-loan'
+        }
+      );
+    } else {
+      categories.push({
+        key: 'payrollDeductions',
+        label: 'Payroll Deductions (Est.)',
+        value: deductions.total,
+        colorVar: '--pay-breakdown-tax'
+      });
+    }
+
+    categories.push(
+      {
+        key: 'committedCosts',
+        label: 'Committed Costs',
+        value:
+          breakdown.committedCosts
+            ? breakdown.committedCosts.total
+            : 0,
+        colorVar:
+          '--pay-breakdown-committed'
+      },
+      {
+        key: 'weeklySpending',
+        label: 'Weekly Spending',
+        value:
+          breakdown.weeklySpending
+            ? breakdown.weeklySpending.total
+            : 0,
+        colorVar:
+          '--pay-breakdown-spending'
+      },
+      {
+        key: 'savings',
+        label: 'Savings',
+        value:
+          breakdown.savings
+            ? breakdown.savings.total
+            : 0,
+        colorVar:
+          '--pay-breakdown-savings'
+      },
+      {
+        key: 'moneyLeft',
+        label:
+          PayTrackerPayBreakdownService
+            .isDeficit(breakdown.moneyLeft)
+            ? 'Deficit'
+            : 'Money Left',
+        value: breakdown.moneyLeft,
+        colorVar:
+          PayTrackerPayBreakdownService
+            .isDeficit(breakdown.moneyLeft)
+            ? '--pay-breakdown-deficit'
+            : '--pay-breakdown-money-left'
+      }
+    );
+
+    return categories;
+  },
+
+  /**
+   * True only for a genuine (post-rounding) deficit - an exact
+   * £0.00 Money Left is not a deficit, so this uses a small
+   * epsilon rather than a plain less-than-zero check.
+   *
+   * @param {number} moneyLeft
+   * @return {boolean}
+   */
+  isDeficit: function(moneyLeft) {
+    return (
+      -window.PayTrackerDashboardService.toNumber(
+        moneyLeft
+      ) > 0.005
+    );
+  },
+
+  /**
+   * Renders the SVG stacked column and its two milestone
+   * marker lines (Take-home, Disposable income).
+   *
+   * @param {Object[]} categories Ordered categories.
+   * @param {Object} breakdown Pay breakdown data.
+   */
+  renderChart: function(
+    categories,
+    breakdown
+  ) {
+    const svgNamespace =
+      'http://www.w3.org/2000/svg';
+
+    const segmentsGroup =
+      document.getElementById(
+        'pay-breakdown-segments'
+      );
+
+    const markersGroup =
+      document.getElementById(
+        'pay-breakdown-markers'
+      );
+
+    const markerLabelsContainer =
+      document.getElementById(
+        'pay-breakdown-marker-labels'
+      );
+
+    if (!segmentsGroup || !markersGroup) {
+      return;
+    }
+
+    segmentsGroup.replaceChildren();
+    markersGroup.replaceChildren();
+
+    if (markerLabelsContainer) {
+      markerLabelsContainer.replaceChildren();
+    }
+
+    const chartWidth = 150;
+    const chartHeight = 400;
+    const chartTop = 10;
+
+    /*
+     * Matches the SVG's viewBox height (chartTop + chartHeight + a
+     * bottom margin of 10) - milestone labels live in a separate HTML
+     * column of the same pixel height, so a Y position expressed as a
+     * percentage of this total lines up with the dashed line in the
+     * SVG regardless of the SVG's own rendered pixel size.
+     */
+    const chartViewBoxHeight = 420;
+
+    const gross =
+      Math.max(
+        window.PayTrackerDashboardService.toNumber(
+          breakdown.gross
+        ),
+        0.01
+      );
+
+    const unitsPerPound =
+      chartHeight / gross;
+
+    const selectedKey =
+      PayTrackerPayBreakdownService
+        .state
+        .selectedKey;
+
+    const chartBottom =
+      chartTop + chartHeight;
+
+    let cumulativeY = chartTop;
+
+    categories.forEach(function(category) {
+      const value =
+        Math.max(
+          window.PayTrackerDashboardService.toNumber(
+            category.value
+          ),
+          0
+        );
+
+      const remainingHeight =
+        Math.max(
+          chartBottom - cumulativeY,
+          0
+        );
+
+      /*
+       * A deficit week means the "spent" categories (deductions,
+       * committed costs, spending, savings) sum to more than gross,
+       * since Money Left is negative and clamped to a zero-height
+       * segment above. Without this cap, cumulativeY would run past
+       * chartBottom and the bar would overflow the SVG's fixed
+       * dimensions. The chart only ever shows up to 100% of gross -
+       * the deficit itself is surfaced separately, not stuffed into
+       * this stack (see selectCategory/renderSelector/renderDetail).
+       */
+      const segmentHeight =
+        Math.min(
+          value * unitsPerPound,
+          remainingHeight
+        );
+
+      if (segmentHeight > 0.4) {
+        const rect =
+          document.createElementNS(
+            svgNamespace,
+            'rect'
+          );
+
+        rect.setAttribute('x', '0');
+        rect.setAttribute(
+          'y',
+          String(cumulativeY)
+        );
+        rect.setAttribute(
+          'width',
+          String(chartWidth)
+        );
+        rect.setAttribute(
+          'height',
+          String(segmentHeight)
+        );
+        rect.setAttribute(
+          'fill',
+          'var(' + category.colorVar + ')'
+        );
+        rect.setAttribute(
+          'class',
+          'pay-breakdown-segment' +
+          (
+            category.key === selectedKey
+              ? ' is-active'
+              : ' is-faded'
+          )
+        );
+        rect.setAttribute('tabindex', '0');
+        rect.setAttribute('role', 'button');
+        rect.setAttribute(
+          'aria-label',
+          category.label +
+          ', ' +
+          window.PayTrackerDashboardService
+            .formatMoney(value)
+        );
+
+        rect.dataset.payBreakdownKey =
+          category.key;
+
+        const titleElement =
+          document.createElementNS(
+            svgNamespace,
+            'title'
+          );
+
+        titleElement.textContent =
+          category.label +
+          ': ' +
+          window.PayTrackerDashboardService
+            .formatMoney(value);
+
+        rect.appendChild(titleElement);
+
+        segmentsGroup.appendChild(rect);
+      }
+
+      cumulativeY += segmentHeight;
+    });
+
+    const markers =
+      breakdown.markers || {};
+
+    const takeHomeY =
+      chartTop +
+      Math.max(
+        window.PayTrackerDashboardService
+          .toNumber(markers.takeHome),
+        0
+      ) * unitsPerPound;
+
+    const disposableY =
+      chartTop +
+      Math.max(
+        window.PayTrackerDashboardService
+          .toNumber(markers.disposableIncome),
+        0
+      ) * unitsPerPound;
+
+    PayTrackerPayBreakdownService
+      .appendMarkerLine(
+        markersGroup,
+        svgNamespace,
+        takeHomeY,
+        chartWidth
+      );
+
+    PayTrackerPayBreakdownService
+      .appendMarkerLine(
+        markersGroup,
+        svgNamespace,
+        disposableY,
+        chartWidth
+      );
+
+    if (markerLabelsContainer) {
+      PayTrackerPayBreakdownService
+        .appendMarkerLabel(
+          markerLabelsContainer,
+          (takeHomeY / chartViewBoxHeight) * 100,
+          'Estimated Take-home',
+          window.PayTrackerDashboardService
+            .formatMoney(markers.takeHome)
+        );
+
+      PayTrackerPayBreakdownService
+        .appendMarkerLabel(
+          markerLabelsContainer,
+          (disposableY / chartViewBoxHeight) * 100,
+          'Disposable Income',
+          window.PayTrackerDashboardService
+            .formatMoney(
+              markers.disposableIncome
+            )
+        );
+    }
+  },
+
+  /**
+   * Appends one dashed milestone marker line to the chart.
+   *
+   * @param {SVGElement} group Marker group element.
+   * @param {string} svgNamespace SVG XML namespace.
+   * @param {number} y Vertical position.
+   * @param {number} width Chart width.
+   */
+  appendMarkerLine: function(
+    group,
+    svgNamespace,
+    y,
+    width
+  ) {
+    const line =
+      document.createElementNS(
+        svgNamespace,
+        'line'
+      );
+
+    line.setAttribute('x1', '0');
+    line.setAttribute('y1', String(y));
+    line.setAttribute(
+      'x2',
+      String(width)
+    );
+    line.setAttribute('y2', String(y));
+    line.setAttribute(
+      'class',
+      'pay-breakdown-marker-line'
+    );
+
+    group.appendChild(line);
+  },
+
+  /**
+   * Appends one milestone label as real HTML (not SVG text), so its
+   * font size is a genuine CSS pixel size that never shrinks with the
+   * chart - SVG text scales with the viewBox and became unreadable at
+   * narrow widths.
+   *
+   * @param {HTMLElement} container Marker label column.
+   * @param {number} topPercent Vertical position as % of chart height.
+   * @param {string} title Milestone name.
+   * @param {string} valueText Formatted money amount.
+   */
+  appendMarkerLabel: function(
+    container,
+    topPercent,
+    title,
+    valueText
+  ) {
+    const label =
+      document.createElement('div');
+
+    label.className =
+      'pay-breakdown-marker-label';
+
+    label.style.top =
+      topPercent + '%';
+
+    const titleElement =
+      document.createElement('span');
+
+    titleElement.className =
+      'pay-breakdown-marker-label__title';
+
+    titleElement.textContent = title;
+
+    const valueElement =
+      document.createElement('span');
+
+    valueElement.className =
+      'pay-breakdown-marker-label__value';
+
+    valueElement.textContent = valueText;
+
+    label.append(
+      titleElement,
+      valueElement
+    );
+
+    container.appendChild(label);
+  },
+
+  /**
+   * Renders the category selector list.
+   *
+   * @param {Object[]} categories Ordered categories.
+   */
+  renderSelector: function(
+    categories
+  ) {
+    const container =
+      document.getElementById(
+        'pay-breakdown-selector'
+      );
+
+    if (!container) {
+      return;
+    }
+
+    container.replaceChildren();
+
+    const selectedKey =
+      PayTrackerPayBreakdownService
+        .state
+        .selectedKey;
+
+    categories.forEach(function(category) {
+      const row =
+        document.createElement('button');
+
+      const isDeficitRow =
+        category.key === 'moneyLeft' &&
+        PayTrackerPayBreakdownService
+          .isDeficit(category.value);
+
+      row.type = 'button';
+      row.className =
+        'pay-breakdown-selector__row' +
+        (
+          category.key === selectedKey
+            ? ' is-active'
+            : ''
+        ) +
+        (
+          isDeficitRow
+            ? ' is-deficit'
+            : ''
+        );
+
+      row.style.setProperty(
+        '--swatch-color',
+        'var(' + category.colorVar + ')'
+      );
+
+      row.setAttribute(
+        'role',
+        'option'
+      );
+
+      row.setAttribute(
+        'aria-selected',
+        String(
+          category.key === selectedKey
+        )
+      );
+
+      row.dataset.payBreakdownKey =
+        category.key;
+
+      const identity =
+        document.createElement('span');
+
+      identity.className =
+        'pay-breakdown-selector__identity';
+
+      const swatch =
+        document.createElement('span');
+
+      swatch.className =
+        'pay-breakdown-selector__swatch';
+
+      const label =
+        document.createElement('span');
+
+      label.className =
+        'pay-breakdown-selector__label';
+
+      label.textContent = category.label;
+
+      identity.append(swatch, label);
+
+      const value =
+        document.createElement('span');
+
+      value.className =
+        'pay-breakdown-selector__value';
+
+      value.textContent =
+        isDeficitRow
+          ? 'Deficit — ' +
+            window.PayTrackerDashboardService
+              .formatMoney(
+                Math.abs(
+                  window.PayTrackerDashboardService
+                    .toNumber(category.value)
+                )
+              )
+          : window.PayTrackerDashboardService
+              .formatMoney(category.value);
+
+      row.append(identity, value);
+
+      container.appendChild(row);
+    });
+  },
+
+  /**
+   * Selects a pay-breakdown category, updating the chart
+   * fade state, the selector highlight and the detail panel.
+   *
+   * @param {string} key Category key.
+   */
+  selectCategory: function(key) {
+    if (
+      !key ||
+      key ===
+        PayTrackerPayBreakdownService
+          .state
+          .selectedKey
+    ) {
+      return;
+    }
+
+    PayTrackerPayBreakdownService
+      .state
+      .selectedKey = key;
+
+    const breakdown =
+      PayTrackerPayBreakdownService
+        .state
+        .lastBreakdown;
+
+    if (!breakdown || !breakdown.hasData) {
+      return;
+    }
+
+    const categories =
+      PayTrackerPayBreakdownService
+        .buildCategories(
+          breakdown
+        );
+
+    PayTrackerPayBreakdownService
+      .renderChart(
+        categories,
+        breakdown
+      );
+
+    PayTrackerPayBreakdownService
+      .renderSelector(
+        categories
+      );
+
+    PayTrackerPayBreakdownService
+      .renderDetail(
+        breakdown
+      );
+  },
+
+  /**
+   * Renders the detail panel for the currently selected
+   * category.
+   *
+   * @param {Object} breakdown Pay breakdown data.
+   */
+  renderDetail: function(
+    breakdown
+  ) {
+    const container =
+      document.getElementById(
+        'pay-breakdown-detail'
+      );
+
+    if (!container) {
+      return;
+    }
+
+    const key =
+      PayTrackerPayBreakdownService
+        .state
+        .selectedKey;
+
+    const builders = {
+      tax:
+        PayTrackerPayBreakdownService
+          .buildDeductionDetail,
+      nationalInsurance:
+        PayTrackerPayBreakdownService
+          .buildDeductionDetail,
+      pension:
+        PayTrackerPayBreakdownService
+          .buildDeductionDetail,
+      studentLoan:
+        PayTrackerPayBreakdownService
+          .buildDeductionDetail,
+      payrollDeductions:
+        PayTrackerPayBreakdownService
+          .buildCombinedDeductionDetail,
+      committedCosts:
+        PayTrackerPayBreakdownService
+          .buildCommittedCostsDetail,
+      weeklySpending:
+        PayTrackerPayBreakdownService
+          .buildWeeklySpendingDetail,
+      savings:
+        PayTrackerPayBreakdownService
+          .buildSavingsDetail,
+      moneyLeft:
+        PayTrackerPayBreakdownService
+          .buildMoneyLeftDetail
+    };
+
+    const builder =
+      builders[key] ||
+      PayTrackerPayBreakdownService
+        .buildMoneyLeftDetail;
+
+    const detail =
+      builder(breakdown, key);
+
+    container.replaceChildren();
+
+    container.className =
+      'pay-breakdown-detail' +
+      (
+        detail.isDeficit
+          ? ' is-deficit'
+          : ''
+      );
+
+    container.style.setProperty(
+      '--swatch-color',
+      'var(' + detail.colorVar + ')'
+    );
+
+    const eyebrow =
+      document.createElement('p');
+
+    eyebrow.className =
+      'pay-breakdown-detail__eyebrow';
+
+    eyebrow.textContent = detail.title;
+
+    const value =
+      document.createElement('p');
+
+    value.className =
+      'pay-breakdown-detail__value';
+
+    /*
+     * Most categories just show a formatted money value, but a
+     * deficit needs the explicit "Deficit — £xx.xx" framing rather
+     * than a bare (and easy to misread) negative currency figure.
+     */
+    value.textContent =
+      detail.valueText ||
+      window.PayTrackerDashboardService
+        .formatMoney(detail.value);
+
+    const rows =
+      document.createElement('div');
+
+    rows.className =
+      'pay-breakdown-detail__rows';
+
+    detail.rows.forEach(function(row) {
+      const rowElement =
+        document.createElement('div');
+
+      rowElement.className =
+        'pay-breakdown-detail__row';
+
+      const rowLabel =
+        document.createElement('span');
+
+      rowLabel.className =
+        'pay-breakdown-detail__row-label';
+
+      rowLabel.textContent = row.label;
+
+      const rowValue =
+        document.createElement('span');
+
+      rowValue.className =
+        'pay-breakdown-detail__row-value';
+
+      rowValue.textContent = row.value;
+
+      rowElement.append(
+        rowLabel,
+        rowValue
+      );
+
+      rows.appendChild(rowElement);
+    });
+
+    container.append(
+      eyebrow,
+      value,
+      rows
+    );
+
+    if (detail.note) {
+      const note =
+        document.createElement('p');
+
+      note.className =
+        'pay-breakdown-detail__note';
+
+      note.textContent = detail.note;
+
+      container.appendChild(note);
+    }
+  },
+
+  buildDeductionDetail: function(
+    breakdown,
+    key
+  ) {
+    const deductions =
+      breakdown.deductions || {};
+
+    const labels = {
+      tax: 'Tax (Estimated)',
+      nationalInsurance:
+        'National Insurance (Estimated)',
+      pension: 'Pension (Estimated)',
+      studentLoan:
+        'Student Loan (Estimated)'
+    };
+
+    const colorVars = {
+      tax: '--pay-breakdown-tax',
+      nationalInsurance:
+        '--pay-breakdown-ni',
+      pension: '--pay-breakdown-pension',
+      studentLoan:
+        '--pay-breakdown-student-loan'
+    };
+
+    const value =
+      window.PayTrackerDashboardService.toNumber(
+        deductions[key]
+      );
+
+    const gross =
+      window.PayTrackerDashboardService.toNumber(
+        breakdown.gross
+      );
+
+    return {
+      title: labels[key] || 'Deduction',
+      colorVar: colorVars[key],
+      value: value,
+      rows: [
+        {
+          label: 'Percentage of gross pay',
+          value:
+            window.PayTrackerDashboardService
+              .formatPercent(
+                gross > 0
+                  ? value / gross
+                  : 0
+              )
+        },
+        {
+          label: 'Gross pay',
+          value:
+            window.PayTrackerDashboardService
+              .formatMoney(gross)
+        },
+        {
+          label: 'Remaining after this deduction',
+          value:
+            window.PayTrackerDashboardService
+              .formatMoney(
+                gross - value
+              )
+        }
+      ],
+      note:
+        deductions.source
+          ? 'Estimated split based on your latest imported payslip. The total this splits is itself Pay Tracker\'s estimate for this week, not yet your actual payslip.'
+          : ''
+    };
+  },
+
+  buildCombinedDeductionDetail: function(
+    breakdown
+  ) {
+    const deductions =
+      breakdown.deductions || {};
+
+    const gross =
+      window.PayTrackerDashboardService.toNumber(
+        breakdown.gross
+      );
+
+    return {
+      title: 'Payroll Deductions (Estimated)',
+      colorVar: '--pay-breakdown-tax',
+      value: deductions.total,
+      rows: [
+        {
+          label: 'Percentage of gross pay',
+          value:
+            window.PayTrackerDashboardService
+              .formatPercent(
+                deductions.rateOfGross
+              )
+        },
+        {
+          label: 'Gross pay',
+          value:
+            window.PayTrackerDashboardService
+              .formatMoney(gross)
+        }
+      ],
+      note:
+        'This is Pay Tracker\'s estimate for this week, not yet your actual payslip. A Tax / National Insurance / Pension / Student Loan split will appear here once a payslip has been imported in Payroll Centre.'
+    };
+  },
+
+  buildCommittedCostsDetail: function(
+    breakdown
+  ) {
+    const committed =
+      breakdown.committedCosts || {};
+
+    const takeHome =
+      window.PayTrackerDashboardService.toNumber(
+        breakdown.takeHome
+      );
+
+    const gross =
+      window.PayTrackerDashboardService.toNumber(
+        breakdown.gross
+      );
+
+    const rows = [
+      {
+        label: 'Bills',
+        value:
+          window.PayTrackerDashboardService
+            .formatMoney(committed.bills)
+      },
+      {
+        label: 'Debt repayments',
+        value:
+          window.PayTrackerDashboardService
+            .formatMoney(committed.debts)
+      }
+    ];
+
+    rows.push({
+      label: 'Subscriptions',
+      value:
+        committed.subscriptionsAvailable
+          ? window.PayTrackerDashboardService
+              .formatMoney(
+                committed.subscriptions
+              )
+          : 'Not connected'
+    });
+
+    rows.push(
+      {
+        label: 'Total committed costs',
+        value:
+          window.PayTrackerDashboardService
+            .formatMoney(committed.total)
+      },
+      {
+        label: 'Percentage of take-home pay',
+        value:
+          window.PayTrackerDashboardService
+            .formatPercent(
+              committed.rateOfTakeHome
+            )
+      },
+      {
+        label: 'Percentage of gross pay',
+        value:
+          window.PayTrackerDashboardService
+            .formatPercent(
+              gross > 0
+                ? committed.total / gross
+                : 0
+            )
+      }
+    );
+
+    return {
+      title: 'Committed Costs',
+      colorVar: '--pay-breakdown-committed',
+      value: committed.total,
+      rows: rows,
+      note:
+        'Includes active Bills, Debt repayments and confirmed Subscriptions not already linked to a Bill.'
+    };
+  },
+
+  buildWeeklySpendingDetail: function(
+    breakdown
+  ) {
+    const spending =
+      breakdown.weeklySpending || {};
+
+    const takeHome =
+      window.PayTrackerDashboardService.toNumber(
+        breakdown.takeHome
+      );
+
+    return {
+      title: 'Weekly Spending',
+      colorVar: '--pay-breakdown-spending',
+      value: spending.total,
+      rows: [
+        {
+          label: 'Weekly spending budget',
+          value:
+            window.PayTrackerDashboardService
+              .formatMoney(spending.total)
+        },
+        {
+          label: 'Percentage of take-home pay',
+          value:
+            window.PayTrackerDashboardService
+              .formatPercent(
+                spending.rateOfTakeHome
+              )
+        },
+        {
+          label: 'Remaining after spending',
+          value:
+            window.PayTrackerDashboardService
+              .formatMoney(
+                takeHome -
+                window.PayTrackerDashboardService
+                  .toNumber(
+                    breakdown
+                      .committedCosts &&
+                    breakdown
+                      .committedCosts
+                      .total
+                  ) -
+                window.PayTrackerDashboardService
+                  .toNumber(
+                    spending.total
+                  )
+              )
+        }
+      ]
+    };
+  },
+
+  buildSavingsDetail: function(breakdown) {
+    const savings =
+      breakdown.savings || {};
+
+    const rows = [
+      {
+        label: 'Suggested savings',
+        value:
+          window.PayTrackerDashboardService
+            .formatMoney(savings.total)
+      },
+      {
+        label: 'Savings rate',
+        value:
+          window.PayTrackerDashboardService
+            .formatPercent(
+              savings.rateOfDisposableIncome
+            ) +
+          ' of disposable income'
+      },
+      {
+        label: 'Disposable income before savings',
+        value:
+          window.PayTrackerDashboardService
+            .formatMoney(
+              savings
+                .disposableIncomeBeforeSavings
+            )
+      },
+      {
+        label: 'Money remaining after savings',
+        value:
+          window.PayTrackerDashboardService
+            .formatMoney(
+              window.PayTrackerDashboardService
+                .toNumber(
+                  savings
+                    .disposableIncomeBeforeSavings
+                ) -
+              window.PayTrackerDashboardService
+                .toNumber(savings.total)
+            )
+      }
+    ];
+
+    const pots =
+      Array.isArray(savings.pots)
+        ? savings.pots
+        : [];
+
+    pots.forEach(function(pot) {
+      rows.push({
+        label: pot.name || 'Savings pot',
+        value:
+          window.PayTrackerDashboardService
+            .formatMoney(
+              pot.weeklyContribution
+            )
+      });
+    });
+
+    return {
+      title: 'Savings',
+      colorVar: '--pay-breakdown-savings',
+      value: savings.total,
+      rows: rows,
+      note:
+        pots.length
+          ? 'Weekly contribution allocated to each configured savings pot.'
+          : ''
+    };
+  },
+
+  buildMoneyLeftDetail: function(breakdown) {
+    const detail =
+      breakdown.moneyLeftDetail || {};
+
+    const moneyLeft =
+      window.PayTrackerDashboardService.toNumber(
+        breakdown.moneyLeft
+      );
+
+    if (
+      PayTrackerPayBreakdownService
+        .isDeficit(moneyLeft)
+    ) {
+      return {
+        title: 'Deficit',
+        colorVar: '--pay-breakdown-deficit',
+        isDeficit: true,
+        value: moneyLeft,
+        valueText:
+          'Deficit — ' +
+          window.PayTrackerDashboardService
+            .formatMoney(
+              Math.abs(moneyLeft)
+            ),
+        rows: [
+          {
+            label: 'Overspend vs gross earnings',
+            value:
+              window.PayTrackerDashboardService
+                .formatPercent(
+                  Math.abs(
+                    detail.rateOfGross
+                  )
+                )
+          },
+          {
+            label: 'Overspend vs take-home pay',
+            value:
+              window.PayTrackerDashboardService
+                .formatPercent(
+                  Math.abs(
+                    detail.rateOfTakeHome
+                  )
+                )
+          },
+          {
+            label: 'Suggested savings already removed',
+            value:
+              window.PayTrackerDashboardService
+                .formatMoney(
+                  breakdown.savings
+                    ? breakdown.savings.total
+                    : 0
+                )
+          }
+        ],
+        note:
+          'Deductions, committed costs and weekly spending together exceeded your take-home pay this week, even before considering savings. The chart above only ever fills up to your Gross earnings - it does not stretch past 100%.'
+      };
+    }
+
+    return {
+      title: 'Money Left',
+      colorVar:
+        '--pay-breakdown-money-left',
+      value: moneyLeft,
+      rows: [
+        {
+          label: 'Percentage of gross earnings',
+          value:
+            window.PayTrackerDashboardService
+              .formatPercent(
+                detail.rateOfGross
+              )
+        },
+        {
+          label: 'Percentage of take-home pay',
+          value:
+            window.PayTrackerDashboardService
+              .formatPercent(
+                detail.rateOfTakeHome
+              )
+        },
+        {
+          label: 'Percentage of disposable income retained',
+          value:
+            window.PayTrackerDashboardService
+              .formatPercent(
+                detail.rateOfDisposableIncome
+              )
+        },
+        {
+          label: 'Suggested savings already removed',
+          value:
+            window.PayTrackerDashboardService
+              .formatMoney(
+                breakdown.savings
+                  ? breakdown.savings.total
+                  : 0
+              )
+        }
+      ],
+      note:
+        'Completely unallocated money left after deductions, committed costs, weekly spending and savings.'
+    };
+  }
+});
+
+window.PayTrackerPayBreakdownService =
+  PayTrackerPayBreakdownService;

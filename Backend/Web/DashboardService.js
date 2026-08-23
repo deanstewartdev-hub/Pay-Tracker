@@ -40,12 +40,27 @@ const PayTrackerWebDashboardService = Object.freeze({
         PayTrackerWebDashboardService
           .readSavingsData(spreadsheet);
 
+      const subscriptions =
+        PayTrackerWebDashboardService
+          .readSubscriptionsData();
+
       const cashFlow =
         PayTrackerWebDashboardService
           .buildCashFlow(
             pay,
             finance,
-            savings.settings
+            savings.settings,
+            subscriptions
+          );
+
+      const payBreakdown =
+        PayTrackerWebDashboardService
+          .buildPayBreakdown(
+            pay,
+            finance,
+            cashFlow,
+            subscriptions,
+            savings.pots
           );
 
       return {
@@ -56,6 +71,7 @@ const PayTrackerWebDashboardService = Object.freeze({
         pay: pay,
         finance: finance,
         cashFlow: cashFlow,
+        payBreakdown: payBreakdown,
         savingsPots: savings.pots,
         commitments:
           PayTrackerWebDashboardService
@@ -476,6 +492,82 @@ const PayTrackerWebDashboardService = Object.freeze({
     };
   },
 
+  /**
+   * Reads confirmed, active subscriptions for the weekly pay
+   * breakdown's Committed Costs figure.
+   *
+   * Reuses PayTrackerSubscriptionRepository (the same
+   * repository the Finance workspace uses) rather than
+   * re-reading the Subscriptions sheet directly. Subscriptions
+   * that were originally seeded from an existing Bill
+   * (Linked Bill ID set) are excluded here because they are
+   * already counted inside readFinanceData's monthlyBills -
+   * counting them again would double-count that cost.
+   *
+   * @return {Object}
+   */
+  readSubscriptionsData: function() {
+    if (
+      typeof PayTrackerSubscriptionRepository ===
+      'undefined'
+    ) {
+      return {
+        available: false,
+        monthlyCostExcludingBills: 0
+      };
+    }
+
+    try {
+      const records =
+        PayTrackerSubscriptionRepository
+          .getAll();
+
+      const standalone =
+        records.filter(function(record) {
+          return (
+            record.subscriptionStatus ===
+              'Active' &&
+            record.reviewStatus ===
+              'Confirmed' &&
+            !record.linkedBillId
+          );
+        });
+
+      const monthlyCostExcludingBills =
+        standalone.reduce(
+          function(total, record) {
+            return (
+              total +
+              (
+                Number(record.monthlyCost) || 0
+              )
+            );
+          },
+          0
+        );
+
+      return {
+        available: true,
+        count: standalone.length,
+        monthlyCostExcludingBills:
+          PayTrackerWebDashboardService
+            .roundCurrency(
+              monthlyCostExcludingBills
+            )
+      };
+    } catch (error) {
+      console.error(
+        'Reading subscriptions for the dashboard failed.',
+        error
+      );
+
+      return {
+        available: false,
+        monthlyCostExcludingBills: 0
+      };
+    }
+  },
+
   readSavingsData: function(spreadsheet) {
     const settings =
       PayTrackerWebDashboardService
@@ -742,7 +834,8 @@ const PayTrackerWebDashboardService = Object.freeze({
   buildCashFlow: function(
     pay,
     finance,
-    savingsSettings
+    savingsSettings,
+    subscriptions
   ) {
     const monthlyToWeekly = 12 / 52;
 
@@ -760,8 +853,19 @@ const PayTrackerWebDashboardService = Object.freeze({
         ) || 0
       ) * monthlyToWeekly;
 
+    const standaloneSubscriptions =
+      (
+        subscriptions &&
+        Number(
+          subscriptions.monthlyCostExcludingBills
+        )
+      ) || 0;
+
     const committedPayments =
-      bills + debtRepayments;
+      bills +
+      debtRepayments +
+      standaloneSubscriptions *
+        monthlyToWeekly;
 
     const weeklySpending =
       PayTrackerWebDashboardService
@@ -823,6 +927,18 @@ const PayTrackerWebDashboardService = Object.freeze({
       bills:
         PayTrackerWebDashboardService
           .roundCurrency(committedPayments),
+      billsOnly:
+        PayTrackerWebDashboardService
+          .roundCurrency(bills),
+      debtsOnly:
+        PayTrackerWebDashboardService
+          .roundCurrency(debtRepayments),
+      subscriptionsOnly:
+        PayTrackerWebDashboardService
+          .roundCurrency(
+            standaloneSubscriptions *
+              monthlyToWeekly
+          ),
       weeklySpending:
         PayTrackerWebDashboardService
           .roundCurrency(weeklySpending),
@@ -840,6 +956,375 @@ const PayTrackerWebDashboardService = Object.freeze({
           ? suggestedSavings / availableDisposable
           : 0
     };
+  },
+
+  /**
+   * Builds the Weekly Pay Breakdown shown on the Dashboard.
+   *
+   * Every figure here is derived from data the Dashboard
+   * already calculates (pay, cashFlow) plus a proportional
+   * split of the existing estimated-deductions total using
+   * real Tax/NI/Pension/Student Loan ratios from the most
+   * recently imported payslip, when one exists. Nothing here
+   * changes pay.takeHome or cashFlow's own totals - it only
+   * explains how the existing totals are made up.
+   *
+   * @param {Object} pay
+   * @param {Object} finance
+   * @param {Object} cashFlow
+   * @param {Object} subscriptions
+   * @param {Object[]} savingsPots
+   * @return {Object}
+   */
+  buildPayBreakdown: function(
+    pay,
+    finance,
+    cashFlow,
+    subscriptions,
+    savingsPots
+  ) {
+    const gross =
+      Math.max(Number(pay.gross) || 0, 0);
+
+    const takeHome =
+      Math.max(Number(pay.takeHome) || 0, 0);
+
+    const totalPayrollDeductions =
+      Math.max(gross - takeHome, 0);
+
+    const deductionSplit =
+      PayTrackerWebDashboardService
+        .splitPayrollDeductions(
+          totalPayrollDeductions
+        );
+
+    const committedCosts =
+      Math.max(Number(cashFlow.bills) || 0, 0);
+
+    const weeklySpending =
+      Math.max(
+        Number(cashFlow.weeklySpending) || 0,
+        0
+      );
+
+    const disposableIncome =
+      Number(cashFlow.disposableIncome) || 0;
+
+    const savings =
+      Math.max(
+        Number(cashFlow.suggestedSavings) || 0,
+        0
+      );
+
+    const roundedGross =
+      PayTrackerWebDashboardService
+        .roundCurrency(gross);
+
+    const roundedDeductionsTotal =
+      PayTrackerWebDashboardService
+        .roundCurrency(
+          totalPayrollDeductions
+        );
+
+    const roundedCommittedCosts =
+      PayTrackerWebDashboardService
+        .roundCurrency(committedCosts);
+
+    const roundedWeeklySpending =
+      PayTrackerWebDashboardService
+        .roundCurrency(weeklySpending);
+
+    const roundedSavings =
+      PayTrackerWebDashboardService
+        .roundCurrency(savings);
+
+    /*
+     * Money Left is deliberately the residual of the other four
+     * already-rounded categories (not an independent rounding of
+     * cashFlow.availableAfterSavings) - mirroring how Student Loan
+     * absorbs the rounding residual in splitPayrollDeductions_.
+     * Without this, four independently-rounded penny values can
+     * drift a penny away from the displayed gross even though the
+     * underlying unrounded figures reconcile exactly.
+     */
+    const moneyLeft =
+      PayTrackerWebDashboardService
+        .roundCurrency(
+          roundedGross -
+          roundedDeductionsTotal -
+          roundedCommittedCosts -
+          roundedWeeklySpending -
+          roundedSavings
+        );
+
+    const potBreakdown =
+      Array.isArray(savingsPots)
+        ? savingsPots
+            .filter(function(pot) {
+              return (
+                Number(pot.contribution) || 0
+              ) > 0;
+            })
+            .map(function(pot) {
+              return {
+                name: pot.name,
+                weeklyContribution:
+                  PayTrackerWebDashboardService
+                    .roundCurrency(
+                      Number(pot.contribution) ||
+                      0
+                    )
+              };
+            })
+        : [];
+
+    return {
+      hasData: Boolean(pay.hasData) && gross > 0,
+      gross: roundedGross,
+      takeHome:
+        PayTrackerWebDashboardService
+          .roundCurrency(takeHome),
+      disposableIncome:
+        PayTrackerWebDashboardService
+          .roundCurrency(disposableIncome),
+      moneyLeft: moneyLeft,
+
+      deductions: {
+        available:
+          deductionSplit.available,
+        source:
+          deductionSplit.source,
+        tax:
+          deductionSplit.tax,
+        nationalInsurance:
+          deductionSplit.nationalInsurance,
+        pension:
+          deductionSplit.pension,
+        studentLoan:
+          deductionSplit.studentLoan,
+        total: roundedDeductionsTotal,
+        rateOfGross:
+          gross > 0
+            ? totalPayrollDeductions / gross
+            : 0
+      },
+
+      committedCosts: {
+        total: roundedCommittedCosts,
+        bills:
+          PayTrackerWebDashboardService
+            .roundCurrency(
+              Number(cashFlow.billsOnly) || 0
+            ),
+        debts:
+          PayTrackerWebDashboardService
+            .roundCurrency(
+              Number(cashFlow.debtsOnly) || 0
+            ),
+        subscriptions:
+          PayTrackerWebDashboardService
+            .roundCurrency(
+              Number(
+                cashFlow.subscriptionsOnly
+              ) || 0
+            ),
+        subscriptionsAvailable:
+          Boolean(
+            subscriptions &&
+            subscriptions.available
+          ),
+        rateOfTakeHome:
+          takeHome > 0
+            ? committedCosts / takeHome
+            : 0
+      },
+
+      weeklySpending: {
+        total: roundedWeeklySpending,
+        rateOfTakeHome:
+          takeHome > 0
+            ? weeklySpending / takeHome
+            : 0
+      },
+
+      savings: {
+        total: roundedSavings,
+        rateOfDisposableIncome:
+          Number(cashFlow.savingsRate) || 0,
+        disposableIncomeBeforeSavings:
+          PayTrackerWebDashboardService
+            .roundCurrency(
+              Math.max(disposableIncome, 0)
+            ),
+        pots: potBreakdown
+      },
+
+      moneyLeftDetail: {
+        rateOfGross:
+          gross > 0
+            ? moneyLeft / gross
+            : 0,
+        rateOfTakeHome:
+          takeHome > 0
+            ? moneyLeft / takeHome
+            : 0,
+        rateOfDisposableIncome:
+          disposableIncome > 0
+            ? moneyLeft / disposableIncome
+            : 0
+      },
+
+      markers: {
+        takeHome:
+          PayTrackerWebDashboardService
+            .roundCurrency(takeHome),
+        disposableIncome:
+          PayTrackerWebDashboardService
+            .roundCurrency(disposableIncome)
+      }
+    };
+  },
+
+  /**
+   * Splits the existing weekly estimated-deductions total
+   * into Tax / National Insurance / Pension / Student Loan
+   * using the real ratios found on the most recently
+   * imported payslip (Payroll Centre), if one exists.
+   *
+   * The four returned amounts always sum to exactly
+   * totalPayrollDeductions, so Take-Home keeps reconciling
+   * with the figure already shown elsewhere on the Dashboard.
+   * When no payslip has been imported, or a payslip exists
+   * but recorded no deductions, no ratio can be derived - in
+   * that case `available` is false and every part is 0; the
+   * frontend shows one combined "Payroll deductions" segment
+   * instead of guessing a split.
+   *
+   * @param {number} totalPayrollDeductions
+   * @return {Object}
+   */
+  splitPayrollDeductions: function(
+    totalPayrollDeductions
+  ) {
+    const zeroResult = {
+      available: false,
+      source: '',
+      tax: 0,
+      nationalInsurance: 0,
+      pension: 0,
+      studentLoan: 0
+    };
+
+    if (
+      typeof PayTrackerPayslipRepository ===
+      'undefined'
+    ) {
+      return zeroResult;
+    }
+
+    try {
+      const latestPayslip =
+        PayTrackerPayslipRepository.getLatest();
+
+      if (!latestPayslip) {
+        return zeroResult;
+      }
+
+      const tax =
+        Math.max(
+          Number(latestPayslip.taxActual) || 0,
+          0
+        );
+
+      const nationalInsurance =
+        Math.max(
+          Number(
+            latestPayslip
+              .nationalInsuranceActual
+          ) || 0,
+          0
+        );
+
+      const pension =
+        Math.max(
+          Number(latestPayslip.pensionActual) ||
+          0,
+          0
+        );
+
+      const studentLoan =
+        Math.max(
+          Number(
+            latestPayslip.studentLoanActual
+          ) || 0,
+          0
+        );
+
+      const observedTotal =
+        tax +
+        nationalInsurance +
+        pension +
+        studentLoan;
+
+      if (!(observedTotal > 0)) {
+        return zeroResult;
+      }
+
+      const roundedTax =
+        PayTrackerWebDashboardService
+          .roundCurrency(
+            totalPayrollDeductions *
+            (tax / observedTotal)
+          );
+
+      const roundedNationalInsurance =
+        PayTrackerWebDashboardService
+          .roundCurrency(
+            totalPayrollDeductions *
+            (nationalInsurance / observedTotal)
+          );
+
+      const roundedPension =
+        PayTrackerWebDashboardService
+          .roundCurrency(
+            totalPayrollDeductions *
+            (pension / observedTotal)
+          );
+
+      /*
+       * Student Loan absorbs whatever penny rounding residual
+       * is left over, so the four parts always sum to exactly
+       * totalPayrollDeductions and Take-Home keeps reconciling
+       * with the figure shown elsewhere on the Dashboard.
+       */
+      const roundedStudentLoan =
+        PayTrackerWebDashboardService
+          .roundCurrency(
+            totalPayrollDeductions -
+            roundedTax -
+            roundedNationalInsurance -
+            roundedPension
+          );
+
+      return {
+        available: true,
+        source:
+          'Ratios from payslip ' +
+          (latestPayslip.payslipId || ''),
+        tax: roundedTax,
+        nationalInsurance:
+          roundedNationalInsurance,
+        pension: roundedPension,
+        studentLoan: roundedStudentLoan
+      };
+    } catch (error) {
+      console.error(
+        'Reading the latest payslip for the dashboard deduction split failed.',
+        error
+      );
+
+      return zeroResult;
+    }
   },
 
   buildCommitments: function(finance, savings) {

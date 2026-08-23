@@ -134,6 +134,21 @@ const PayTrackerDashboardService = Object.freeze({
           route
         );
       }
+
+      return;
+    }
+
+    const payBreakdownTarget =
+      clickedElement.closest(
+        '[data-pay-breakdown-key]'
+      );
+
+    if (payBreakdownTarget) {
+      window.PayTrackerPayBreakdownService
+        .selectCategory(
+          payBreakdownTarget.dataset
+            .payBreakdownKey
+        );
     }
   },
 
@@ -318,6 +333,10 @@ const PayTrackerDashboardService = Object.freeze({
     PayTrackerDashboardService.renderCashFlow(
       cashFlow,
       dashboardData.messages || {}
+    );
+
+    window.PayTrackerPayBreakdownService.render(
+      dashboardData.payBreakdown || null
     );
 
     PayTrackerDashboardService.renderSavingsPots(

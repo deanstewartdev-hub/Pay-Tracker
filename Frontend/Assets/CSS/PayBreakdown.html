@@ -1,0 +1,177 @@
+.pay-breakdown-empty { display: grid; justify-items: center; gap: .5rem; padding: 2.5rem 1rem; text-align: center; }
+
+.pay-breakdown {
+  --pay-breakdown-tax: #ef4444;
+  --pay-breakdown-ni: #f59e0b;
+  --pay-breakdown-pension: #22c55e;
+  --pay-breakdown-student-loan: #14b8a6;
+  --pay-breakdown-committed: #3b82f6;
+  --pay-breakdown-spending: #eab308;
+  --pay-breakdown-savings: #a855f7;
+  --pay-breakdown-money-left: var(--color-primary);
+  --pay-breakdown-deficit: var(--color-danger);
+
+  display: grid;
+  grid-template-columns: minmax(160px, 280px) 1fr;
+  gap: 1.75rem;
+  align-items: start;
+}
+
+.pay-breakdown__chart { display: grid; justify-items: center; gap: .85rem; }
+
+.pay-breakdown__gross { text-align: center; }
+.pay-breakdown__gross-label { display: block; color: var(--color-text-muted); font-size: var(--font-size-sm); font-weight: var(--font-weight-semibold); text-transform: uppercase; letter-spacing: .06em; }
+.pay-breakdown__gross-value { display: block; margin-top: .15rem; color: var(--color-heading); font-size: var(--font-size-2xl); font-weight: var(--font-weight-heavy); }
+
+.pay-breakdown__bar-wrap {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: .65rem;
+}
+
+.pay-breakdown__svg {
+  flex-shrink: 0;
+  width: 150px;
+  height: 380px;
+  overflow: visible;
+}
+
+.pay-breakdown-marker-labels {
+  position: relative;
+  flex: 1 1 auto;
+  min-width: 92px;
+  max-width: 118px;
+  height: 380px;
+}
+
+.pay-breakdown-marker-label {
+  position: absolute;
+  left: 0;
+  right: 0;
+  transform: translateY(-50%);
+  line-height: 1.3;
+}
+
+.pay-breakdown-marker-label__title {
+  display: block;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+  text-transform: uppercase;
+  letter-spacing: .03em;
+}
+
+.pay-breakdown-marker-label__value {
+  display: block;
+  color: var(--color-heading);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-bold);
+  font-variant-numeric: tabular-nums;
+}
+
+.pay-breakdown-segment {
+  cursor: pointer;
+  stroke: var(--color-surface);
+  stroke-width: 2;
+  transition: opacity var(--transition-base), filter var(--transition-base);
+}
+
+.pay-breakdown-segment:focus-visible { outline: 2px solid var(--color-primary); outline-offset: 2px; }
+
+.pay-breakdown-segment.is-faded { opacity: .25; }
+.pay-breakdown-segment.is-active { filter: brightness(1.08); }
+
+.pay-breakdown-marker-line { stroke: var(--color-text-muted); stroke-width: 1; stroke-dasharray: 4 3; }
+
+.pay-breakdown__side { display: grid; gap: 1.1rem; min-width: 0; }
+
+.pay-breakdown-selector { display: grid; gap: .4rem; }
+
+.pay-breakdown-selector__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: .75rem;
+  padding: .55rem .7rem;
+  border: 1px solid transparent;
+  border-radius: var(--radius-medium);
+  background: transparent;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+  text-align: left;
+  cursor: pointer;
+  transition: background var(--transition-fast), color var(--transition-fast), border-color var(--transition-fast);
+}
+
+.pay-breakdown-selector__row:hover { background: var(--color-surface-soft); }
+
+.pay-breakdown-selector__identity { display: flex; align-items: center; gap: .55rem; min-width: 0; }
+
+.pay-breakdown-selector__swatch { flex-shrink: 0; width: 10px; height: 10px; border-radius: var(--radius-round); background: var(--swatch-color, var(--color-border)); }
+
+.pay-breakdown-selector__label { overflow: hidden; color: var(--color-text); font-weight: var(--font-weight-medium); text-overflow: ellipsis; white-space: nowrap; }
+
+.pay-breakdown-selector__value { flex-shrink: 0; color: var(--color-text-muted); font-weight: var(--font-weight-semibold); font-variant-numeric: tabular-nums; }
+
+.pay-breakdown-selector__row.is-active {
+  border-color: var(--swatch-color, var(--color-primary));
+  background: var(--color-surface-soft);
+}
+
+.pay-breakdown-selector__row.is-deficit .pay-breakdown-selector__value {
+  color: var(--color-danger);
+  font-weight: var(--font-weight-bold);
+}
+
+.pay-breakdown-selector__row.is-active .pay-breakdown-selector__label,
+.pay-breakdown-selector__row.is-active .pay-breakdown-selector__value {
+  color: var(--color-heading);
+}
+
+.pay-breakdown-detail {
+  padding: 1rem 1.1rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-large);
+  background: var(--color-surface-soft);
+}
+
+.pay-breakdown-detail__eyebrow { margin: 0; color: var(--swatch-color, var(--color-primary)); font-size: var(--font-size-xs); font-weight: var(--font-weight-heavy); text-transform: uppercase; letter-spacing: .06em; }
+
+.pay-breakdown-detail__value { margin: .2rem 0 .85rem; color: var(--color-heading); font-size: var(--font-size-xl); font-weight: var(--font-weight-heavy); }
+
+.pay-breakdown-detail.is-deficit .pay-breakdown-detail__value { color: var(--color-danger); }
+
+.pay-breakdown-detail__rows { display: grid; gap: .5rem; }
+
+.pay-breakdown-detail__row { display: flex; align-items: baseline; justify-content: space-between; gap: 1rem; font-size: var(--font-size-sm); }
+
+.pay-breakdown-detail__row-label { color: var(--color-text-muted); }
+.pay-breakdown-detail__row-value { color: var(--color-text); font-weight: var(--font-weight-semibold); font-variant-numeric: tabular-nums; }
+
+.pay-breakdown-detail__note { margin: .75rem 0 0; padding-top: .75rem; border-top: 1px dashed var(--color-border); color: var(--color-text-muted); font-size: var(--font-size-xs); line-height: 1.5; }
+
+@media (max-width: 780px) {
+  .pay-breakdown { grid-template-columns: 1fr; justify-items: center; }
+  .pay-breakdown__side { width: 100%; }
+}
+
+@media (max-width: 480px) {
+  .pay-breakdown__bar-wrap { gap: .5rem; }
+
+  .pay-breakdown__svg { width: 100px; height: 280px; }
+
+  .pay-breakdown-marker-labels {
+    width: 108px;
+    min-width: 0;
+    max-width: 108px;
+    height: 280px;
+  }
+
+  .pay-breakdown-marker-label {
+    padding: .2rem .4rem;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-medium);
+    background: var(--color-surface-soft);
+  }
+}
