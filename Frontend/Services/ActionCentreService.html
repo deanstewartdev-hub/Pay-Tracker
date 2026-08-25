@@ -29,7 +29,9 @@
       service.text('[data-action-count="review"]', data.counts.inReview);
       service.text('[data-action-count="urgent"]', data.counts.urgent);
       const jobSelect = documentObject.querySelector('[data-action-filter="job"]');
-      if (jobSelect && jobSelect.options.length <= 1) (data.jobs || []).forEach(function(job) {
+      const jobOptionCount = jobSelect ? jobSelect.options.length : 0;
+      const jobSelectNeedsOptions = jobOptionCount === 0 || jobOptionCount === 1;
+      if (jobSelect && jobSelectNeedsOptions) (data.jobs || []).forEach(function(job) {
         const option = documentObject.createElement('option');
         option.value = job.jobId; option.textContent = job.jobName; jobSelect.appendChild(option);
       });

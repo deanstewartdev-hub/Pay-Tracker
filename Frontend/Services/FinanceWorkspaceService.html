@@ -24,7 +24,7 @@ function init() {
     bind(root);
 
     document.addEventListener(
-      'paytracker:route-changed',
+      'paytracker:routechange',
       function(event) {
         if (
           event.detail &&
@@ -354,7 +354,7 @@ function bind(root) {
       money(spent) + ' spent this month'
     );
 
-    setHtml(
+    html(
       '[data-finance-transactions]',
       records.length
         ? records.map(function(record) {

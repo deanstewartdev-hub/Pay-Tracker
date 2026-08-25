@@ -137,10 +137,13 @@ function includePayTrackerHtml(fileName) {
   }
 
   try {
-    return HtmlService
-      .createTemplateFromFile(normalizedFileName)
-      .evaluate()
-      .getContent();
+    const content =
+      HtmlService
+        .createTemplateFromFile(normalizedFileName)
+        .evaluate()
+        .getContent();
+
+    return content;
   } catch (error) {
     throw new Error(
       'Could not include frontend file "' +
