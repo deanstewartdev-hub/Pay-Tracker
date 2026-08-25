@@ -302,6 +302,29 @@
         Analytics
       </span>
     </button>
+
+    <button
+      class="pay-workspace-tab"
+      type="button"
+      data-pay-tab="annual-leave"
+      aria-selected="false"
+    >
+      <span class="pay-workspace-tab__icon">
+        <svg
+          viewBox="0 0 24 24"
+          aria-hidden="true"
+        >
+          <path
+            d="M7 2h2v2h6V2h2v2h4v18H3V4h4V2ZM5 9v11h14V9H5Zm0-3v1h14V6h-2v1h-2V6H9v1H7V6H5Z"
+            fill="currentColor"
+          />
+        </svg>
+      </span>
+
+      <span>
+        Annual Leave
+      </span>
+    </button>
   </nav>
 
   <section
@@ -2637,6 +2660,134 @@
           ></div>
         </section>
       </div>
+    </div>
+  </section>
+
+  <section
+    class="pay-workspace-panel"
+    data-pay-panel="annual-leave"
+    aria-label="Annual Leave"
+    hidden
+  >
+    <div data-annual-leave>
+      <header class="pay-analytics__header">
+        <div>
+          <p class="pay-analytics__eyebrow">
+            Per-job leave ledger
+          </p>
+          <h3 class="pay-analytics__title">
+            Annual Leave
+          </h3>
+          <p class="pay-analytics__description">
+            Tracked separately per job -- NHS, Relief Warden and Night
+            Security leave never share a balance, even where a combined
+            payslip shows one holiday-pay total.
+          </p>
+        </div>
+      </header>
+
+      <p
+        data-annual-leave-notice
+        class="pay-shell-summary-card__meta"
+      ></p>
+
+      <div
+        data-annual-leave-cards
+        class="pay-shell-summary-grid"
+      ></div>
+
+      <section class="card" data-annual-leave-detail hidden>
+        <div class="pay-analytics-panel__header">
+          <h4 data-annual-leave-detail-title>Job detail</h4>
+          <button
+            type="button"
+            class="button"
+            data-annual-leave-detail-close
+          >
+            Close
+          </button>
+        </div>
+
+        <form data-annual-leave-settings-form>
+          <label>
+            Accrual method
+            <select name="annualLeaveAccrualMethod">
+              <option value="">Not set</option>
+              <option value="Percentage of hours worked">Percentage of hours worked</option>
+              <option value="Fixed hours per week">Fixed hours per week</option>
+              <option value="Fixed hours per month">Fixed hours per month</option>
+              <option value="Contract entitlement">Contract entitlement</option>
+              <option value="Imported employer balance">Imported employer balance</option>
+              <option value="Manual calculation">Manual calculation</option>
+            </select>
+          </label>
+          <label>
+            Accrual rate (decimal, e.g. 0.1207 for 12.07%)
+            <input type="number" step="0.0001" min="0" name="annualLeaveAccrualRate">
+          </label>
+          <label>
+            Opening balance (hours)
+            <input type="number" step="0.01" name="annualLeaveOpeningBalanceHours">
+          </label>
+          <label>
+            Carryover hours
+            <input type="number" step="0.01" min="0" name="annualLeaveCarryoverHours">
+          </label>
+          <label>
+            Maximum carryover hours
+            <input type="number" step="0.01" min="0" name="annualLeaveMaximumCarryoverHours">
+          </label>
+          <button class="button button--primary" type="submit">Save settings</button>
+        </form>
+
+        <form data-annual-leave-usage-form>
+          <h5>Record leave taken</h5>
+          <label>
+            Leave start
+            <input type="date" name="leaveStart" required>
+          </label>
+          <label>
+            Leave end
+            <input type="date" name="leaveEnd" required>
+          </label>
+          <label>
+            Hours taken
+            <input type="number" step="0.01" min="0" name="hoursTaken" required>
+          </label>
+          <label>
+            Hours paid so far
+            <input type="number" step="0.01" min="0" name="hoursPaid" value="0">
+          </label>
+          <label>
+            Notes
+            <input type="text" name="notes" maxlength="500">
+          </label>
+          <button class="button button--primary" type="submit">Add usage record</button>
+        </form>
+
+        <form data-annual-leave-earnings-form>
+          <h5>Record earned hours</h5>
+          <label>
+            Work week start
+            <input type="date" name="workWeekStart" required>
+          </label>
+          <label>
+            Work week end
+            <input type="date" name="workWeekEnd" required>
+          </label>
+          <label>
+            Hours earned
+            <input type="number" step="0.01" min="0" name="hoursEarned" required>
+          </label>
+          <label>
+            Notes
+            <input type="text" name="notes" maxlength="500">
+          </label>
+          <button class="button button--primary" type="submit">Add earnings record</button>
+        </form>
+
+        <div data-annual-leave-ledger></div>
+      </section>
     </div>
   </section>
 </div>

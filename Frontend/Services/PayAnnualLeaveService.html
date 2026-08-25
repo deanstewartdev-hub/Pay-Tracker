@@ -1,0 +1,270 @@
+(function(windowObject, documentObject) {
+  const service = {
+    loaded: false,
+    selectedJobId: '',
+    balancesById: {},
+
+    init: function() {
+      const root = documentObject.querySelector('[data-annual-leave]');
+      if (!root) return;
+
+      documentObject.addEventListener('paytracker:routechange', function(event) {
+        if (event.detail.route === 'pay') service.load();
+      });
+
+      const closeButton = root.querySelector('[data-annual-leave-detail-close]');
+      if (closeButton) closeButton.addEventListener('click', function() { service.closeDetail(); });
+
+      const settingsForm = root.querySelector('[data-annual-leave-settings-form]');
+      if (settingsForm) settingsForm.addEventListener('submit', function(event) {
+        event.preventDefault();
+        service.saveSettings(new FormData(settingsForm));
+      });
+
+      const usageForm = root.querySelector('[data-annual-leave-usage-form]');
+      if (usageForm) usageForm.addEventListener('submit', function(event) {
+        event.preventDefault();
+        service.addUsage(new FormData(usageForm));
+      });
+
+      const earningsForm = root.querySelector('[data-annual-leave-earnings-form]');
+      if (earningsForm) earningsForm.addEventListener('submit', function(event) {
+        event.preventDefault();
+        service.addEarnings(new FormData(earningsForm));
+      });
+    },
+
+    load: function(force) {
+      if (service.loaded && force !== true) return;
+      PayTrackerAppController.runServerFunction('getPayTrackerAnnualLeave', {})
+        .then(function(data) {
+          service.loaded = true;
+          service.balancesById = {};
+          (data.balances || []).forEach(function(balance) {
+            service.balancesById[balance.jobId] = balance;
+          });
+          service.renderCards(data.balances || []);
+        })
+        .catch(function(error) {
+          PayTrackerAppController.showToast(PayTrackerAppController.getErrorMessage(error), 'error');
+        });
+    },
+
+    renderCards: function(balances) {
+      const container = documentObject.querySelector('[data-annual-leave-cards]');
+      const notice = documentObject.querySelector('[data-annual-leave-notice]');
+      if (!container) return;
+      container.textContent = '';
+
+      if (balances.length === 0) {
+        if (notice) notice.textContent = 'No Annual-Leave-enabled jobs found.';
+        return;
+      }
+      if (notice) notice.textContent = 'Select a job to record leave, earned hours, or edit accrual settings.';
+
+      balances.forEach(function(balance) {
+        const card = documentObject.createElement('article');
+        card.className = 'pay-shell-summary-card';
+        card.setAttribute('role', 'button');
+        card.setAttribute('tabindex', '0');
+        card.addEventListener('click', function() { service.openDetail(balance.jobId); });
+        card.addEventListener('keydown', function(event) {
+          if (event.key === 'Enter' || event.key === ' ') service.openDetail(balance.jobId);
+        });
+
+        const header = documentObject.createElement('div');
+        header.className = 'pay-shell-summary-card__header';
+
+        const labelWrap = documentObject.createElement('div');
+        const label = documentObject.createElement('p');
+        label.className = 'pay-shell-summary-card__label';
+        label.textContent = balance.jobName;
+        const period = documentObject.createElement('p');
+        period.className = 'pay-shell-summary-card__period';
+        period.textContent = 'Available to book';
+        labelWrap.append(label, period);
+
+        const icon = documentObject.createElement('span');
+        icon.className = 'pay-shell-summary-card__icon';
+        icon.setAttribute('aria-hidden', 'true');
+        icon.textContent = 'AL';
+
+        header.append(labelWrap, icon);
+
+        const value = documentObject.createElement('p');
+        value.className = 'pay-shell-summary-card__value';
+        value.textContent = service.formatHours(balance.availableToBookHours);
+
+        const meta = documentObject.createElement('p');
+        meta.className = 'pay-shell-summary-card__meta';
+        const metaParts = [
+          'Accrued ' + service.formatHours(balance.accruedBalanceHours),
+          service.formatHours(balance.outstandingHolidayPayHours) + ' unpaid'
+        ];
+        if (balance.needsReviewCount) metaParts.push(String(balance.needsReviewCount) + ' need review');
+        meta.textContent = metaParts.join(' · ');
+
+        card.append(header, value, meta);
+        container.appendChild(card);
+      });
+    },
+
+    openDetail: function(jobId) {
+      service.selectedJobId = jobId;
+      const balance = service.balancesById[jobId];
+      const detail = documentObject.querySelector('[data-annual-leave-detail]');
+      const title = documentObject.querySelector('[data-annual-leave-detail-title]');
+      if (!detail || !balance) return;
+      detail.hidden = false;
+      if (title) title.textContent = balance.jobName + ' — Annual Leave';
+
+      const settingsForm = documentObject.querySelector('[data-annual-leave-settings-form]');
+      if (settingsForm) {
+        settingsForm.elements.annualLeaveAccrualMethod.value = balance.accrualMethod || '';
+        settingsForm.elements.annualLeaveAccrualRate.value =
+          balance.accrualRate === null ? '' : balance.accrualRate;
+        settingsForm.elements.annualLeaveOpeningBalanceHours.value = balance.openingBalanceHours;
+        settingsForm.elements.annualLeaveCarryoverHours.value = '';
+        settingsForm.elements.annualLeaveMaximumCarryoverHours.value = '';
+      }
+
+      PayTrackerAppController.runServerFunction('getPayTrackerAnnualLeave', { jobId: jobId })
+        .then(function(data) {
+          service.renderLedger(data.detail || { earnings: [], usage: [] });
+        })
+        .catch(function(error) {
+          PayTrackerAppController.showToast(PayTrackerAppController.getErrorMessage(error), 'error');
+        });
+    },
+
+    closeDetail: function() {
+      service.selectedJobId = '';
+      const detail = documentObject.querySelector('[data-annual-leave-detail]');
+      if (detail) detail.hidden = true;
+    },
+
+    renderLedger: function(detail) {
+      const container = documentObject.querySelector('[data-annual-leave-ledger]');
+      if (!container) return;
+      container.textContent = '';
+
+      const usageHeading = documentObject.createElement('h5');
+      usageHeading.textContent = 'Usage history';
+      container.appendChild(usageHeading);
+      container.appendChild(service.buildLedgerList(detail.usage || [], function(record) {
+        return [
+          record.leaveStart, 'to', record.leaveEnd, '—',
+          service.formatHours(record.hoursTaken), 'taken', '(' + record.leaveStatus + ')'
+        ].join(' ');
+      }, 'No leave recorded yet.'));
+
+      const earningsHeading = documentObject.createElement('h5');
+      earningsHeading.textContent = 'Earnings history';
+      container.appendChild(earningsHeading);
+      container.appendChild(service.buildLedgerList(detail.earnings || [], function(record) {
+        return [
+          record.workWeekStart || 'Manual entry', '—',
+          service.formatHours(record.hoursEarned), 'earned'
+        ].join(' ');
+      }, 'No earnings recorded yet.'));
+    },
+
+    buildLedgerList: function(records, describe, emptyMessage) {
+      const list = documentObject.createElement('ul');
+      list.className = 'annual-leave-ledger-list';
+      if (records.length === 0) {
+        const empty = documentObject.createElement('li');
+        empty.textContent = emptyMessage;
+        list.appendChild(empty);
+        return list;
+      }
+      records.forEach(function(record) {
+        const item = documentObject.createElement('li');
+        item.textContent = describe(record);
+        list.appendChild(item);
+      });
+      return list;
+    },
+
+    saveSettings: function(formData) {
+      if (!service.selectedJobId) return;
+      const settings = {
+        annualLeaveAccrualMethod: String(formData.get('annualLeaveAccrualMethod') || ''),
+        annualLeaveAccrualRate: formData.get('annualLeaveAccrualRate') === ''
+          ? '' : Number(formData.get('annualLeaveAccrualRate')),
+        annualLeaveOpeningBalanceHours: Number(formData.get('annualLeaveOpeningBalanceHours') || 0),
+        annualLeaveCarryoverHours: formData.get('annualLeaveCarryoverHours') === ''
+          ? '' : Number(formData.get('annualLeaveCarryoverHours')),
+        annualLeaveMaximumCarryoverHours: formData.get('annualLeaveMaximumCarryoverHours') === ''
+          ? '' : Number(formData.get('annualLeaveMaximumCarryoverHours'))
+      };
+      PayTrackerAppController.runServerFunction(
+        'updatePayTrackerAnnualLeaveJobSettings', service.selectedJobId, settings
+      ).then(function() {
+        PayTrackerAppController.showToast('Annual Leave settings saved.', 'success');
+        service.load(true);
+      }).catch(function(error) {
+        PayTrackerAppController.showToast(PayTrackerAppController.getErrorMessage(error), 'error');
+      });
+    },
+
+    addUsage: function(formData) {
+      if (!service.selectedJobId) return;
+      const input = {
+        jobId: service.selectedJobId,
+        leaveStart: String(formData.get('leaveStart') || ''),
+        leaveEnd: String(formData.get('leaveEnd') || ''),
+        hoursTaken: Number(formData.get('hoursTaken') || 0),
+        hoursPaid: Number(formData.get('hoursPaid') || 0),
+        leaveStatus: 'Taken',
+        sourceType: 'Manual Entry',
+        notes: String(formData.get('notes') || '')
+      };
+      PayTrackerAppController.runServerFunction('createPayTrackerAnnualLeaveUsage', input)
+        .then(function() {
+          PayTrackerAppController.showToast('Leave usage recorded.', 'success');
+          service.openDetail(service.selectedJobId);
+          service.load(true);
+        })
+        .catch(function(error) {
+          PayTrackerAppController.showToast(PayTrackerAppController.getErrorMessage(error), 'error');
+        });
+    },
+
+    addEarnings: function(formData) {
+      if (!service.selectedJobId) return;
+      const balance = service.balancesById[service.selectedJobId] || {};
+      const input = {
+        jobId: service.selectedJobId,
+        workWeekStart: String(formData.get('workWeekStart') || ''),
+        workWeekEnd: String(formData.get('workWeekEnd') || ''),
+        hoursEarned: Number(formData.get('hoursEarned') || 0),
+        basicHourlyRate: balance.basicHourlyRate || 0,
+        sourceType: 'Manual Entry',
+        calculationStatus: 'Manual Override',
+        notes: String(formData.get('notes') || '')
+      };
+      PayTrackerAppController.runServerFunction('createPayTrackerAnnualLeaveEarnings', input)
+        .then(function() {
+          PayTrackerAppController.showToast('Earned hours recorded.', 'success');
+          service.openDetail(service.selectedJobId);
+          service.load(true);
+        })
+        .catch(function(error) {
+          PayTrackerAppController.showToast(PayTrackerAppController.getErrorMessage(error), 'error');
+        });
+    },
+
+    formatHours: function(value) {
+      const number = Number(value) || 0;
+      return number.toFixed(2) + 'h';
+    }
+  };
+
+  windowObject.PayTrackerPayAnnualLeaveService = service;
+  if (documentObject.readyState === 'loading') {
+    documentObject.addEventListener('DOMContentLoaded', service.init);
+  } else {
+    service.init();
+  }
+})(window, document);
