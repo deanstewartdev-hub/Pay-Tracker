@@ -6,6 +6,14 @@ The project follows Semantic Versioning where practical.
 
 ---
 
+# v3.0.5 — Money Movements ledger
+
+- New `Money Movements` sheet: a single typed ledger (salary/other income, savings allocation, pot deposit/withdrawal, bill/debt payment, refund, transfer, interest, manual adjustment).
+- Internal transfers (savings allocations, pot deposits/withdrawals, transfers) are auto-flagged and excluded from income/spending totals -- `netCashFlow` is income minus spending only, matching the roadmap's "internal transfers must not be counted as spending".
+- New "Movements" tab on the Finance workspace: income/spending/internal-transfer/net-cash-flow summary cards plus manual entry.
+- Deliberately manual entry for this phase. Two real follow-ups deferred rather than rushed: automatic movement creation from `TransactionMatchingService.js`'s `confirmMatch()` (which already processes real bill/debt payments -- extending it deserves the same care given to everything else in this session, not a rushed edit under time pressure), and Monzo account-balance import (`GET /balance`, no existing method to extend, safe to add later as its own small change).
+- Caught and fixed a real HtmlService-corruption risk before it shipped: a bare `summary.netCashFlow >= 0 ? ... : ...` ternary in the new frontend file, the same bug class fixed twice earlier in this branch's history. Rewritten using `Math.sign(...) === -1`, matching the pattern already established in `FinanceWorkspaceService.html`'s `renderAlerts()`.
+
 # v3.0.4 — Pay Adjustments ledger
 
 - New `Pay Adjustments` sheet tracking a specific missing/incorrect amount from a specific payslip through to recovery: Identified → Reported → Expected Next Payslip → Partially Recovered → Recovered (or Rejected / Written Off).
