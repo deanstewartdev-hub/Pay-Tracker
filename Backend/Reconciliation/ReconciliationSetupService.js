@@ -27,22 +27,20 @@ const PayTrackerReconciliationSetupService = Object.freeze({
     const missing = definition.HEADERS.length - sheet.getMaxColumns();
     if (missing > 0) sheet.insertColumnsAfter(sheet.getMaxColumns(), missing);
 
-    const existing = sheet.getRange(1, 1, 1, definition.HEADERS.length)
-      .getDisplayValues()[0];
-    const blank = existing.every(function(value) { return !String(value).trim(); });
-    if (blank) {
-      sheet.getRange(1, 1, 1, definition.HEADERS.length)
-        .setValues([definition.HEADERS.slice()]);
-    } else {
-      definition.HEADERS.forEach(function(header, index) {
-        if (existing[index] !== header) {
-          throw new Error(
-            definition.NAME + ' header mismatch at column ' + (index + 1) +
-            '. Existing data was not changed.'
-          );
-        }
-      });
-    }
+    const range = sheet.getRange(1, 1, 1, definition.HEADERS.length);
+    const existing = range.getDisplayValues()[0];
+    const next = definition.HEADERS.map(function(header, index) {
+      const current = String(existing[index] || '').trim();
+      if (!current) return header;
+      if (current !== header) {
+        throw new Error(
+          definition.NAME + ' header mismatch at column ' + (index + 1) +
+          '. Existing data was not changed.'
+        );
+      }
+      return current;
+    });
+    range.setValues([next]);
     sheet.setFrozenRows(1);
     sheet.getRange(1, 1, 1, definition.HEADERS.length)
       .setFontWeight('bold').setBackground('#172554').setFontColor('#ffffff');

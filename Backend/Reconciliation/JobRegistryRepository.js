@@ -46,5 +46,31 @@ const PayTrackerJobRegistryRepository = Object.freeze({
       .replace(/\s+([a-z0-9])/g, function(match, character) {
         return character.toUpperCase();
       });
+  },
+
+  /**
+   * Writes a sparse set of {camelCaseKey: value} fields onto one
+   * job's row, matched by header -> toKey(). Unknown keys are
+   * ignored. Always stamps Updated At. Used for additive settings
+   * backfill and for user edits -- never touches Job ID/Job Name.
+   */
+  updateFields: function(jobId, fields) {
+    const job = this.getById(jobId);
+    if (!job) throw new Error('Unknown job: ' + jobId);
+    const sheet = this.getSheet();
+    const headers = PayTrackerReconciliationConfig.SHEETS.JOBS.HEADERS;
+    const self = this;
+    Object.keys(fields || {}).forEach(function(key) {
+      const columnIndex = headers.findIndex(function(header) {
+        return self.toKey(header) === key;
+      });
+      if (columnIndex === -1) return;
+      sheet.getRange(job.rowNumber, columnIndex + 1).setValue(fields[key]);
+    });
+    const updatedAtColumn = headers.indexOf('Updated At');
+    if (updatedAtColumn !== -1) {
+      sheet.getRange(job.rowNumber, updatedAtColumn + 1).setValue(new Date());
+    }
+    return this.getById(jobId);
   }
 });

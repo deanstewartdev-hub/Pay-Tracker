@@ -16,7 +16,10 @@ const PayTrackerReconciliationConfig = Object.freeze({
         'Enhancement Rules', 'Taxable', 'Annual Leave Enabled',
         'Annual Leave Accrual Method', 'Annual Leave Year Start',
         'Annual Leave Year End', 'Active', 'Manual Override',
-        'Notes', 'Created At', 'Updated At'
+        'Notes', 'Created At', 'Updated At',
+        'Annual Leave Accrual Rate', 'Annual Leave Opening Balance Hours',
+        'Annual Leave Carryover Hours', 'Annual Leave Maximum Carryover Hours',
+        'Annual Leave Rounding Method'
       ])
     }),
     ACTION_ITEMS: Object.freeze({
