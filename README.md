@@ -22,7 +22,7 @@ The v3 roadmap (`docs/Roadmap.md`, detail in `docs/v3-Roadmap-Detail.md`) is the
 
 ## Current Version
 
-Pay Tracker v3.0.2 — reconciliation foundation, safe Calendar/Annual Leave synchronisation, and a navigation redesign grouped around the work-to-money flow.
+Pay Tracker v3.0.3 — reconciliation foundation, safe Calendar/Annual Leave synchronisation, a navigation redesign grouped around the work-to-money flow, a per-job Annual Leave ledger, and Gmail-based Annual Leave import.
 
 ---
 
@@ -32,6 +32,15 @@ Pay Tracker v3.0.2 — reconciliation foundation, safe Calendar/Annual Leave syn
 
 - Sidebar grouped into Overview, Work and Pay, Money, and Planning and Analysis, following the work-to-money flow described in `docs/v3-Roadmap-Detail.md` §3
 - Every existing workspace route unchanged and reachable; desktop collapse and mobile menu toggles unaffected
+
+### Annual Leave
+
+- Per-job leave ledger (Earnings, Usage) plus accrual settings on the Jobs sheet -- NHS, Relief Warden and Night Security balances never merge, even when one payslip shows a combined holiday-pay total
+- Accrued / available-to-book / outstanding-holiday-pay balances, computed live, shown on a new "Annual Leave" tab on the Pay page
+- Manual entry for leave taken and hours earned, plus per-job accrual settings
+- Gmail import: searches for leave-related emails, matches them against configurable Annual Leave Email Rules (one rule = one Job ID), auto-imports only when the job, dates and approval wording are all unambiguous, and sends anything less certain to the Action Centre instead of guessing. A later cancellation email updates the existing record rather than creating a duplicate. Read-only -- emails are never modified, moved, labelled or deleted.
+
+Run `setupPayTrackerAnnualLeave()` once after deployment; it is safe to run repeatedly. Configure at least one `Annual Leave Email Rules` row before scanning Gmail. Safe checks are available through `runAnnualLeaveEngineTests()`.
 
 ### Reconciliation Foundation
 

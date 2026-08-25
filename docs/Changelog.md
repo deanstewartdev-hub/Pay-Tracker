@@ -6,6 +6,23 @@ The project follows Semantic Versioning where practical.
 
 ---
 
+# v3.0.3 — Annual Leave engine and Gmail import
+
+Covers both Phase 4 and Phase 5 of the v3 roadmap. Phase 4 (Annual Leave engine) merged without its own version bump -- the version constant stayed at 3.0.2 through that change, so this entry documents both phases together rather than backdating a changelog entry that was never actually tagged.
+
+**Annual Leave engine (Phase 4):**
+- Per-job leave ledger: two new sheets (`Annual Leave Earnings`, `Annual Leave Usage`) plus five new settings columns on the existing `Jobs` sheet, instead of a separate settings sheet that would duplicate job identity.
+- Balance computation: accrued = opening balance + earned hours − taken; available to book = accrued − approved future leave; outstanding holiday pay = taken − paid.
+- New "Annual Leave" tab on the Pay workspace with per-job balance cards and manual entry for usage, earnings, and accrual settings.
+- Fixed a real bug in the shared `ensureSheet()` migration helper: it previously only handled "sheet fully blank" or "headers already match exactly", so extending an existing sheet's headers would have thrown a false "header mismatch" the next time setup ran. Rewritten to fill blank header cells while still throwing on a genuine conflict with existing data.
+
+**Gmail Annual Leave import (Phase 5):**
+- Configurable `Annual Leave Email Rules` (sender/subject/body conditions, one rule = one Job ID) and `Annual Leave Email Scan History`, mirroring the existing Payslip Gmail import's proven shape.
+- Read-only Gmail search restricted to leave-related subject terms; emails are never modified, moved, labelled or deleted.
+- Only High-confidence matches (known job, an extracted date, and unambiguous approval/rejection/cancellation wording) auto-import into the Annual Leave Usage ledger; everything else is sent to the Action Centre for manual review rather than guessed.
+- Duplicate-safe by Gmail message ID; a later cancellation email in the same thread updates the existing record instead of creating a second one.
+- New "Scan Gmail for Annual Leave emails" control on the Annual Leave tab.
+
 # v3.0.2 — Navigation redesign
 
 - Regrouped the sidebar into Overview, Work and Pay, Money, and Planning and Analysis, matching the work-to-money flow in `docs/v3-Roadmap-Detail.md` §3.

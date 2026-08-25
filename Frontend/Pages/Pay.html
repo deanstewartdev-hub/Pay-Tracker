@@ -2686,6 +2686,25 @@
         </div>
       </header>
 
+      <div class="pay-analytics-panel__header">
+        <h4>Import approved leave from Gmail</h4>
+        <span data-annual-leave-scan-status>Not scanned yet</span>
+      </div>
+
+      <form data-annual-leave-scan-form>
+        <label>
+          Look back
+          <select name="lookbackDays">
+            <option value="90">3 months</option>
+            <option value="180" selected>6 months</option>
+            <option value="365">12 months</option>
+          </select>
+        </label>
+        <button class="button button--primary" type="submit">
+          Scan Gmail for Annual Leave emails
+        </button>
+      </form>
+
       <p
         data-annual-leave-notice
         class="pay-shell-summary-card__meta"

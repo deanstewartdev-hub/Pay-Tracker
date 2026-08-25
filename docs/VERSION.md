@@ -1,6 +1,6 @@
 # Pay Tracker
 
-**Current Version:** 3.0.2
+**Current Version:** 3.0.3
 
 ## Status
 
@@ -8,7 +8,7 @@
 
 ## Development Stage
 
-Active Development — v3 roadmap Phase 2 navigation redesign implemented
+Active Development — v3 roadmap Phases 2, 4 and 5 implemented (navigation redesign, Annual Leave engine, Gmail Annual Leave import). Phase 3 (Staffline) is blocked pending real Staffline export data.
 
 ## Version note
 
@@ -36,4 +36,4 @@ Pay/Calendar, Finance (bills/debts), Finance Integration (Monzo bank connection,
 
 ## Next milestone
 
-v3 Phase 3 — Staffline schedule reconciliation (see `Roadmap.md`).
+v3 Phase 6 — pay adjustment ledger (see `Roadmap.md`). Phase 3 (Staffline schedule reconciliation) remains blocked pending real Staffline export data.
