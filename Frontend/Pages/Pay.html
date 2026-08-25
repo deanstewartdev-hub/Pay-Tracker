@@ -325,6 +325,29 @@
         Annual Leave
       </span>
     </button>
+
+    <button
+      class="pay-workspace-tab"
+      type="button"
+      data-pay-tab="adjustments"
+      aria-selected="false"
+    >
+      <span class="pay-workspace-tab__icon">
+        <svg
+          viewBox="0 0 24 24"
+          aria-hidden="true"
+        >
+          <path
+            d="M12 2 3 7v2h18V7l-9-5Zm0 2.3L17 7H7l5-2.7ZM5 11v7H3v2h18v-2h-2v-7h-2v7h-3v-7h-2v7H9v-7H7v7H5v-7Z"
+            fill="currentColor"
+          />
+        </svg>
+      </span>
+
+      <span>
+        Adjustments
+      </span>
+    </button>
   </nav>
 
   <section
@@ -2806,6 +2829,111 @@
         </form>
 
         <div data-annual-leave-ledger></div>
+      </section>
+    </div>
+  </section>
+
+  <section
+    class="pay-workspace-panel"
+    data-pay-panel="adjustments"
+    aria-label="Pay Adjustments"
+    hidden
+  >
+    <div data-pay-adjustments>
+      <header class="pay-analytics__header">
+        <div>
+          <p class="pay-analytics__eyebrow">
+            Missing and incorrect pay, tracked to recovery
+          </p>
+          <h3 class="pay-analytics__title">
+            Adjustments
+          </h3>
+          <p class="pay-analytics__description">
+            A specific missing amount from a specific payslip, followed until
+            it is paid on a later one. The original record is never changed
+            or deleted -- only its status and recovered amount are updated.
+          </p>
+        </div>
+      </header>
+
+      <div
+        data-pay-adjustments-cards
+        class="pay-shell-summary-grid"
+      ></div>
+
+      <section class="card" data-pay-adjustments-detail hidden>
+        <div class="pay-analytics-panel__header">
+          <h4 data-pay-adjustments-detail-title>Job detail</h4>
+          <button
+            type="button"
+            class="button"
+            data-pay-adjustments-detail-close
+          >
+            Close
+          </button>
+        </div>
+
+        <form data-pay-adjustments-create-form>
+          <h5>Record a missing or incorrect amount</h5>
+          <label>
+            Type
+            <select name="adjustmentType">
+              <option value="Missing Basic Hours">Missing Basic Hours</option>
+              <option value="Missing Enhanced Hours">Missing Enhanced Hours</option>
+              <option value="Missing Overtime Hours">Missing Overtime Hours</option>
+              <option value="Missing Unsocial Hours">Missing Unsocial Hours</option>
+              <option value="Missing Holiday Hours">Missing Holiday Hours</option>
+              <option value="Incorrect Rate">Incorrect Rate</option>
+              <option value="Incorrect Deduction">Incorrect Deduction</option>
+              <option value="Overpayment">Overpayment</option>
+              <option value="Manual Correction">Manual Correction</option>
+            </select>
+          </label>
+          <label>
+            Original payslip ID
+            <input type="text" name="originalPayslipId" maxlength="100">
+          </label>
+          <label>
+            Original pay period
+            <input type="text" name="originalPayPeriod" maxlength="100" placeholder="e.g. Week 19">
+          </label>
+          <label>
+            Missing hours
+            <input type="number" step="0.01" min="0" name="missingHours" value="0">
+          </label>
+          <label>
+            Missing amount
+            <input type="number" step="0.01" min="0" name="missingAmount" required>
+          </label>
+          <label>
+            Notes
+            <input type="text" name="notes" maxlength="500">
+          </label>
+          <button class="button button--primary" type="submit">Add adjustment</button>
+        </form>
+
+        <form data-pay-adjustments-recover-form>
+          <h5>Record a recovery against an existing adjustment</h5>
+          <label>
+            Adjustment ID
+            <input type="text" name="adjustmentId" required placeholder="Paste the ID from the list below">
+          </label>
+          <label>
+            Recovered hours
+            <input type="number" step="0.01" min="0" name="recoveredHours" value="0">
+          </label>
+          <label>
+            Recovered amount
+            <input type="number" step="0.01" min="0" name="recoveredAmount" required>
+          </label>
+          <label>
+            Recovered on payslip
+            <input type="text" name="expectedRecoveryPayslip" maxlength="100">
+          </label>
+          <button class="button button--primary" type="submit">Record recovery</button>
+        </form>
+
+        <div data-pay-adjustments-list></div>
       </section>
     </div>
   </section>

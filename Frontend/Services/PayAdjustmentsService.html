@@ -1,0 +1,206 @@
+(function(windowObject, documentObject) {
+  const service = {
+    loaded: false,
+    selectedJobId: '',
+    summariesById: {},
+
+    init: function() {
+      const root = documentObject.querySelector('[data-pay-adjustments]');
+      if (!root) return;
+
+      documentObject.addEventListener('paytracker:routechange', function(event) {
+        if (event.detail.route === 'pay') service.load();
+      });
+
+      const closeButton = root.querySelector('[data-pay-adjustments-detail-close]');
+      if (closeButton) closeButton.addEventListener('click', function() { service.closeDetail(); });
+
+      const createForm = root.querySelector('[data-pay-adjustments-create-form]');
+      if (createForm) createForm.addEventListener('submit', function(event) {
+        event.preventDefault();
+        service.createAdjustment(new FormData(createForm));
+      });
+
+      const recoverForm = root.querySelector('[data-pay-adjustments-recover-form]');
+      if (recoverForm) recoverForm.addEventListener('submit', function(event) {
+        event.preventDefault();
+        service.recordRecovery(new FormData(recoverForm));
+      });
+    },
+
+    load: function(force) {
+      if (service.loaded && force !== true) return;
+      PayTrackerAppController.runServerFunction('getPayTrackerPayAdjustments', {})
+        .then(function(data) {
+          service.loaded = true;
+          service.summariesById = {};
+          (data.summaries || []).forEach(function(summary) {
+            service.summariesById[summary.jobId] = summary;
+          });
+          service.renderCards(data.summaries || []);
+        })
+        .catch(function(error) {
+          PayTrackerAppController.showToast(PayTrackerAppController.getErrorMessage(error), 'error');
+        });
+    },
+
+    renderCards: function(summaries) {
+      const container = documentObject.querySelector('[data-pay-adjustments-cards]');
+      if (!container) return;
+      container.textContent = '';
+
+      summaries.forEach(function(summary) {
+        const card = documentObject.createElement('article');
+        card.className = 'pay-shell-summary-card';
+        card.setAttribute('role', 'button');
+        card.setAttribute('tabindex', '0');
+        card.addEventListener('click', function() { service.openDetail(summary.jobId); });
+        card.addEventListener('keydown', function(event) {
+          if (event.key === 'Enter' || event.key === ' ') service.openDetail(summary.jobId);
+        });
+
+        const header = documentObject.createElement('div');
+        header.className = 'pay-shell-summary-card__header';
+
+        const labelWrap = documentObject.createElement('div');
+        const label = documentObject.createElement('p');
+        label.className = 'pay-shell-summary-card__label';
+        label.textContent = summary.jobId;
+        const period = documentObject.createElement('p');
+        period.className = 'pay-shell-summary-card__period';
+        period.textContent = 'Outstanding';
+        labelWrap.append(label, period);
+
+        const icon = documentObject.createElement('span');
+        icon.className = 'pay-shell-summary-card__icon';
+        icon.setAttribute('aria-hidden', 'true');
+        icon.textContent = '£';
+
+        header.append(labelWrap, icon);
+
+        const value = documentObject.createElement('p');
+        value.className = 'pay-shell-summary-card__value';
+        value.textContent = service.formatMoney(summary.outstandingAmount);
+
+        const meta = documentObject.createElement('p');
+        meta.className = 'pay-shell-summary-card__meta';
+        meta.textContent = [
+          summary.unresolvedCount + ' unresolved',
+          service.formatMoney(summary.recoveredAmount) + ' recovered'
+        ].join(' · ');
+
+        card.append(header, value, meta);
+        container.appendChild(card);
+      });
+    },
+
+    openDetail: function(jobId) {
+      service.selectedJobId = jobId;
+      const detail = documentObject.querySelector('[data-pay-adjustments-detail]');
+      const title = documentObject.querySelector('[data-pay-adjustments-detail-title]');
+      if (!detail) return;
+      detail.hidden = false;
+      if (title) title.textContent = jobId + ' — Adjustments';
+
+      PayTrackerAppController.runServerFunction('getPayTrackerPayAdjustments', { jobId: jobId })
+        .then(function(data) {
+          service.renderList(data.adjustments || []);
+        })
+        .catch(function(error) {
+          PayTrackerAppController.showToast(PayTrackerAppController.getErrorMessage(error), 'error');
+        });
+    },
+
+    closeDetail: function() {
+      service.selectedJobId = '';
+      const detail = documentObject.querySelector('[data-pay-adjustments-detail]');
+      if (detail) detail.hidden = true;
+    },
+
+    renderList: function(adjustments) {
+      const container = documentObject.querySelector('[data-pay-adjustments-list]');
+      if (!container) return;
+      container.textContent = '';
+
+      const heading = documentObject.createElement('h5');
+      heading.textContent = 'Adjustment history';
+      container.appendChild(heading);
+
+      if (adjustments.length === 0) {
+        const empty = documentObject.createElement('p');
+        empty.textContent = 'No adjustments recorded for this job yet.';
+        container.appendChild(empty);
+        return;
+      }
+
+      const list = documentObject.createElement('ul');
+      list.className = 'pay-adjustments-list';
+      adjustments.forEach(function(record) {
+        const item = documentObject.createElement('li');
+        const idLine = documentObject.createElement('code');
+        idLine.textContent = record.adjustmentId;
+        const detailLine = documentObject.createElement('span');
+        detailLine.textContent = ' — ' + [
+          record.adjustmentType, service.formatMoney(record.missingAmount) + ' missing',
+          service.formatMoney(record.recoveredAmount) + ' recovered', record.adjustmentStatus
+        ].filter(Boolean).join(' · ');
+        item.append(idLine, detailLine);
+        list.appendChild(item);
+      });
+      container.appendChild(list);
+    },
+
+    createAdjustment: function(formData) {
+      if (!service.selectedJobId) return;
+      const input = {
+        jobId: service.selectedJobId,
+        adjustmentType: String(formData.get('adjustmentType') || 'Manual Correction'),
+        originalPayslipId: String(formData.get('originalPayslipId') || ''),
+        originalPayPeriod: String(formData.get('originalPayPeriod') || ''),
+        missingHours: Number(formData.get('missingHours') || 0),
+        missingAmount: Number(formData.get('missingAmount') || 0),
+        notes: String(formData.get('notes') || '')
+      };
+      PayTrackerAppController.runServerFunction('createPayTrackerPayAdjustment', input)
+        .then(function() {
+          PayTrackerAppController.showToast('Adjustment recorded.', 'success');
+          service.openDetail(service.selectedJobId);
+          service.load(true);
+        })
+        .catch(function(error) {
+          PayTrackerAppController.showToast(PayTrackerAppController.getErrorMessage(error), 'error');
+        });
+    },
+
+    recordRecovery: function(formData) {
+      const adjustmentId = String(formData.get('adjustmentId') || '').trim();
+      if (!adjustmentId) return;
+      const input = {
+        recoveredHours: Number(formData.get('recoveredHours') || 0),
+        recoveredAmount: Number(formData.get('recoveredAmount') || 0),
+        expectedRecoveryPayslip: String(formData.get('expectedRecoveryPayslip') || '')
+      };
+      PayTrackerAppController.runServerFunction('carryForwardPayTrackerPayAdjustment', adjustmentId, input)
+        .then(function() {
+          PayTrackerAppController.showToast('Recovery recorded.', 'success');
+          service.openDetail(service.selectedJobId);
+          service.load(true);
+        })
+        .catch(function(error) {
+          PayTrackerAppController.showToast(PayTrackerAppController.getErrorMessage(error), 'error');
+        });
+    },
+
+    formatMoney: function(value) {
+      const number = Number(value) || 0;
+      return '£' + number.toFixed(2);
+    }
+  };
+
+  windowObject.PayTrackerPayAdjustmentsService = service;
+  if (documentObject.readyState === 'loading') {
+    documentObject.addEventListener('DOMContentLoaded', service.init);
+  } else {
+    service.init();
+  }
+})(window, document);

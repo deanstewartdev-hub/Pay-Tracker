@@ -22,7 +22,7 @@ The v3 roadmap (`docs/Roadmap.md`, detail in `docs/v3-Roadmap-Detail.md`) is the
 
 ## Current Version
 
-Pay Tracker v3.0.3 — reconciliation foundation, safe Calendar/Annual Leave synchronisation, a navigation redesign grouped around the work-to-money flow, a per-job Annual Leave ledger, and Gmail-based Annual Leave import.
+Pay Tracker v3.0.4 — reconciliation foundation, safe Calendar/Annual Leave synchronisation, a navigation redesign grouped around the work-to-money flow, a per-job Annual Leave ledger, Gmail-based Annual Leave import, and a Pay Adjustments ledger for missing/incorrect pay.
 
 ---
 
@@ -41,6 +41,14 @@ Pay Tracker v3.0.3 — reconciliation foundation, safe Calendar/Annual Leave syn
 - Gmail import: searches for leave-related emails, matches them against configurable Annual Leave Email Rules (one rule = one Job ID), auto-imports only when the job, dates and approval wording are all unambiguous, and sends anything less certain to the Action Centre instead of guessing. A later cancellation email updates the existing record rather than creating a duplicate. Read-only -- emails are never modified, moved, labelled or deleted.
 
 Run `setupPayTrackerAnnualLeave()` once after deployment; it is safe to run repeatedly. Configure at least one `Annual Leave Email Rules` row before scanning Gmail. Safe checks are available through `runAnnualLeaveEngineTests()`.
+
+### Pay Adjustments
+
+- A specific missing/incorrect amount from a specific payslip, followed through Identified → Reported → Expected Next Payslip → Partially Recovered → Recovered (or Rejected / Written Off). The original record is never changed or deleted, only its status and recovered amount -- the full history stays on one auditable row.
+- Deliberately manual entry: the existing Payroll Comparison engine only compares a whole payslip's predicted-vs-actual gross/net, with no per-job or per-category breakdown to auto-detect a specific missing amount from, so this ledger doesn't guess one.
+- New "Adjustments" tab on the Pay workspace with per-job outstanding/recovered totals and manual entry for new adjustments and recoveries.
+
+Run `setupPayTrackerPayAdjustments()` once after deployment; it is safe to run repeatedly. Safe checks are available through `runPayAdjustmentsTests()`.
 
 ### Reconciliation Foundation
 
