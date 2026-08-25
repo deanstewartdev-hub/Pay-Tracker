@@ -6,6 +6,13 @@ The project follows Semantic Versioning where practical.
 
 ---
 
+# v3.0.4 — Pay Adjustments ledger
+
+- New `Pay Adjustments` sheet tracking a specific missing/incorrect amount from a specific payslip through to recovery: Identified → Reported → Expected Next Payslip → Partially Recovered → Recovered (or Rejected / Written Off).
+- `carryForward()` accumulates recovered hours/amount onto the same row and only advances status when the full missing amount is matched -- the original `Missing Hours`/`Missing Amount` are never rewritten, so the complete history stays on one auditable record rather than being deleted and recreated.
+- Deliberately manual-entry: the existing Payroll Comparison engine (`PayrollComparisonEngine.gs`) compares a whole payslip's predicted-vs-actual gross/net with no per-job or per-category breakdown, so there's nothing reliable to auto-detect a specific missing amount from yet -- this ledger doesn't guess one.
+- New "Adjustments" tab on the Pay workspace: per-job outstanding/recovered summary cards, and manual entry for new adjustments and recoveries.
+
 # v3.0.3 — Annual Leave engine and Gmail import
 
 Covers both Phase 4 and Phase 5 of the v3 roadmap. Phase 4 (Annual Leave engine) merged without its own version bump -- the version constant stayed at 3.0.2 through that change, so this entry documents both phases together rather than backdating a changelog entry that was never actually tagged.
