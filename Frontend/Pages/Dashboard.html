@@ -643,6 +643,98 @@
     </article>
   </section>
 
+  <section class="card dashboard-card dashboard-card--pay-breakdown">
+    <div class="card__header">
+      <div>
+        <h3 class="card__title">
+          Weekly pay breakdown
+        </h3>
+
+        <p class="card__subtitle">
+          Where this week's gross earnings go
+        </p>
+      </div>
+    </div>
+
+    <div class="card__body">
+      <div
+        id="pay-breakdown-empty"
+        class="pay-breakdown-empty"
+        hidden
+      >
+        <div
+          class="empty-state__icon"
+          aria-hidden="true"
+        >
+          £
+        </div>
+
+        <p class="empty-state__title">
+          No populated pay week yet
+        </p>
+
+        <p class="empty-state__message">
+          Add shifts to the PaySheet to see how this week's gross
+          earnings break down.
+        </p>
+      </div>
+
+      <div
+        id="pay-breakdown-content"
+        class="pay-breakdown"
+        hidden
+      >
+        <div class="pay-breakdown__chart">
+          <div class="pay-breakdown__gross">
+            <span class="pay-breakdown__gross-label">
+              Gross earnings
+            </span>
+
+            <strong
+              id="pay-breakdown-gross-value"
+              class="pay-breakdown__gross-value"
+            >
+              £—
+            </strong>
+          </div>
+
+          <div class="pay-breakdown__bar-wrap">
+            <svg
+              id="pay-breakdown-svg"
+              class="pay-breakdown__svg"
+              viewBox="0 0 150 420"
+              preserveAspectRatio="none"
+              role="img"
+              aria-label="Weekly pay breakdown chart"
+            >
+              <g id="pay-breakdown-segments"></g>
+              <g id="pay-breakdown-markers"></g>
+            </svg>
+
+            <div
+              id="pay-breakdown-marker-labels"
+              class="pay-breakdown-marker-labels"
+            ></div>
+          </div>
+        </div>
+
+        <div class="pay-breakdown__side">
+          <div
+            id="pay-breakdown-selector"
+            class="pay-breakdown-selector"
+            role="listbox"
+            aria-label="Pay breakdown categories"
+          ></div>
+
+          <div
+            id="pay-breakdown-detail"
+            class="pay-breakdown-detail"
+          ></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
   <section class="dashboard-secondary-grid">
     <article class="card dashboard-card dashboard-card--savings-pots">
       <div class="card__header">

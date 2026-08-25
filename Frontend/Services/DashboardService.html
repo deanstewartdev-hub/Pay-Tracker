@@ -134,6 +134,27 @@ const PayTrackerDashboardService = Object.freeze({
           route
         );
       }
+
+      return;
+    }
+
+    const payBreakdownTarget =
+      clickedElement.closest(
+        '[data-pay-breakdown-key]'
+      );
+
+    if (
+      payBreakdownTarget &&
+      window.PayTrackerPayBreakdownService &&
+      typeof window
+        .PayTrackerPayBreakdownService
+        .selectCategory === 'function'
+    ) {
+      window.PayTrackerPayBreakdownService
+        .selectCategory(
+          payBreakdownTarget.dataset
+            .payBreakdownKey
+        );
     }
   },
 
@@ -319,6 +340,17 @@ const PayTrackerDashboardService = Object.freeze({
       cashFlow,
       dashboardData.messages || {}
     );
+
+    if (
+      window.PayTrackerPayBreakdownService &&
+      typeof window
+        .PayTrackerPayBreakdownService
+        .render === 'function'
+    ) {
+      window.PayTrackerPayBreakdownService.render(
+        dashboardData.payBreakdown || null
+      );
+    }
 
     PayTrackerDashboardService.renderSavingsPots(
       savingsPots
