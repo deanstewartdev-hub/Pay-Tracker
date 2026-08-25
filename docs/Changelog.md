@@ -6,6 +6,12 @@ The project follows Semantic Versioning where practical.
 
 ---
 
+# v3.0.2 — Navigation redesign
+
+- Regrouped the sidebar into Overview, Work and Pay, Money, and Planning and Analysis, matching the work-to-money flow in `docs/v3-Roadmap-Detail.md` §3.
+- Every existing route (`?page=...`) and workspace stays reachable — this phase is a pure information-architecture change, not a new-page build. The finer-grained Work and Pay items (Shifts, Timesheets, Payroll, Adjustments, Annual Leave) described in the target navigation arrive as their own pages in Phases 3–6, once the underlying features exist.
+- Fixed three bugs found while validating the v3.0.1 reconciliation merge against production: an Action Centre HtmlService template-corruption bug (`<=` silently escaped to `&lt;=`, killing the whole script block), a Finance Transactions table calling an undefined `setHtml`, and six workspaces listening for the wrong route-change event name.
+
 # v3.0.1 — Calendar and Annual Leave reconciliation
 
 - Highlights Annual Leave dates and their basic-pay shift cards in red on the weekly Pay calendar, labelled `A/L - [base shift name]`.
