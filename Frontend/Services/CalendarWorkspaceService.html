@@ -21,7 +21,7 @@
     bind(root);
 
     document.addEventListener(
-      'paytracker:route-changed',
+      'paytracker:routechange',
       function(event) {
         if (
           event.detail &&
@@ -42,6 +42,15 @@
       function(event) {
         if (
           event.target.closest(
+            '[data-calendar-automation]'
+          )
+        ) {
+          toggleAutomation();
+          return;
+        }
+
+        if (
+          event.target.closest(
             '[data-calendar-refresh]'
           )
         ) {
@@ -57,6 +66,30 @@
           runSync();
         }
       }
+    );
+  }
+
+  function toggleAutomation() {
+    if (state.syncing) return;
+    const enabled = Boolean(
+      state.data && state.data.automation && state.data.automation.enabled
+    );
+    state.syncing = true;
+    call(
+      'setPayTrackerCalendarAutomation',
+      function(response) {
+        state.syncing = false;
+        state.data.automation = response.automation;
+        renderAutomation(response.automation);
+        showNotice(response.automation.enabled
+          ? 'Automatic Calendar reconciliation is enabled every six hours.'
+          : 'Automatic Calendar reconciliation is disabled.');
+      },
+      function(error) {
+        state.syncing = false;
+        showNotice(getError(error), true);
+      },
+      !enabled
     );
   }
 
@@ -113,7 +146,7 @@
 
     const confirmed =
       window.confirm(
-        'Sync now imports recognised shifts from your calendars into the PaySheet. Continue?'
+        'Sync now reconciles recognised shifts and Annual Leave with your PaySheet. Calendar-owned shifts may be updated or removed; manual changes are preserved. Continue?'
       );
 
     if (!confirmed) {
@@ -204,7 +237,17 @@
       data.lastSyncResult
     );
 
+    renderAutomation(data.automation);
+
     renderEvents(events);
+  }
+
+  function renderAutomation(automation) {
+    const button = document.querySelector('[data-calendar-automation]');
+    if (!button) return;
+    const enabled = Boolean(automation && automation.enabled);
+    button.textContent = enabled ? 'Disable automatic sync' : 'Enable automatic sync';
+    button.setAttribute('aria-pressed', String(enabled));
   }
 
   function renderSyncResult(result) {
@@ -227,6 +270,16 @@
     element.textContent =
       'Last sync - imported ' +
       String(result.imported || 0) +
+      ', updated ' +
+      String(result.updated || 0) +
+      ', adopted ' +
+      String(result.adopted || 0) +
+      ', removed ' +
+      String(result.removed || 0) +
+      ', manual changes preserved ' +
+      String(result.manualChangesPreserved || 0) +
+      ', review items ' +
+      String(result.reviewItems || 0) +
       ', skipped ' +
       String(result.skipped || 0) +
       ', ignored ' +
@@ -252,10 +305,13 @@
                 '</strong>',
               '</td>',
               '<td>',
-                event.matched
+                event.needsReview
+                  ? 'Annual Leave - role required'
+                  : event.matched
                   ? escape(event.tableName) +
                     ' - ' +
-                    escape(event.shiftType)
+                    escape(event.shiftType) +
+                    (event.isAnnualLeave ? ' (Annual Leave)' : '')
                   : '--',
               '</td>',
               '<td>',
@@ -270,7 +326,9 @@
                     ? 'calendar-status--matched'
                     : 'calendar-status--ignored',
                 '">',
-                  event.matched
+                  event.needsReview
+                    ? 'Needs review'
+                    : event.matched
                     ? 'Recognised'
                     : 'Not recognised',
                 '</span>',
@@ -289,7 +347,8 @@
   function call(
     functionName,
     success,
-    failure
+    failure,
+    argument
   ) {
     if (
       !window.google ||
@@ -316,6 +375,10 @@
 
       case 'runPayTrackerCalendarSync':
         runner.runPayTrackerCalendarSync();
+        break;
+
+      case 'setPayTrackerCalendarAutomation':
+        runner.setPayTrackerCalendarAutomation(argument === true);
         break;
 
       default:

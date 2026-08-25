@@ -17,6 +17,15 @@ const PayTrackerMenu = Object.freeze({
       .addItem(
         'Debug Calendar Events',
         'debugCalendarEvents'
+      )
+      .addSeparator()
+      .addItem(
+        'Enable Automatic Sync (Every 6 Hours)',
+        'enableAutomaticPayTrackerCalendarSync'
+      )
+      .addItem(
+        'Disable Automatic Sync',
+        'disableAutomaticPayTrackerCalendarSync'
       );
 
     const weeksMenu = ui

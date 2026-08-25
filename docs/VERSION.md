@@ -1,6 +1,6 @@
 # Pay Tracker
 
-**Current Version:** 2.8.0 (see note below)
+**Current Version:** 3.0.1
 
 ## Status
 
@@ -8,7 +8,7 @@
 
 ## Development Stage
 
-Active Development — v3 roadmap (see `Roadmap.md`) in progress, Phase 0 complete
+Active Development — v3 roadmap Phase 1 reconciliation foundation implemented
 
 ## Version note
 
@@ -36,4 +36,4 @@ Pay/Calendar, Finance (bills/debts), Finance Integration (Monzo bank connection,
 
 ## Next milestone
 
-v3 Phase 1 — unified Job Registry + Action Centre (see `Roadmap.md`).
+v3 Phase 2 — navigation redesign (see `Roadmap.md`).

@@ -32,3 +32,17 @@ Every entry must confirm the migration is safe to run repeatedly and does not cl
 - **Safety mechanism:** columns were part of the original `appendRow` shape used since the sheet's creation — this migration documented the existing positions in config rather than changing the sheet layout, so it carries no runtime risk.
 - **Data preserved:** yes — no structural change to existing rows.
 - **Related PR:** [#13](https://github.com/deanstewartdev-hub/Pay-Tracker/pull/13) "Match bank transactions to Bills/Debts payments".
+
+### 2026-08-19 — Jobs and Action Centre — v3 reconciliation foundation
+
+- **Change:** added three new sheets: `Jobs`, `Action Centre`, and `Action Centre History`; seeded four stable Job IDs linked to the existing employer and payroll-group keys.
+- **Safety mechanism:** `setupPayTrackerReconciliationFoundation()` creates missing sheets, validates existing headers before writing, and seeds only missing Job IDs. Re-running it is a no-op for existing records.
+- **Data preserved:** confirmed — no existing sheet is cleared, renamed, widened, or rewritten.
+- **Related PR:** branch `agent/v3-reconciliation-foundation`.
+
+### 2026-08-19 — Calendar Sync Records — durable Calendar ownership
+
+- **Change:** added the `Calendar Sync Records` ledger containing Calendar event identity, PaySheet target, and the exact shift/hours/pay values written by synchronisation.
+- **Safety mechanism:** the setup service creates the sheet only when absent and validates every existing header before writing. Event records are upserted by stable sync key; no existing PaySheet schema is changed.
+- **Data preserved:** Calendar removals clear only shift/hours/pay values that still exactly match the ledger snapshot. Any manual difference is preserved and sent to the Action Centre.
+- **Related PR:** branch `agent/v3-reconciliation-foundation`.

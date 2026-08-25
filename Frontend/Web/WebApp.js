@@ -11,12 +11,13 @@
 
 const PAY_TRACKER_WEB_CONFIG = Object.freeze({
   APP_NAME: 'Pay Tracker',
-  VERSION: '2.6.0',
+  VERSION: '3.0.1',
   DEFAULT_ROUTE: 'dashboard',
   ENTRY_TEMPLATE: 'Frontend/Index',
 
   ROUTES: Object.freeze({
     DASHBOARD: 'dashboard',
+    ACTION_CENTRE: 'action-centre',
     PAY: 'pay',
     FINANCE: 'finance',
     SAVINGS: 'savings',
@@ -136,10 +137,13 @@ function includePayTrackerHtml(fileName) {
   }
 
   try {
-    return HtmlService
-      .createTemplateFromFile(normalizedFileName)
-      .evaluate()
-      .getContent();
+    const content =
+      HtmlService
+        .createTemplateFromFile(normalizedFileName)
+        .evaluate()
+        .getContent();
+
+    return content;
   } catch (error) {
     throw new Error(
       'Could not include frontend file "' +
@@ -199,6 +203,7 @@ function buildPayTrackerApplicationState_(event) {
 
     features: {
       dashboard: true,
+      actionCentre: true,
       pay: true,
       finance: true,
       savings: true,
@@ -255,6 +260,12 @@ function buildPayTrackerNavigation_() {
       icon: 'dashboard'
     },
     {
+      id: PAY_TRACKER_WEB_CONFIG.ROUTES.ACTION_CENTRE,
+      label: 'Action Centre',
+      section: 'main',
+      icon: 'actions'
+    },
+    {
       id: PAY_TRACKER_WEB_CONFIG.ROUTES.PAY,
       label: 'Pay',
       section: 'main',
@@ -309,6 +320,7 @@ function buildPayTrackerNavigation_() {
 function getPayTrackerRouteTitle_(route) {
   const routeTitles = {
     dashboard: 'Dashboard',
+    'action-centre': 'Action Centre',
     pay: 'Pay',
     finance: 'Finance',
     savings: 'Savings',

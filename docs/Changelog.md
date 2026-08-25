@@ -6,6 +6,26 @@ The project follows Semantic Versioning where practical.
 
 ---
 
+# v3.0.1 — Calendar and Annual Leave reconciliation
+
+- Highlights Annual Leave dates and their basic-pay shift cards in red on the weekly Pay calendar, labelled `A/L - [base shift name]`.
+- Connects the Pay page's Sync calendar button to live reconciliation and refreshes the selected week when it finishes.
+- Recognises the live Calendar abbreviations `A/L` and bare `NIGHT 8pm-12pm` events used for Night Security leave inference.
+- Recognises `AL` and `Annual Leave` events and assigns basic pay to NHS, Relief Warden, or Night Security using role evidence from event details or a same-day shift.
+- Sends ambiguous Annual Leave roles to the Action Centre instead of guessing.
+- Adds a Calendar ownership ledger so moved, edited, and deleted events update the PaySheet safely.
+- Preserves manually changed PaySheet rows and creates a review item when a deleted event conflicts with a manual edit.
+- Skips all removal reconciliation when any configured Calendar cannot be read.
+- Adds optional six-hour automatic Calendar reconciliation.
+
+# v3.0.0 — Reconciliation foundation
+
+- Added a canonical Jobs registry seeded from the existing employer and pay-rule definitions.
+- Added a source-linked Action Centre with priority/status filters and manual resolution controls.
+- Added append-only Action Centre decision history.
+- Added an idempotent, non-destructive reconciliation setup function.
+- Added safe reconciliation configuration tests and updated the web app route/version metadata.
+
 # [Unreleased / v2.8] - Payroll Centre, Monzo integration and reconciliation (undocumented until this audit)
 
 The following shipped across many PRs after the v2.6.0 release below, but was never recorded in this changelog. Recorded now as part of the v3 Phase 0 audit (`docs/v3-phase0-audit.md`).

@@ -45,6 +45,7 @@
   <div class="finance-tabs" role="tablist">
     <button class="finance-tab is-active" type="button" data-finance-tab="overview">Overview</button>
     <button class="finance-tab" type="button" data-finance-tab="payments">Payments</button>
+    <button class="finance-tab" type="button" data-finance-tab="transactions">Transactions</button>
     <button class="finance-tab" type="button" data-finance-tab="bills">Bills</button>
     <button class="finance-tab" type="button" data-finance-tab="debts">Debts</button>
     <button class="finance-tab" type="button" data-finance-tab="subscriptions">Subscriptions</button>
@@ -153,6 +154,19 @@
 
           <div class="finance-bank-matches" data-finance-bank-matches></div>
         </article>
+      </div>
+    </section>
+
+    <section class="finance-panel" data-finance-panel="transactions">
+      <div class="finance-section-heading">
+        <div><p class="finance-card__eyebrow">Monzo spending</p><h3>Recent transactions</h3></div>
+        <span class="finance-status" data-finance-transaction-summary>£0.00 spent</span>
+      </div>
+      <div class="finance-table-wrap">
+        <table class="finance-table">
+          <thead><tr><th>Date</th><th>Merchant</th><th>Category</th><th>Direction</th><th>Amount</th><th>Status</th></tr></thead>
+          <tbody data-finance-transactions></tbody>
+        </table>
       </div>
     </section>
 

@@ -61,7 +61,7 @@ Connect Calendar shifts → Staffline timetables/timesheets → predicted pay �
 ## Phase order
 
 0. Repository audit — `agent/v3-audit-and-roadmap` (this document + `docs/v3-phase0-audit.md`)
-1. Unified data model (Job Registry) + Action Centre — `agent/v3-reconciliation-foundation`
+1. Unified data model (Job Registry) + Action Centre — `agent/v3-reconciliation-foundation` — complete
 2. Navigation redesign (Work & Pay / Money / Planning & Analysis groups, mobile layout) — `agent/v3-navigation-redesign`
 3. Staffline timetable/timesheet import + three-way reconciliation (Calendar ↔ Staffline ↔ payslip) — `agent/v3-staffline-schedule-import`
 4. Annual Leave engine — per-job settings, earnings ledger, usage ledger, combined-payslip allocation — `agent/v3-annual-leave-engine`

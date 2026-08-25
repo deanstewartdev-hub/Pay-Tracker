@@ -1,0 +1,73 @@
+(function(windowObject, documentObject) {
+  const service = {
+    loaded: false,
+    init: function() {
+      documentObject.addEventListener('paytracker:routechange', function(event) {
+        if (event.detail.route === 'action-centre') service.load();
+      });
+      const refresh = documentObject.querySelector('[data-action-refresh]');
+      if (refresh) refresh.addEventListener('click', function() { service.load(true); });
+      documentObject.querySelectorAll('[data-action-filter]').forEach(function(input) {
+        input.addEventListener('change', function() { service.load(true); });
+      });
+    },
+    load: async function(force) {
+      if (service.loaded && !force) return;
+      const status = documentObject.querySelector('[data-action-filter="status"]');
+      const job = documentObject.querySelector('[data-action-filter="job"]');
+      try {
+        const data = await PayTrackerAppController.runServerFunction('getPayTrackerActionCentre', {
+          status: status ? status.value : '', jobId: job ? job.value : ''
+        });
+        service.render(data); service.loaded = true;
+      } catch (error) {
+        PayTrackerAppController.showToast(PayTrackerAppController.getErrorMessage(error), 'error');
+      }
+    },
+    render: function(data) {
+      service.text('[data-action-count="open"]', data.counts.open);
+      service.text('[data-action-count="review"]', data.counts.inReview);
+      service.text('[data-action-count="urgent"]', data.counts.urgent);
+      const jobSelect = documentObject.querySelector('[data-action-filter="job"]');
+      const jobOptionCount = jobSelect ? jobSelect.options.length : 0;
+      const jobSelectNeedsOptions = jobOptionCount === 0 || jobOptionCount === 1;
+      if (jobSelect && jobSelectNeedsOptions) (data.jobs || []).forEach(function(job) {
+        const option = documentObject.createElement('option');
+        option.value = job.jobId; option.textContent = job.jobName; jobSelect.appendChild(option);
+      });
+      const list = documentObject.querySelector('[data-action-list]');
+      const empty = documentObject.querySelector('[data-action-empty]');
+      list.textContent = ''; empty.hidden = Boolean((data.items || []).length);
+      (data.items || []).forEach(function(item) { list.appendChild(service.card(item)); });
+    },
+    card: function(item) {
+      const article = documentObject.createElement('article'); article.className = 'card action-item';
+      const header = documentObject.createElement('div'); header.className = 'action-item__header';
+      const title = documentObject.createElement('h3'); title.textContent = item.title;
+      const priority = documentObject.createElement('span'); priority.textContent = item.priority;
+      header.append(title, priority); article.appendChild(header);
+      const description = documentObject.createElement('p'); description.textContent = item.description || ''; article.appendChild(description);
+      const meta = documentObject.createElement('div'); meta.className = 'action-item__meta';
+      meta.textContent = [item.actionType, item.jobId, item.sourceType + ': ' + item.sourceId, item.status].filter(Boolean).join(' · ');
+      article.appendChild(meta);
+      if (item.status !== 'Resolved' && item.status !== 'Dismissed') article.appendChild(service.form(item));
+      return article;
+    },
+    form: function(item) {
+      const form = documentObject.createElement('form'); form.className = 'action-item__form';
+      form.innerHTML = '<label>Status<select name="status"><option>In Review</option><option>Resolved</option><option>Dismissed</option></select></label><label>Decision and notes<input name="notes" required maxlength="500" placeholder="Record what was decided"></label><button class="button button--primary" type="submit">Save decision</button>';
+      form.addEventListener('submit', async function(event) {
+        event.preventDefault(); const button = form.querySelector('button'); button.disabled = true;
+        try {
+          await PayTrackerAppController.runServerFunction('decidePayTrackerAction', item.actionId, { status: form.elements.status.value, manualDecision: form.elements.notes.value, notes: form.elements.notes.value });
+          service.loaded = false; await service.load(true); PayTrackerAppController.showToast('Decision saved.', 'success');
+        } catch (error) { PayTrackerAppController.showToast(PayTrackerAppController.getErrorMessage(error), 'error'); }
+        finally { button.disabled = false; }
+      });
+      return form;
+    },
+    text: function(selector, value) { const element = documentObject.querySelector(selector); if (element) element.textContent = String(value || 0); }
+  };
+  windowObject.PayTrackerActionCentreService = service;
+  if (documentObject.readyState === 'loading') documentObject.addEventListener('DOMContentLoaded', service.init); else service.init();
+})(window, document);

@@ -1,0 +1,22 @@
+<div class="action-centre" data-action-centre>
+  <div class="page-header">
+    <p class="page-header__eyebrow">Reconciliation</p>
+    <h2 class="page-header__title">Action Centre</h2>
+    <p class="page-header__description">One queue for uncertain matches, discrepancies and decisions requiring review.</p>
+  </div>
+  <div class="action-centre__summary" aria-label="Action summary">
+    <div class="card"><strong data-action-count="open">0</strong><span>Open</span></div>
+    <div class="card"><strong data-action-count="review">0</strong><span>In review</span></div>
+    <div class="card"><strong data-action-count="urgent">0</strong><span>Urgent</span></div>
+  </div>
+  <div class="card action-centre__toolbar">
+    <label>Status<select data-action-filter="status"><option value="">All statuses</option><option>Open</option><option>In Review</option><option>Resolved</option><option>Dismissed</option></select></label>
+    <label>Job<select data-action-filter="job"><option value="">All jobs</option></select></label>
+    <button class="button button--secondary" type="button" data-action-refresh>Refresh</button>
+  </div>
+  <div class="card action-centre__empty" data-action-empty hidden>
+    <h3>No items need attention</h3>
+    <p>New uncertain or unmatched records will appear here with their source links.</p>
+  </div>
+  <div class="action-centre__list" data-action-list aria-live="polite"></div>
+</div>

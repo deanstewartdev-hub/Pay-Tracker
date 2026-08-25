@@ -41,6 +41,9 @@ const PayTrackerWebCalendarWorkspaceService =
           PayTrackerConfig
             .CALENDAR
             .DEBUG_DAYS_AHEAD,
+        automation:
+          PayTrackerCalendarAutomationService
+            .getStatus(),
         events:
           PayTrackerWebCalendarWorkspaceService
             .readEvents()
@@ -70,24 +73,38 @@ const PayTrackerWebCalendarWorkspaceService =
               Boolean(
                 record.classification &&
                 record.classification !==
-                  'IGNORED'
+                  'IGNORED' &&
+                record.classification.needsReview !== true
+              ),
+            needsReview:
+              Boolean(
+                record.classification &&
+                record.classification.needsReview === true
+              ),
+            isAnnualLeave:
+              Boolean(
+                record.classification &&
+                record.classification.isAnnualLeave === true
               ),
             tableName:
               record.classification &&
               record.classification !==
-                'IGNORED'
+                'IGNORED' &&
+              record.classification.needsReview !== true
                 ? record.classification.tableName
                 : '',
             shiftType:
               record.classification &&
               record.classification !==
-                'IGNORED'
+                'IGNORED' &&
+              record.classification.needsReview !== true
                 ? record.classification.shiftType
                 : '',
             hours:
               record.classification &&
               record.classification !==
-                'IGNORED'
+                'IGNORED' &&
+              record.classification.needsReview !== true
                 ? record.classification.hours
                 : ''
           };
@@ -156,4 +173,14 @@ function runPayTrackerCalendarSync() {
   return makePayTrackerCalendarResponseBrowserSafe_(
     PayTrackerWebCalendarWorkspaceService.runSync()
   );
+}
+
+function setPayTrackerCalendarAutomation(enabled) {
+  const status = enabled === true
+    ? PayTrackerCalendarAutomationService.enable()
+    : PayTrackerCalendarAutomationService.disable();
+  return makePayTrackerCalendarResponseBrowserSafe_({
+    success: true,
+    automation: status
+  });
 }

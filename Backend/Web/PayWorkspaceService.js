@@ -86,6 +86,11 @@ const PayTrackerWebPayWorkspaceService = Object.freeze({
             requestedWeekNumber
           );
 
+      PayTrackerWebPayWorkspaceService
+        .markAnnualLeaveEntries(
+          selected.week
+        );
+
       return {
         success: true,
 
@@ -190,6 +195,110 @@ const PayTrackerWebPayWorkspaceService = Object.freeze({
             .getErrorMessage(error)
       };
     }
+  },
+
+  /**
+   * Marks timeline entries backed by AL/A/L Calendar events.
+   * The PaySheet shift name remains Basic so calculations
+   * and manual editing continue to use configured pay rules.
+   */
+  markAnnualLeaveEntries: function(week) {
+    if (
+      !week ||
+      !Array.isArray(week.timeline) ||
+      typeof PayTrackerCalendarSyncRepository === 'undefined'
+    ) {
+      return;
+    }
+
+    const employerKeys = {
+      'NHS': 'nhs',
+      'Relief Assistant Warden': 'relief',
+      'Night Security Warden': 'security',
+      'Logging Cash': 'logging'
+    };
+
+    let leaveRecords = PayTrackerCalendarSyncRepository
+      .getActive()
+      .filter(function(record) {
+        return PayTrackerCalendarService
+          .isAnnualLeaveTitle(
+            PayTrackerCalendarService.normaliseTitle(record.eventTitle)
+          );
+      });
+
+    // Read the selected week's Calendar events as the source of truth too.
+    // This covers Annual Leave that adopted an already-existing Basic row,
+    // where an older ledger may not yet contain the ownership marker.
+    try {
+      if (week.timeline.length > 0) {
+        const startDate = new Date(week.timeline[0].date);
+        const endDate = new Date(
+          week.timeline[week.timeline.length - 1].date
+        );
+        endDate.setDate(endDate.getDate() + 1);
+
+        const events = PayTrackerCalendarService.getAllEvents(
+          startDate,
+          endDate
+        );
+
+        const liveLeaveRecords = events.map(function(event) {
+          const eventDate = PayTrackerUtils.stripTime(
+            event.getStartTime()
+          );
+          const classification = PayTrackerCalendarService.classifyEvent(
+            event,
+            eventDate,
+            events
+          );
+
+          if (
+            !classification ||
+            classification.needsReview === true ||
+            classification.isAnnualLeave !== true
+          ) {
+            return null;
+          }
+
+          return {
+            sheetDate: eventDate,
+            tableName: classification.tableName,
+            shiftType: classification.shiftType,
+            eventTitle: event.getTitle()
+          };
+        }).filter(function(record) {
+          return record !== null;
+        });
+
+        leaveRecords = leaveRecords.concat(liveLeaveRecords);
+      }
+    } catch (error) {
+      console.warn(
+        'Annual Leave calendar highlighting fell back to the sync ledger.',
+        error
+      );
+    }
+
+    week.timeline.forEach(function(day) {
+      const dayKey = PayTrackerCalendarSyncRepository.dateKey(day.date);
+      const matches = leaveRecords.filter(function(record) {
+        return PayTrackerCalendarSyncRepository.dateKey(record.sheetDate) === dayKey;
+      });
+
+      matches.forEach(function(record) {
+        const employerKey = employerKeys[record.tableName] || '';
+        const entry = day.entries.filter(function(candidate) {
+          return candidate.employerKey === employerKey &&
+            String(candidate.shiftName || '') === String(record.shiftType || '');
+        })[0];
+        if (entry) {
+          entry.isAnnualLeave = true;
+          entry.calendarEventTitle = String(record.eventTitle || 'Annual Leave');
+          day.hasAnnualLeave = true;
+        }
+      });
+    });
   },
 
   /**
