@@ -32,6 +32,33 @@
         event.preventDefault();
         service.addEarnings(new FormData(earningsForm));
       });
+
+      const scanForm = root.querySelector('[data-annual-leave-scan-form]');
+      if (scanForm) scanForm.addEventListener('submit', function(event) {
+        event.preventDefault();
+        service.scanGmail(new FormData(scanForm));
+      });
+    },
+
+    scanGmail: function(formData) {
+      const status = documentObject.querySelector('[data-annual-leave-scan-status]');
+      if (status) status.textContent = 'Scanning...';
+      PayTrackerAppController.runServerFunction('scanPayTrackerAnnualLeaveGmail', {
+        lookbackDays: Number(formData.get('lookbackDays') || 180)
+      }).then(function(result) {
+        const summary = [
+          result.messagesChecked + ' messages checked',
+          result.recordsCreated + ' leave records added',
+          result.needsReview + ' need review in the Action Centre',
+          result.duplicatesSkipped + ' already imported'
+        ].join(' · ');
+        if (status) status.textContent = summary;
+        PayTrackerAppController.showToast('Gmail scan complete: ' + summary, 'success');
+        service.load(true);
+      }).catch(function(error) {
+        if (status) status.textContent = 'Scan failed';
+        PayTrackerAppController.showToast(PayTrackerAppController.getErrorMessage(error), 'error');
+      });
     },
 
     load: function(force) {

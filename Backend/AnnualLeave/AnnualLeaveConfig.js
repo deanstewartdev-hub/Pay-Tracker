@@ -15,7 +15,7 @@
  *******************************************************/
 
 const PayTrackerAnnualLeaveConfig = Object.freeze({
-  VERSION: '3.0.2',
+  VERSION: '3.0.3',
 
   SHEETS: Object.freeze({
     EARNINGS: Object.freeze({
@@ -38,7 +38,48 @@ const PayTrackerAnnualLeaveConfig = Object.freeze({
         'Approval Confidence', 'Manual Review Status', 'Notes',
         'Created At', 'Updated At'
       ])
+    }),
+    EMAIL_RULES: Object.freeze({
+      NAME: 'Annual Leave Email Rules',
+      HEADERS: Object.freeze([
+        'Rule ID', 'Job ID', 'Rule Name', 'Sender Contains',
+        'Sender Equals', 'Subject Contains', 'Body Contains',
+        'Attachment Required', 'Priority', 'Active',
+        'Created At', 'Updated At'
+      ])
+    }),
+    EMAIL_SCAN_HISTORY: Object.freeze({
+      NAME: 'Annual Leave Email Scan History',
+      HEADERS: Object.freeze([
+        'Scan ID', 'Scan Started At', 'Scan Completed At', 'Status',
+        'Search Start Date', 'Search End Date', 'Gmail Query',
+        'Threads Found', 'Messages Checked', 'Messages Matched',
+        'Approved Leave Found', 'Cancelled Leave Found',
+        'Records Created', 'Duplicates Skipped', 'Needs Review',
+        'Errors', 'Summary'
+      ])
     })
+  }),
+
+  EMAIL_SCAN_STATUSES: Object.freeze([
+    'Running', 'Completed', 'Failed'
+  ]),
+
+  // Keyword sets used to infer a leave email's status from its
+  // subject/body. Checked in this order -- Cancelled first, since a
+  // cancellation email often also contains "approved" from a quoted
+  // reply further down the thread.
+  STATUS_KEYWORDS: Object.freeze({
+    Cancelled: Object.freeze(['cancelled', 'canceled', 'withdrawn']),
+    Rejected: Object.freeze(['rejected', 'declined', 'not approved', 'unable to approve']),
+    Approved: Object.freeze(['approved', 'confirmed', 'granted', 'authorised', 'authorized']),
+    Requested: Object.freeze(['requested', 'request for', 'requesting', 'please approve'])
+  }),
+
+  CONFIDENCE_LEVELS: Object.freeze({
+    HIGH: 'High',
+    MEDIUM: 'Medium',
+    LOW: 'Low'
   }),
 
   SOURCE_TYPES: Object.freeze([
