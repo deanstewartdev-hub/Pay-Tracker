@@ -1,0 +1,136 @@
+(function(windowObject, documentObject) {
+  const service = {
+    loaded: false,
+
+    init: function() {
+      const root = documentObject.querySelector('[data-money-movements]');
+      if (!root) return;
+
+      documentObject.addEventListener('paytracker:routechange', function(event) {
+        if (event.detail.route === 'finance') service.load();
+      });
+
+      const form = root.querySelector('[data-money-movements-form]');
+      if (form) form.addEventListener('submit', function(event) {
+        event.preventDefault();
+        service.createMovement(new FormData(form));
+      });
+    },
+
+    load: function(force) {
+      if (service.loaded && force !== true) return;
+      PayTrackerAppController.runServerFunction('getPayTrackerMoneyMovements')
+        .then(function(data) {
+          service.loaded = true;
+          service.renderSummary(data.summary || {});
+          service.renderList(data.movements || []);
+        })
+        .catch(function(error) {
+          PayTrackerAppController.showToast(PayTrackerAppController.getErrorMessage(error), 'error');
+        });
+    },
+
+    renderSummary: function(summary) {
+      const container = documentObject.querySelector('[data-money-movements-summary]');
+      if (!container) return;
+      container.textContent = '';
+
+      const netCashFlowIsNegative = Math.sign(Number(summary.netCashFlow) || 0) === -1;
+      const cards = [
+        { label: 'Income', value: summary.incomeTotal, tone: 'success' },
+        { label: 'Spending', value: summary.spendingTotal, tone: 'danger' },
+        { label: 'Internal transfers (not spending)', value: summary.internalTransferTotal, tone: 'info' },
+        { label: 'Net cash flow', value: summary.netCashFlow, tone: netCashFlowIsNegative ? 'danger' : 'success' }
+      ];
+
+      cards.forEach(function(cardData) {
+        const card = documentObject.createElement('article');
+        card.className = 'finance-alert-card finance-alert-card--' + cardData.tone;
+
+        const indicator = documentObject.createElement('span');
+        indicator.className = 'finance-alert-card__indicator';
+
+        const textWrap = documentObject.createElement('div');
+        const label = documentObject.createElement('small');
+        label.textContent = cardData.label;
+        const value = documentObject.createElement('strong');
+        value.textContent = service.formatMoney(cardData.value);
+        textWrap.append(label, value);
+
+        card.append(indicator, textWrap);
+        container.appendChild(card);
+      });
+    },
+
+    renderList: function(movements) {
+      const body = documentObject.querySelector('[data-money-movements-list]');
+      if (!body) return;
+      body.textContent = '';
+
+      if (movements.length === 0) {
+        const row = documentObject.createElement('tr');
+        const cell = documentObject.createElement('td');
+        cell.setAttribute('colspan', '6');
+        cell.textContent = 'No money movements recorded yet.';
+        row.appendChild(cell);
+        body.appendChild(row);
+        return;
+      }
+
+      movements.forEach(function(record) {
+        const row = documentObject.createElement('tr');
+        [
+          service.formatDate(record.date),
+          record.movementType,
+          service.formatMoney(record.amount),
+          record.sourcePot || record.sourceAccount || '—',
+          record.destinationPot || record.destinationAccount || '—',
+          record.internalTransfer === true ? 'Yes' : 'No'
+        ].forEach(function(text) {
+          const cell = documentObject.createElement('td');
+          cell.textContent = text;
+          row.appendChild(cell);
+        });
+        body.appendChild(row);
+      });
+    },
+
+    createMovement: function(formData) {
+      const input = {
+        movementType: String(formData.get('movementType') || 'Manual Adjustment'),
+        date: String(formData.get('date') || ''),
+        amount: Number(formData.get('amount') || 0),
+        sourcePot: String(formData.get('sourcePot') || ''),
+        destinationPot: String(formData.get('destinationPot') || ''),
+        notes: String(formData.get('notes') || '')
+      };
+      PayTrackerAppController.runServerFunction('createPayTrackerMoneyMovement', input)
+        .then(function() {
+          PayTrackerAppController.showToast('Movement recorded.', 'success');
+          service.load(true);
+        })
+        .catch(function(error) {
+          PayTrackerAppController.showToast(PayTrackerAppController.getErrorMessage(error), 'error');
+        });
+    },
+
+    formatMoney: function(value) {
+      const number = Number(value) || 0;
+      return '£' + number.toFixed(2);
+    },
+
+    formatDate: function(value) {
+      if (!value) return '—';
+      const parsed = new Date(value);
+      if (Number.isNaN(parsed.getTime())) return String(value);
+      return parsed.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+    }
+  };
+
+  windowObject.PayTrackerMoneyMovementsService = service;
+  if (documentObject.readyState === 'loading') {
+    documentObject.addEventListener('DOMContentLoaded', service.init);
+  } else {
+    service.init();
+  }
+})(window, document);

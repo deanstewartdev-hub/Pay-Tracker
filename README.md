@@ -22,7 +22,7 @@ The v3 roadmap (`docs/Roadmap.md`, detail in `docs/v3-Roadmap-Detail.md`) is the
 
 ## Current Version
 
-Pay Tracker v3.0.4 — reconciliation foundation, safe Calendar/Annual Leave synchronisation, a navigation redesign grouped around the work-to-money flow, a per-job Annual Leave ledger, Gmail-based Annual Leave import, and a Pay Adjustments ledger for missing/incorrect pay.
+Pay Tracker v3.0.5 — reconciliation foundation, safe Calendar/Annual Leave synchronisation, a navigation redesign grouped around the work-to-money flow, a per-job Annual Leave ledger, Gmail-based Annual Leave import, a Pay Adjustments ledger for missing/incorrect pay, and a Money Movements ledger separating income, spending and internal transfers.
 
 ---
 
@@ -49,6 +49,15 @@ Run `setupPayTrackerAnnualLeave()` once after deployment; it is safe to run repe
 - New "Adjustments" tab on the Pay workspace with per-job outstanding/recovered totals and manual entry for new adjustments and recoveries.
 
 Run `setupPayTrackerPayAdjustments()` once after deployment; it is safe to run repeatedly. Safe checks are available through `runPayAdjustmentsTests()`.
+
+### Money Movements
+
+- A single, typed ledger (salary/other income, savings allocation, pot deposit/withdrawal, bill/debt payment, refund, transfer, interest, manual adjustment) separating genuine income and spending from money simply moving between the user's own accounts and pots.
+- Internal transfers (savings allocations, pot deposits/withdrawals, transfers) are tracked but never counted in the income or spending totals -- net cash flow is income minus spending only.
+- New "Movements" tab on the Finance workspace with income/spending/transfer/net-cash-flow summary cards and manual entry.
+- Deliberately manual entry for this phase: automatic creation from confirmed bank-transaction matches, and Monzo account-balance import, are real, valuable follow-ups deferred rather than rushed into `TransactionMatchingService.js`'s existing bill/debt payment write path without the same care given to everything else in this ledger.
+
+Run `setupPayTrackerMoneyMovements()` once after deployment; it is safe to run repeatedly. Safe checks are available through `runMoneyMovementsTests()`.
 
 ### Reconciliation Foundation
 
