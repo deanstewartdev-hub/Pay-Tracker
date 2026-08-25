@@ -22,11 +22,16 @@ The v3 roadmap (`docs/Roadmap.md`, detail in `docs/v3-Roadmap-Detail.md`) is the
 
 ## Current Version
 
-Pay Tracker v3.0.1 — reconciliation foundation plus safe Calendar/Annual Leave synchronisation.
+Pay Tracker v3.0.2 — reconciliation foundation, safe Calendar/Annual Leave synchronisation, and a navigation redesign grouped around the work-to-money flow.
 
 ---
 
 ## Current Features
+
+### Navigation
+
+- Sidebar grouped into Overview, Work and Pay, Money, and Planning and Analysis, following the work-to-money flow described in `docs/v3-Roadmap-Detail.md` §3
+- Every existing workspace route unchanged and reachable; desktop collapse and mobile menu toggles unaffected
 
 ### Reconciliation Foundation
 
