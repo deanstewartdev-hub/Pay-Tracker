@@ -161,5 +161,74 @@ const PayTrackerTransactionCategoryService = Object.freeze({
       );
     });
     return { applied: suggestions.length };
+  },
+
+  /**
+   * One-time cleanup for a known cosmetic artifact: an early build of
+   * ensureCategoryColumns() used sheet.getMaxColumns() (the sheet's
+   * raw grid width) instead of its last real header column, so on a
+   * sheet with trailing blank grid columns the two category columns
+   * landed at the far edge of the grid instead of directly after the
+   * existing headers -- e.g. landing at AA/AB with a blank V-Z gap,
+   * instead of V/W. ensureCategoryColumns() itself was fixed to find
+   * the true last-content column, but that fix cannot move columns
+   * that were already created in the wrong place.
+   *
+   * This function is deliberately conservative: it only ever deletes
+   * the two stray columns, and only after confirming every single
+   * cell below their header row is genuinely blank (nothing to lose)
+   * and that the header text matches exactly. It throws instead of
+   * acting on anything it cannot fully confirm. Not run automatically
+   * by anything -- call it manually if you want the sheet tidied.
+   *
+   * @return {Object} What was found and whether anything was removed.
+   */
+  cleanupStrayCategoryColumnsIfSafe: function() {
+    const sheet = this.getBankTransactionsSheet();
+    const width = Math.max(sheet.getMaxColumns(), 1);
+    const headerRow = sheet.getRange(1, 1, 1, width).getDisplayValues()[0];
+
+    const columnNames = PayTrackerTransactionRulesConfig.CATEGORY_COLUMNS;
+    const positions = columnNames.map(function(name) { return headerRow.indexOf(name) + 1; });
+
+    if (positions.indexOf(0) !== -1) {
+      return { changed: false, reason: 'One or both category columns were not found by name -- nothing to clean up.' };
+    }
+
+    const first = Math.min.apply(null, positions);
+    const last = Math.max.apply(null, positions);
+
+    if (last !== first + 1) {
+      return { changed: false, reason: 'Pay Tracker Category and Category Source are not adjacent -- refusing to guess, no columns touched.' };
+    }
+
+    const baseColumns = PayTrackerFinanceIntegrationConfig.SHEETS.BANK_TRANSACTIONS.COLUMNS;
+    const lastKnownColumn = Math.max.apply(null, Object.keys(baseColumns).map(function(key) { return baseColumns[key]; }));
+
+    if (first <= lastKnownColumn + 1) {
+      return { changed: false, reason: 'Category columns are already directly after the known data columns -- nothing to clean up.' };
+    }
+
+    const lastRow = sheet.getLastRow();
+    if (lastRow > 1) {
+      const dataValues = sheet.getRange(2, first, lastRow - 1, 2).getValues();
+      const hasAnyData = dataValues.some(function(row) {
+        return row.some(function(cell) { return String(cell || '').trim() !== ''; });
+      });
+      if (hasAnyData) {
+        throw new Error(
+          'Refusing to delete columns ' + first + '-' + last + ': at least one row has a value in ' +
+          'Pay Tracker Category or Category Source. This cleanup only ever removes genuinely empty columns.'
+        );
+      }
+    }
+
+    sheet.deleteColumns(first, 2);
+
+    return {
+      changed: true,
+      deletedColumns: [first, last],
+      note: 'Deleted the two empty, misplaced category header columns. Reload the Finance > Rules tab once to recreate them correctly, directly after the existing data.'
+    };
   }
 });
