@@ -10,7 +10,7 @@
  *******************************************************/
 
 const PayTrackerMoneyMovementsConfig = Object.freeze({
-  VERSION: '3.0.5',
+  VERSION: '3.0.6',
 
   SHEETS: Object.freeze({
     MOVEMENTS: Object.freeze({

@@ -1,0 +1,168 @@
+(function(windowObject, documentObject) {
+  const service = {
+    loaded: false,
+
+    init: function() {
+      const root = documentObject.querySelector('[data-transaction-rules]');
+      if (!root) return;
+
+      documentObject.addEventListener('paytracker:routechange', function(event) {
+        if (event.detail.route === 'finance') service.load();
+      });
+
+      const form = root.querySelector('[data-transaction-rules-form]');
+      if (form) form.addEventListener('submit', function(event) {
+        event.preventDefault();
+        service.createRule(new FormData(form));
+        form.reset();
+      });
+
+      const applyAllButton = root.querySelector('[data-transaction-rules-apply-all]');
+      if (applyAllButton) applyAllButton.addEventListener('click', function() {
+        service.applyAllSuggested();
+      });
+    },
+
+    load: function(force) {
+      if (service.loaded && force !== true) return;
+      PayTrackerAppController.runServerFunction('getPayTrackerTransactionRules')
+        .then(function(data) {
+          service.loaded = true;
+          service.renderStatus(data.uncategorizedCount || 0);
+          service.renderPreview(data.previewMatches || []);
+          service.renderRules(data.rules || []);
+        })
+        .catch(function(error) {
+          PayTrackerAppController.showToast(PayTrackerAppController.getErrorMessage(error), 'error');
+        });
+    },
+
+    renderStatus: function(uncategorizedCount) {
+      const status = documentObject.querySelector('[data-transaction-rules-status]');
+      if (status) status.textContent = String(uncategorizedCount) + ' uncategorised';
+    },
+
+    renderPreview: function(previewMatches) {
+      const body = documentObject.querySelector('[data-transaction-rules-preview]');
+      if (!body) return;
+      body.textContent = '';
+
+      if (previewMatches.length === 0) {
+        const row = documentObject.createElement('tr');
+        const cell = documentObject.createElement('td');
+        cell.setAttribute('colspan', '5');
+        cell.textContent = 'No rule-matched suggestions right now.';
+        row.appendChild(cell);
+        body.appendChild(row);
+        return;
+      }
+
+      previewMatches.forEach(function(match) {
+        const row = documentObject.createElement('tr');
+        [match.merchantName, service.formatMoney(match.amount), match.suggestedCategory, match.matchedRuleName]
+          .forEach(function(text) {
+            const cell = documentObject.createElement('td');
+            cell.textContent = text;
+            row.appendChild(cell);
+          });
+
+        const actionCell = documentObject.createElement('td');
+        const applyButton = documentObject.createElement('button');
+        applyButton.type = 'button';
+        applyButton.className = 'finance-mini-button finance-mini-button--confirm';
+        applyButton.textContent = 'Apply';
+        applyButton.addEventListener('click', function() {
+          service.applyCategory(match.transactionId, match.suggestedCategory, false);
+        });
+        actionCell.appendChild(applyButton);
+        row.appendChild(actionCell);
+
+        body.appendChild(row);
+      });
+    },
+
+    renderRules: function(rules) {
+      const body = documentObject.querySelector('[data-transaction-rules-list]');
+      if (!body) return;
+      body.textContent = '';
+
+      if (rules.length === 0) {
+        const row = documentObject.createElement('tr');
+        const cell = documentObject.createElement('td');
+        cell.setAttribute('colspan', '4');
+        cell.textContent = 'No matching rules yet.';
+        row.appendChild(cell);
+        body.appendChild(row);
+        return;
+      }
+
+      rules.forEach(function(rule) {
+        const row = documentObject.createElement('tr');
+        [
+          rule.ruleName, rule.merchantContains || '—', rule.payTrackerCategory,
+          rule.active === true ? 'Yes' : 'No'
+        ].forEach(function(text) {
+          const cell = documentObject.createElement('td');
+          cell.textContent = text;
+          row.appendChild(cell);
+        });
+        body.appendChild(row);
+      });
+    },
+
+    createRule: function(formData) {
+      const input = {
+        ruleName: String(formData.get('ruleName') || ''),
+        merchantContains: String(formData.get('merchantContains') || ''),
+        descriptionContains: String(formData.get('descriptionContains') || ''),
+        monzoCategory: String(formData.get('monzoCategory') || ''),
+        direction: String(formData.get('direction') || ''),
+        payTrackerCategory: String(formData.get('payTrackerCategory') || ''),
+        priority: Number(formData.get('priority') || 0)
+      };
+      PayTrackerAppController.runServerFunction('createPayTrackerTransactionRule', input)
+        .then(function() {
+          PayTrackerAppController.showToast('Rule added.', 'success');
+          service.load(true);
+        })
+        .catch(function(error) {
+          PayTrackerAppController.showToast(PayTrackerAppController.getErrorMessage(error), 'error');
+        });
+    },
+
+    applyCategory: function(transactionId, category, learnRule) {
+      PayTrackerAppController.runServerFunction(
+        'applyPayTrackerTransactionCategory', transactionId, category, learnRule === true
+      ).then(function() {
+        PayTrackerAppController.showToast('Category applied.', 'success');
+        service.load(true);
+      }).catch(function(error) {
+        PayTrackerAppController.showToast(PayTrackerAppController.getErrorMessage(error), 'error');
+      });
+    },
+
+    applyAllSuggested: function() {
+      PayTrackerAppController.runServerFunction('applyAllPayTrackerTransactionCategorySuggestions')
+        .then(function(response) {
+          const count = response && response.result ? response.result.applied : 0;
+          PayTrackerAppController.showToast(String(count) + ' categories applied.', 'success');
+          service.load(true);
+        })
+        .catch(function(error) {
+          PayTrackerAppController.showToast(PayTrackerAppController.getErrorMessage(error), 'error');
+        });
+    },
+
+    formatMoney: function(value) {
+      const number = Number(value) || 0;
+      return '£' + Math.abs(number).toFixed(2);
+    }
+  };
+
+  windowObject.PayTrackerTransactionRulesService = service;
+  if (documentObject.readyState === 'loading') {
+    documentObject.addEventListener('DOMContentLoaded', service.init);
+  } else {
+    service.init();
+  }
+})(window, document);

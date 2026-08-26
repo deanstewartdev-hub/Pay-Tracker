@@ -6,6 +6,17 @@ The project follows Semantic Versioning where practical.
 
 ---
 
+# v3.0.6 — Transaction Matching Rules
+
+- New `Transaction Matching Rules` sheet: configurable, priority-ordered rules (merchant/description contains, Monzo category, amount range, direction) that suggest a Pay Tracker category for a transaction. Deliberately a separate concern from `TransactionMatchingService.js`'s existing bill/debt date-and-amount matching -- nothing here reads or modifies that matcher, its `Bank Transactions` column-index map, or its payment-confirmation write path.
+- Two additive columns (`Pay Tracker Category`, `Category Source`) appended to the existing `Bank Transactions` sheet, found or created by name at the sheet's current end -- verified with a Node `vm` harness against a mock sheet shaped like the real 21-column one: original data is byte-for-byte unchanged both before and after applying a category, and the column-creation step is idempotent.
+- Every suggestion requires an explicit user action to apply (individually or all at once). A rule's `Auto Confirm` field is stored but never acted on automatically in this phase -- matching the existing matcher's own "nothing auto-confirms" rule.
+- Manually applying a category can optionally create a new rule from that transaction's merchant, opt-in per action -- the roadmap's "rules should learn from confirmed manual classifications".
+- New "Rules" tab on the Finance workspace: uncategorised count, rule-matched suggestions with one-click apply, rule creation form, and rule list.
+- Caught a wrong `FinanceIntegrationConfig.js` column-key reference (`DEBIT_OR_CREDIT` instead of the real `DIRECTION`) by checking the actual config before writing code against it, rather than after a test failure.
+- Fixed a real bug found during live verification: `ensureCategoryColumns()` used `sheet.getMaxColumns()` to decide where to place the two new columns, but that's the sheet's raw grid width, not the last column with an actual header -- on the real `Bank Transactions` sheet (21 header columns inside a default 26-column grid), this placed `Pay Tracker Category`/`Category Source` at columns AA/AB instead of directly after column U, leaving columns V-Z blank in between. No data was ever at risk (nothing writes to those columns until a category is applied, and the fix was verified against a Node `vm` mock before shipping), but it's untidy. The fix finds the true last-content column from the header row's actual text instead. Because the live verification run already created the columns at AA/AB on the real sheet before the fix landed, they stay there -- the fix prevents this placement from happening again, it doesn't move what's already there. Cleanup (select columns AA:AB and delete) is optional and cosmetic only; see `docs/VERSION.md`.
+- Deliberately deferred: fuel-budget-style category-vs-budget tracking (the roadmap's fuel example) and any automatic rule application -- both real follow-ups, not silently dropped.
+
 # v3.0.5 — Money Movements ledger
 
 - New `Money Movements` sheet: a single typed ledger (salary/other income, savings allocation, pot deposit/withdrawal, bill/debt payment, refund, transfer, interest, manual adjustment).

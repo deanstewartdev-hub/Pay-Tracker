@@ -1,6 +1,6 @@
 # Pay Tracker
 
-**Current Version:** 3.0.5
+**Current Version:** 3.0.6
 
 ## Status
 
@@ -8,7 +8,7 @@
 
 ## Development Stage
 
-Active Development — v3 roadmap Phases 2, 4, 5, 6 and 7 implemented (navigation redesign, Annual Leave engine, Gmail Annual Leave import, Pay Adjustments ledger, Money Movements ledger). Phase 3 (Staffline) is blocked pending real Staffline export data.
+Active Development — v3 roadmap Phases 2, 4, 5, 6, 7 and 8 implemented (navigation redesign, Annual Leave engine, Gmail Annual Leave import, Pay Adjustments ledger, Money Movements ledger, Transaction Matching Rules). Phase 3 (Staffline) is blocked pending real Staffline export data.
 
 ## Version note
 
@@ -36,4 +36,8 @@ Pay/Calendar, Finance (bills/debts), Finance Integration (Monzo bank connection,
 
 ## Next milestone
 
-v3 Phase 8 — bank transaction matching rules (see `Roadmap.md`). Phase 3 (Staffline schedule reconciliation) remains blocked pending real Staffline export data. Phase 7's account-balance import and automatic movement creation from confirmed bank matches remain deferred follow-ups (see the Money Movements changelog entry).
+v3 Phase 9 — analytics (see `Roadmap.md`). Phase 3 (Staffline schedule reconciliation) remains blocked pending real Staffline export data. Deferred follow-ups from earlier phases: Phase 7's account-balance import and automatic Money Movement creation from confirmed bank matches; Phase 8's fuel-budget-style category-vs-budget tracking and any automatic (Auto Confirm) rule application -- categories are always applied by explicit user action, never automatically.
+
+## Known cosmetic cleanup (optional)
+
+Phase 8's live verification against the real `Bank Transactions` sheet ran before a column-placement bug (`ensureCategoryColumns()` using the sheet's raw grid width instead of its last real header column) was found and fixed. As a result, the sheet currently has two empty header cells at columns AA (`Pay Tracker Category`) and AB (`Category Source`) with a blank gap at columns V-Z in between, instead of the intended immediately-after-U placement. Zero data rows reference either column -- this is purely cosmetic. To tidy up: select columns AA:AB on the `Bank Transactions` sheet and delete them, then reload the Finance > Rules tab once -- it will recreate the same two columns correctly at V/W. Not required for anything to keep working.
