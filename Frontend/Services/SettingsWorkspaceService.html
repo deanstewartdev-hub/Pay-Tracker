@@ -33,7 +33,17 @@
       }
     );
 
-    load();
+    const startingRoute =
+      window.PayTrackerAppRoutes &&
+      typeof window.PayTrackerAppRoutes
+        .resolveFromLocation === 'function'
+        ? window.PayTrackerAppRoutes
+            .resolveFromLocation()
+        : '';
+
+    if (startingRoute === 'settings') {
+      load();
+    }
   }
 
   function bind(root) {
