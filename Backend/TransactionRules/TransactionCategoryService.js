@@ -30,16 +30,26 @@ const PayTrackerTransactionCategoryService = Object.freeze({
   ensureCategoryColumns: function(sheet) {
     const width = Math.max(sheet.getMaxColumns(), 1);
     const headerRow = sheet.getRange(1, 1, 1, width).getDisplayValues()[0];
+    // getMaxColumns() is the sheet's raw grid width, which is often wider
+    // than the columns that actually hold a header (a new Sheet defaults
+    // to 26 columns) -- placing a new column there would strand it past a
+    // gap of genuinely blank columns instead of right after real content.
+    let lastContentColumn = 0;
+    headerRow.forEach(function(value, i) {
+      if (String(value).trim() !== '') lastContentColumn = i + 1;
+    });
     const columns = {};
     PayTrackerTransactionRulesConfig.CATEGORY_COLUMNS.forEach(function(name) {
       let index = headerRow.indexOf(name);
       if (index === -1) {
-        const newColumnNumber = sheet.getMaxColumns() + 1;
-        sheet.insertColumnsAfter(sheet.getMaxColumns(), 1);
-        sheet.getRange(1, newColumnNumber).setValue(name)
+        lastContentColumn += 1;
+        if (lastContentColumn > sheet.getMaxColumns()) {
+          sheet.insertColumnsAfter(sheet.getMaxColumns(), 1);
+        }
+        sheet.getRange(1, lastContentColumn).setValue(name)
           .setFontWeight('bold').setBackground('#172554').setFontColor('#ffffff');
-        headerRow.push(name);
-        index = newColumnNumber - 1;
+        headerRow[lastContentColumn - 1] = name;
+        index = lastContentColumn - 1;
       }
       columns[name] = index + 1;
     });
