@@ -6,6 +6,13 @@ The project follows Semantic Versioning where practical.
 
 ---
 
+# v3.0.8 — Production hardening
+
+- New `runAllPayTrackerTests()` consolidates every v3-era safe test suite (Reconciliation Foundation, Calendar Reconciliation, Annual Leave Engine, Pay Adjustments, Money Movements, Transaction Rules, Analytics -- 86 checks total) into one call, isolating a failing suite from the rest rather than letting one exception hide the other six results. Run live against the deployed test version: completed successfully. Deliberately does not include the older, pre-v3 `test<Domain>()` helpers scattered through the Payroll/Finance modules -- those are manual debug helpers that log output for a human to read, not assertions with a pass/fail signal, so bundling them into an automated suite would misrepresent what they actually check.
+- Reviewed every `setupPayTracker*()` function (9 total, including the original core setup) against the roadmap's "no destructive migration possible": every one is additive-only -- creates a sheet if missing, backfills a blank header cell if the sheet already exists, and throws rather than overwrites on a genuine conflict. The oldest (`setupPayTracker()`, predating v3) additionally takes a safety backup before writing anything.
+- Reviewed the `appsscript.json` OAuth scope list against actual usage: every scope traces to a real, still-used feature (Sheets, external requests for Monzo, the custom menu, triggers/authorization info, Drive for payslip storage, read-only Gmail import, read-only Calendar sync). No scope was removed -- Drive in particular is broader (`drive`, not `drive.file`) than ideal, but narrowing it without concrete evidence of exactly which Drive calls the Payroll Centre depends on risks breaking a proven, working feature for a cosmetic tightening, so it is documented here rather than changed blind.
+- This version is tagged in git (`v3.0.8`) as the reviewed release point. Tagging is a git-only action -- it does not touch, redeploy, or repoint the live production Apps Script deployment. Promoting production to this code remains a deliberate, manual step.
+
 # v3.0.7 — Ledger analytics
 
 - New "Ledger analytics" section on the Reports page: every chart and stat is aggregated live from existing ledgers (Jobs, PaySheet, Annual Leave, Pay Adjustments, Money Movements, Bank Transactions, Payslips) -- nothing is estimated, and nothing is stored, so Analytics can never become a second source of truth.
