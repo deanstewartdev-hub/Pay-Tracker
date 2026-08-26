@@ -11,6 +11,10 @@
         if (event.detail.route === 'reports') service.load();
       });
 
+      const startingRoute = window.PayTrackerAppRoutes && typeof window.PayTrackerAppRoutes.resolveFromLocation === 'function'
+        ? window.PayTrackerAppRoutes.resolveFromLocation()
+        : '';
+
       const applyButton = root.querySelector('[data-analytics-filter-apply]');
       if (applyButton) applyButton.addEventListener('click', function() {
         service.load(true);
@@ -27,7 +31,7 @@
         service.load(true);
       });
 
-      service.load();
+      if (startingRoute === 'reports') service.load();
     },
 
     getFilterOptions: function() {
