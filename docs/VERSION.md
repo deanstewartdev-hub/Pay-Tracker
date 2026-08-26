@@ -1,6 +1,6 @@
 # Pay Tracker
 
-**Current Version:** 3.0.8
+**Current Version:** 3.0.9
 
 ## Status
 
@@ -38,7 +38,9 @@ Pay/Calendar, Finance (bills/debts), Finance Integration (Monzo bank connection,
 
 The v3 roadmap's Phases 1–2 and 4–10 are complete. The only remaining phase is Phase 3 (Staffline schedule/timesheet import and three-way reconciliation), blocked pending real Staffline export data -- there is nothing further to build until that data is available.
 
-Production promotion is a deliberate, manual step: this repository's `main` branch and the `v3.0.8` git tag are ready, but the live production Apps Script deployment is intentionally left pointed at the last version the deploying user promoted -- promoting `main` to production is not done automatically by any automated session.
+v3.0.9 is a maintenance release only -- no new roadmap work. It packages three things merged to `main` after the v3.0.8 release/promotion: a version-string correction (the code constants were still reporting 3.0.8's predecessor after that release shipped), route-scoped initial workspace loading for Finance/Savings/Calendar/Settings/Reports/Life Goals/Analytics (each now only loads its own data when it's actually the visible page, instead of every workspace loading on every page view), and a guarded, tested cleanup utility for the Bank Transactions cosmetic artifact below. Dashboard intentionally keeps its original loading behaviour -- the same route-scoping fix regressed its first load and was reverted rather than shipped unverified.
+
+Production promotion is a deliberate step, gated on the checks documented in this release's PR -- it is not something any automated session does without those checks passing first.
 
 Deferred follow-ups, all named in their owning phase's UI or docs rather than silently dropped: Phase 7's account-balance import and automatic Money Movement creation from confirmed bank matches; Phase 8's fuel-budget-style category-vs-budget tracking and any automatic (Auto Confirm) rule application; Phase 9's Staffline-based accuracy metrics (blocked with Phase 3), fuel-budget-vs-actual and Monzo pot-level flow detail.
 

@@ -6,6 +6,14 @@ The project follows Semantic Versioning where practical.
 
 ---
 
+# v3.0.9 — Maintenance release
+
+Packages three fixes merged to `main` after v3.0.8 shipped and was promoted to production. No new roadmap features.
+
+- **Version string correction**: v3.0.8's own version bump missed the code constants -- `Backend/Core/Config.js`, `Frontend/Web/WebApp.js`, and every per-domain `Config.js` were still reporting `3.0.7`, so the app's own sidebar badge (rendered from `PAY_TRACKER_WEB_CONFIG.VERSION`) understated its own version. All 8 constants now correctly read `3.0.9`.
+- **Route-scoped initial workspace loading**: Finance, Savings, Calendar, Settings, Reports, Life Goals and Analytics each called their own data-load function unconditionally on every page visit, regardless of which page was actually being viewed -- confirmed in the Apps Script executions log, a single page load was firing 8-10 workspace RPCs simultaneously (Finance alone: 29-45s, every time). Fixed by checking `PayTrackerAppRoutes.resolveFromLocation()` (the same approach `PayWorkspaceService.html` already used) before the initial load, on top of the pre-existing, unchanged route-change listener that already handled in-app navigation correctly. Live-verified via before/after executions-log comparison for Finance, Savings, Calendar and Reports+Analytics. Dashboard was also attempted, live-tested as a first-load regression (its `initialize()` is structured differently -- its own self-deferred async function rather than a plain `init()` off `DOMContentLoaded`), and reverted rather than shipped unverified; Dashboard's own RPC is also the least wasteful of the group (5-18s).
+- **Guarded Bank Transactions cleanup utility**: `cleanupPayTrackerStrayCategoryColumns()`, editor-run-only, removes the two empty header columns a since-fixed Phase 8 bug left in the wrong place on the real sheet -- only after confirming every data row is genuinely blank in both columns, and only if they're not already correctly placed. Verified against 5 scenarios (13 assertions) calling the real function directly. Not run automatically by anything; the cosmetic artifact itself is left untouched by this release.
+
 # v3.0.8 — Production hardening
 
 - New `runAllPayTrackerTests()` consolidates every v3-era safe test suite (Reconciliation Foundation, Calendar Reconciliation, Annual Leave Engine, Pay Adjustments, Money Movements, Transaction Rules, Analytics -- 86 checks total) into one call, isolating a failing suite from the rest rather than letting one exception hide the other six results. Run live against the deployed test version: completed successfully. Deliberately does not include the older, pre-v3 `test<Domain>()` helpers scattered through the Payroll/Finance modules -- those are manual debug helpers that log output for a human to read, not assertions with a pass/fail signal, so bundling them into an automated suite would misrepresent what they actually check.
