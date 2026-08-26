@@ -89,4 +89,147 @@
       </div>
     </article>
   </div>
+
+  <div class="reports-analytics" data-analytics-workspace>
+    <div class="page-header reports-header">
+      <div>
+        <p class="page-header__eyebrow">Ledger analytics</p>
+        <h2 class="page-header__title">Work, leave, money and reconciliation</h2>
+        <p class="page-header__description">
+          Every figure below is traced back to an existing Pay Tracker ledger record --
+          nothing here is estimated.
+        </p>
+      </div>
+    </div>
+
+    <div class="reports-notice" data-analytics-notice hidden></div>
+
+    <article class="card reports-filter-bar">
+      <label class="reports-filter-field">
+        <span>Job</span>
+        <select data-analytics-job-filter>
+          <option value="">All jobs</option>
+        </select>
+      </label>
+
+      <label class="reports-filter-field">
+        <span>From</span>
+        <input type="date" data-analytics-date-from />
+      </label>
+
+      <label class="reports-filter-field">
+        <span>To</span>
+        <input type="date" data-analytics-date-to />
+      </label>
+
+      <button class="button button--primary" type="button" data-analytics-filter-apply>Apply</button>
+      <button class="button button--secondary" type="button" data-analytics-filter-reset>Reset</button>
+    </article>
+
+    <div class="reports-loading" data-analytics-loading>Loading ledger analytics…</div>
+
+    <div data-analytics-content hidden>
+      <article class="card reports-card">
+        <div class="reports-card__header">
+          <div>
+            <p class="reports-card__eyebrow">Work and pay</p>
+            <h3>Hours and pay by job</h3>
+          </div>
+        </div>
+        <div class="finance-alert-grid" data-analytics-workpay-cards></div>
+        <div class="reports-table-wrap">
+          <table class="reports-table">
+            <thead>
+              <tr>
+                <th>Job</th>
+                <th>Shift type</th>
+                <th>Hours</th>
+                <th>Pay</th>
+              </tr>
+            </thead>
+            <tbody data-analytics-workpay-breakdown></tbody>
+          </table>
+        </div>
+      </article>
+
+      <article class="card reports-card">
+        <div class="reports-card__header">
+          <div>
+            <p class="reports-card__eyebrow">Payroll Centre</p>
+            <h3>Predicted vs actual gross pay</h3>
+          </div>
+        </div>
+        <div class="reports-chart" data-analytics-payslip-chart></div>
+        <div class="reports-legend">
+          <span><i class="reports-legend-swatch reports-legend-swatch--gross"></i>Predicted gross</span>
+          <span><i class="reports-legend-swatch reports-legend-swatch--take-home"></i>Actual gross</span>
+        </div>
+      </article>
+
+      <article class="card reports-card">
+        <div class="reports-card__header">
+          <div>
+            <p class="reports-card__eyebrow">Pay Adjustments</p>
+            <h3>Missing pay recovery by job</h3>
+          </div>
+        </div>
+        <div class="finance-alert-grid" data-analytics-adjustments-cards></div>
+      </article>
+
+      <article class="card reports-card">
+        <div class="reports-card__header">
+          <div>
+            <p class="reports-card__eyebrow">Annual Leave</p>
+            <h3>Balance by job</h3>
+          </div>
+        </div>
+        <div class="finance-alert-grid" data-analytics-leave-cards></div>
+      </article>
+
+      <article class="card reports-card">
+        <div class="reports-card__header">
+          <div>
+            <p class="reports-card__eyebrow">Money Movements</p>
+            <h3>Cash flow by month</h3>
+          </div>
+        </div>
+        <div class="reports-chart" data-analytics-cashflow-chart></div>
+        <div class="reports-legend">
+          <span><i class="reports-legend-swatch reports-legend-swatch--income"></i>Income</span>
+          <span><i class="reports-legend-swatch reports-legend-swatch--spending"></i>Spending</span>
+        </div>
+      </article>
+
+      <article class="card reports-card">
+        <div class="reports-card__header">
+          <div>
+            <p class="reports-card__eyebrow">Bank Transactions</p>
+            <h3>Spending by category</h3>
+          </div>
+          <span class="finance-status" data-analytics-uncategorised-status></span>
+        </div>
+        <div class="reports-category-list" data-analytics-spending-list></div>
+      </article>
+
+      <article class="card reports-card">
+        <div class="reports-card__header">
+          <div>
+            <p class="reports-card__eyebrow">Reconciliation</p>
+            <h3>How complete is the picture</h3>
+          </div>
+        </div>
+        <div class="finance-alert-grid" data-analytics-reconciliation-cards></div>
+      </article>
+
+      <article class="card reports-card reports-card--muted">
+        <div class="reports-card__header">
+          <div>
+            <p class="reports-card__eyebrow">Not shown here</p>
+            <h3>Excluded from this report</h3>
+          </div>
+        </div>
+        <ul class="reports-excluded-list" data-analytics-excluded-list></ul>
+      </article>
+    </div>
+  </div>
 </div>

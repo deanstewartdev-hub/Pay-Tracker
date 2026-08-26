@@ -6,6 +6,17 @@ The project follows Semantic Versioning where practical.
 
 ---
 
+# v3.0.7 — Ledger analytics
+
+- New "Ledger analytics" section on the Reports page: every chart and stat is aggregated live from existing ledgers (Jobs, PaySheet, Annual Leave, Pay Adjustments, Money Movements, Bank Transactions, Payslips) -- nothing is estimated, and nothing is stored, so Analytics can never become a second source of truth.
+- Filterable by job and by date range, per the roadmap's Phase 9 definition of done.
+- Work and pay: hours and pay by job, broken down by shift type (basic/enhanced/overtime, reusing the exact classification the Pay workspace already computes); predicted-vs-actual gross pay trend from the Payroll Centre's stored comparisons; missing/recovered pay by job from the Pay Adjustments ledger.
+- Annual Leave: accrued/available/value by job, reusing `AnnualLeaveBalanceService` directly rather than recomputing it.
+- Money: cash flow by month (income vs spending, internal transfers excluded, same rule as the Money Movements ledger); spending by category, now possible because of Phase 8's Pay Tracker Category column; unclassified transaction count.
+- Reconciliation: payslip match rate (excludes payslips that have not actually been compared yet, so an unprocessed payslip cannot silently drag the rate down), pay adjustments recovered vs outstanding, unclassified transaction count.
+- An explicit "Not shown here" section names every roadmap analytic this phase cannot produce yet and why -- Staffline-based accuracy (Phase 3 is still blocked pending real export data), fuel-budget-vs-actual and Monzo pot-level inflow/outflow detail (both already-documented deferrals from Phases 7/8) -- so a gap reads as "not available", never as "covered".
+- All aggregation math (date filtering, grouping, rate calculations, month-bucketing) is written as pure functions with no sheet access, and is unit tested directly (`runAnalyticsTests()`, 24 checks) rather than only proven via a mock, since none of it needs to touch a real sheet to be correct.
+
 # v3.0.6 — Transaction Matching Rules
 
 - New `Transaction Matching Rules` sheet: configurable, priority-ordered rules (merchant/description contains, Monzo category, amount range, direction) that suggest a Pay Tracker category for a transaction. Deliberately a separate concern from `TransactionMatchingService.js`'s existing bill/debt date-and-amount matching -- nothing here reads or modifies that matcher, its `Bank Transactions` column-index map, or its payment-confirmation write path.

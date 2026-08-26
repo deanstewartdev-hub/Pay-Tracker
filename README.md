@@ -22,7 +22,7 @@ The v3 roadmap (`docs/Roadmap.md`, detail in `docs/v3-Roadmap-Detail.md`) is the
 
 ## Current Version
 
-Pay Tracker v3.0.6 — reconciliation foundation, safe Calendar/Annual Leave synchronisation, a navigation redesign grouped around the work-to-money flow, a per-job Annual Leave ledger, Gmail-based Annual Leave import, a Pay Adjustments ledger for missing/incorrect pay, a Money Movements ledger separating income, spending and internal transfers, and configurable Transaction Matching Rules for categorising Monzo spending.
+Pay Tracker v3.0.7 — reconciliation foundation, safe Calendar/Annual Leave synchronisation, a navigation redesign grouped around the work-to-money flow, a per-job Annual Leave ledger, Gmail-based Annual Leave import, a Pay Adjustments ledger for missing/incorrect pay, a Money Movements ledger separating income, spending and internal transfers, configurable Transaction Matching Rules for categorising Monzo spending, and a Ledger Analytics section on Reports tying all of it together.
 
 ---
 
@@ -68,6 +68,14 @@ Run `setupPayTrackerMoneyMovements()` once after deployment; it is safe to run r
 - New "Rules" tab on the Finance workspace.
 
 Run `setupPayTrackerTransactionRules()` once after deployment; it is safe to run repeatedly. Safe checks are available through `runTransactionRulesTests()`.
+
+### Ledger Analytics
+
+- A "Ledger analytics" section on the Reports page aggregating Work and Pay (hours/pay by job and shift type, predicted-vs-actual gross pay, missing/recovered pay), Annual Leave (accrued/available/value by job), Money (cash flow by month, spending by category, unclassified transactions) and Reconciliation (payslip match rate, adjustments recovered vs outstanding) -- all read live from existing ledgers, nothing stored, nothing estimated.
+- Filterable by job and date range.
+- Names what it cannot show yet and why (Staffline-based accuracy, fuel-budget-vs-actual, Monzo pot-level flow detail) instead of silently omitting them.
+
+Safe checks for the aggregation math are available through `runAnalyticsTests()`.
 
 ### Reconciliation Foundation
 

@@ -15,7 +15,7 @@
  *******************************************************/
 
 const PayTrackerAnnualLeaveConfig = Object.freeze({
-  VERSION: '3.0.6',
+  VERSION: '3.0.7',
 
   SHEETS: Object.freeze({
     EARNINGS: Object.freeze({
