@@ -51,6 +51,7 @@
     <button class="finance-tab" type="button" data-finance-tab="subscriptions">Subscriptions</button>
     <button class="finance-tab" type="button" data-finance-tab="history">History</button>
     <button class="finance-tab" type="button" data-finance-tab="movements">Movements</button>
+    <button class="finance-tab" type="button" data-finance-tab="rules">Rules</button>
   </div>
 
   <div class="finance-loading" data-finance-loading>
@@ -397,6 +398,77 @@
             <tr><th>Date</th><th>Type</th><th>Amount</th><th>From</th><th>To</th><th>Internal</th></tr>
           </thead>
           <tbody data-money-movements-list></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="finance-panel" data-finance-panel="rules" data-transaction-rules>
+      <div class="finance-section-heading">
+        <div>
+          <p class="finance-card__eyebrow">Categorise Monzo transactions automatically</p>
+          <h3>Matching Rules</h3>
+        </div>
+        <span class="finance-status" data-transaction-rules-status>0 uncategorised</span>
+      </div>
+      <p class="finance-status">
+        Separate from bill/debt matching above -- this only assigns a Pay Tracker category.
+        Nothing is ever applied automatically; you always choose to apply a suggestion.
+      </p>
+
+      <div class="finance-section-heading">
+        <div><h4>Suggested categories</h4></div>
+        <button type="button" class="button button--primary" data-transaction-rules-apply-all>
+          Apply all suggested categories
+        </button>
+      </div>
+      <div class="finance-table-wrap">
+        <table class="finance-table">
+          <thead><tr><th>Merchant</th><th>Amount</th><th>Suggested category</th><th>Rule</th><th></th></tr></thead>
+          <tbody data-transaction-rules-preview></tbody>
+        </table>
+      </div>
+
+      <form data-transaction-rules-form>
+        <h5>Add a matching rule</h5>
+        <label>
+          Rule name
+          <input type="text" name="ruleName" maxlength="150" required>
+        </label>
+        <label>
+          Merchant contains
+          <input type="text" name="merchantContains" maxlength="150">
+        </label>
+        <label>
+          Description contains
+          <input type="text" name="descriptionContains" maxlength="150">
+        </label>
+        <label>
+          Monzo category
+          <input type="text" name="monzoCategory" maxlength="100" placeholder="e.g. groceries">
+        </label>
+        <label>
+          Direction
+          <select name="direction">
+            <option value="">Either</option>
+            <option value="Debit">Debit</option>
+            <option value="Credit">Credit</option>
+          </select>
+        </label>
+        <label>
+          Pay Tracker category
+          <input type="text" name="payTrackerCategory" maxlength="100" required>
+        </label>
+        <label>
+          Priority
+          <input type="number" name="priority" value="0" step="1">
+        </label>
+        <button class="button button--primary" type="submit">Add rule</button>
+      </form>
+
+      <div class="finance-table-wrap">
+        <table class="finance-table">
+          <thead><tr><th>Rule</th><th>Merchant contains</th><th>Category</th><th>Active</th></tr></thead>
+          <tbody data-transaction-rules-list></tbody>
         </table>
       </div>
     </section>
