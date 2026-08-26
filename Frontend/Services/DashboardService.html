@@ -37,17 +37,7 @@ const PayTrackerDashboardService = Object.freeze({
 
     PayTrackerDashboardService.registerEvents();
 
-    const startingRoute =
-      window.PayTrackerAppRoutes &&
-      typeof window.PayTrackerAppRoutes
-        .resolveFromLocation === 'function'
-        ? window.PayTrackerAppRoutes
-            .resolveFromLocation()
-        : '';
-
-    if (startingRoute === 'dashboard') {
-      await PayTrackerDashboardService.load();
-    }
+    await PayTrackerDashboardService.load();
   },
 
   /**
