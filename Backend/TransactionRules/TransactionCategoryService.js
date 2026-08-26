@@ -80,6 +80,7 @@ const PayTrackerTransactionCategoryService = Object.freeze({
         category: row[baseColumns.CATEGORY - 1],
         amount: row[baseColumns.AMOUNT - 1],
         direction: row[baseColumns.DIRECTION - 1],
+        settledAt: row[baseColumns.SETTLED_AT - 1] || row[baseColumns.CREATED_AT - 1] || null,
         payTrackerCategory: row[columns['Pay Tracker Category'] - 1] || '',
         categorySource: row[columns['Category Source'] - 1] || ''
       };

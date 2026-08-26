@@ -1,0 +1,420 @@
+(function(windowObject, documentObject) {
+  const service = {
+    loaded: false,
+    jobsPopulated: false,
+
+    init: function() {
+      const root = documentObject.querySelector('[data-analytics-workspace]');
+      if (!root) return;
+
+      documentObject.addEventListener('paytracker:routechange', function(event) {
+        if (event.detail.route === 'reports') service.load();
+      });
+
+      const applyButton = root.querySelector('[data-analytics-filter-apply]');
+      if (applyButton) applyButton.addEventListener('click', function() {
+        service.load(true);
+      });
+
+      const resetButton = root.querySelector('[data-analytics-filter-reset]');
+      if (resetButton) resetButton.addEventListener('click', function() {
+        const jobFilter = root.querySelector('[data-analytics-job-filter]');
+        const dateFrom = root.querySelector('[data-analytics-date-from]');
+        const dateTo = root.querySelector('[data-analytics-date-to]');
+        if (jobFilter) jobFilter.value = '';
+        if (dateFrom) dateFrom.value = '';
+        if (dateTo) dateTo.value = '';
+        service.load(true);
+      });
+
+      service.load();
+    },
+
+    getFilterOptions: function() {
+      const root = documentObject.querySelector('[data-analytics-workspace]');
+      const jobFilter = root.querySelector('[data-analytics-job-filter]');
+      const dateFrom = root.querySelector('[data-analytics-date-from]');
+      const dateTo = root.querySelector('[data-analytics-date-to]');
+      return {
+        jobId: jobFilter && jobFilter.value ? jobFilter.value : '',
+        dateFrom: dateFrom && dateFrom.value ? dateFrom.value : '',
+        dateTo: dateTo && dateTo.value ? dateTo.value : ''
+      };
+    },
+
+    load: function(force) {
+      if (service.loading) return;
+      if (service.loaded && force !== true) return;
+
+      service.loading = true;
+      service.setLoading(true);
+
+      PayTrackerAppController.runServerFunction('getPayTrackerAnalytics', service.getFilterOptions())
+        .then(function(data) {
+          service.loading = false;
+          service.setLoading(false);
+          service.loaded = true;
+          service.render(data || {});
+        })
+        .catch(function(error) {
+          service.loading = false;
+          service.setLoading(false);
+          service.showNotice(PayTrackerAppController.getErrorMessage(error), true);
+        });
+    },
+
+    render: function(data) {
+      service.populateJobFilter((data.filters && data.filters.jobs) || []);
+
+      const workAndPay = data.workAndPay || {};
+      service.renderWorkAndPayCards(workAndPay.byJob || []);
+      service.renderWorkAndPayBreakdown(workAndPay.byJob || []);
+      service.renderPayslipChart(workAndPay.payslipTrend || []);
+      service.renderAdjustmentsCards(workAndPay.adjustments || []);
+
+      service.renderLeaveCards((data.annualLeave && data.annualLeave.byJob) || []);
+
+      const money = data.money || {};
+      service.renderCashFlowChart(money.cashFlowTrend || []);
+      service.renderSpendingByCategory(money.spendingByCategory || [], money.uncategorisedTransactionCount || 0);
+
+      service.renderReconciliationCards(data.reconciliation || {});
+      service.renderExcludedMetrics(data.excludedMetrics || []);
+    },
+
+    populateJobFilter: function(jobs) {
+      if (service.jobsPopulated) return;
+      const select = documentObject.querySelector('[data-analytics-job-filter]');
+      if (!select) return;
+
+      jobs.forEach(function(job) {
+        const option = documentObject.createElement('option');
+        option.value = job.jobId;
+        option.textContent = job.jobName;
+        select.appendChild(option);
+      });
+      service.jobsPopulated = true;
+    },
+
+    renderWorkAndPayCards: function(byJob) {
+      const container = documentObject.querySelector('[data-analytics-workpay-cards]');
+      if (!container) return;
+      container.textContent = '';
+
+      if (byJob.length === 0) {
+        container.appendChild(service.emptyElement('No PaySheet data is available for this range.'));
+        return;
+      }
+
+      byJob.forEach(function(job) {
+        container.appendChild(service.statCard(job.jobName, service.formatMoney(job.totalPay), job.totalHours + ' hrs across ' + job.shiftCount + ' shifts', 'info'));
+      });
+    },
+
+    renderWorkAndPayBreakdown: function(byJob) {
+      const body = documentObject.querySelector('[data-analytics-workpay-breakdown]');
+      if (!body) return;
+      body.textContent = '';
+
+      const rows = [];
+      byJob.forEach(function(job) {
+        job.hoursByType.forEach(function(group) {
+          const payGroup = job.payByType.filter(function(g) { return g.key === group.key; })[0];
+          rows.push({ jobName: job.jobName, type: group.key, hours: group.total, pay: payGroup ? payGroup.total : 0 });
+        });
+      });
+
+      if (rows.length === 0) {
+        body.appendChild(service.emptyRow(4, 'No shifts recorded for this range yet.'));
+        return;
+      }
+
+      rows.forEach(function(row) {
+        const tr = documentObject.createElement('tr');
+        [row.jobName, row.type, row.hours + ' hrs', service.formatMoney(row.pay)].forEach(function(text) {
+          const td = documentObject.createElement('td');
+          td.textContent = text;
+          tr.appendChild(td);
+        });
+        body.appendChild(tr);
+      });
+    },
+
+    renderPayslipChart: function(payslipTrend) {
+      const container = documentObject.querySelector('[data-analytics-payslip-chart]');
+      if (!container) return;
+      container.textContent = '';
+
+      if (payslipTrend.length === 0) {
+        container.appendChild(service.emptyElement('No compared payslips in this range yet.'));
+        return;
+      }
+
+      const maxValue = payslipTrend.reduce(function(max, payslip) {
+        return Math.max(max, payslip.predictedGross || 0, payslip.grossPayActual || 0);
+      }, 0) || 1;
+
+      payslipTrend.forEach(function(payslip) {
+        container.appendChild(service.twoBarColumn(
+          service.formatDate(payslip.payDate),
+          payslip.predictedGross, payslip.grossPayActual, maxValue,
+          'reports-bar--gross', 'reports-bar--take-home'
+        ));
+      });
+    },
+
+    renderAdjustmentsCards: function(adjustments) {
+      const container = documentObject.querySelector('[data-analytics-adjustments-cards]');
+      if (!container) return;
+      container.textContent = '';
+
+      const withActivity = adjustments.filter(function(record) { return Math.sign(Number(record.adjustmentCount) || 0) === 1; });
+      if (withActivity.length === 0) {
+        container.appendChild(service.emptyElement('No pay adjustments recorded yet.'));
+        return;
+      }
+
+      withActivity.forEach(function(record) {
+        const hasOutstanding = Math.sign(Number(record.outstandingAmount) || 0) === 1;
+        container.appendChild(service.statCard(
+          record.jobId,
+          service.formatMoney(record.recoveredAmount) + ' recovered',
+          service.formatMoney(record.outstandingAmount) + ' still outstanding',
+          hasOutstanding ? 'warning' : 'success'
+        ));
+      });
+    },
+
+    renderLeaveCards: function(byJob) {
+      const container = documentObject.querySelector('[data-analytics-leave-cards]');
+      if (!container) return;
+      container.textContent = '';
+
+      if (byJob.length === 0) {
+        container.appendChild(service.emptyElement('No Annual-Leave-enabled jobs found.'));
+        return;
+      }
+
+      byJob.forEach(function(job) {
+        container.appendChild(service.statCard(
+          job.jobName,
+          job.accruedBalanceHours + ' hrs accrued',
+          job.availableToBookHours + ' hrs available to book · ' + service.formatMoney(job.accruedValue) + ' value',
+          'info'
+        ));
+      });
+    },
+
+    renderCashFlowChart: function(cashFlowTrend) {
+      const container = documentObject.querySelector('[data-analytics-cashflow-chart]');
+      if (!container) return;
+      container.textContent = '';
+
+      if (cashFlowTrend.length === 0) {
+        container.appendChild(service.emptyElement('No Money Movements recorded yet.'));
+        return;
+      }
+
+      const maxValue = cashFlowTrend.reduce(function(max, month) {
+        return Math.max(max, month.income || 0, month.spending || 0);
+      }, 0) || 1;
+
+      cashFlowTrend.forEach(function(month) {
+        container.appendChild(service.twoBarColumn(
+          month.monthLabel,
+          month.income, month.spending, maxValue,
+          'reports-bar--income', 'reports-bar--spending'
+        ));
+      });
+    },
+
+    renderSpendingByCategory: function(spendingByCategory, uncategorisedCount) {
+      const status = documentObject.querySelector('[data-analytics-uncategorised-status]');
+      if (status) status.textContent = uncategorisedCount + ' uncategorised';
+
+      const container = documentObject.querySelector('[data-analytics-spending-list]');
+      if (!container) return;
+      container.textContent = '';
+
+      if (spendingByCategory.length === 0) {
+        container.appendChild(service.emptyElement('No categorised spending in this range yet -- apply some suggestions on the Rules tab.'));
+        return;
+      }
+
+      const maxValue = spendingByCategory.reduce(function(max, group) { return Math.max(max, group.total); }, 0) || 1;
+
+      spendingByCategory.forEach(function(group) {
+        const row = documentObject.createElement('div');
+        row.className = 'reports-category-row';
+
+        const label = documentObject.createElement('span');
+        label.className = 'reports-category-row__label';
+        label.textContent = group.key;
+
+        const track = documentObject.createElement('span');
+        track.className = 'reports-category-row__track';
+        const fill = documentObject.createElement('span');
+        fill.className = 'reports-category-row__fill';
+        fill.style.width = service.barHeight(group.total, maxValue) + '%';
+        track.appendChild(fill);
+
+        const value = documentObject.createElement('span');
+        value.className = 'reports-category-row__value';
+        value.textContent = service.formatMoney(group.total);
+
+        row.append(label, track, value);
+        container.appendChild(row);
+      });
+    },
+
+    renderReconciliationCards: function(reconciliation) {
+      const container = documentObject.querySelector('[data-analytics-reconciliation-cards]');
+      if (!container) return;
+      container.textContent = '';
+
+      const hasMatchRate = reconciliation.payslipMatchRatePercent !== null && reconciliation.payslipMatchRatePercent !== undefined;
+      container.appendChild(service.statCard(
+        'Payslip match rate',
+        hasMatchRate ? reconciliation.payslipMatchRatePercent + '%' : 'No data yet',
+        reconciliation.payslipsMatchedCount + ' of ' + reconciliation.payslipsComparedCount + ' compared payslips matched prediction',
+        hasMatchRate ? 'success' : 'info'
+      ));
+
+      container.appendChild(service.statCard(
+        'Pay adjustments recovered',
+        service.formatMoney(reconciliation.adjustmentsRecoveredAmount),
+        service.formatMoney(reconciliation.adjustmentsOutstandingAmount) + ' still outstanding',
+        'info'
+      ));
+
+      const hasUncategorised = Math.sign(Number(reconciliation.uncategorisedTransactionCount) || 0) === 1;
+      container.appendChild(service.statCard(
+        'Unclassified Monzo transactions',
+        String(reconciliation.uncategorisedTransactionCount),
+        'Visit Finance → Rules to categorise them',
+        hasUncategorised ? 'warning' : 'success'
+      ));
+    },
+
+    renderExcludedMetrics: function(excludedMetrics) {
+      const list = documentObject.querySelector('[data-analytics-excluded-list]');
+      if (!list) return;
+      list.textContent = '';
+
+      excludedMetrics.forEach(function(item) {
+        const li = documentObject.createElement('li');
+        const title = documentObject.createElement('strong');
+        title.textContent = item.label;
+        const reason = documentObject.createElement('span');
+        reason.textContent = item.reason;
+        li.append(title, reason);
+        list.appendChild(li);
+      });
+    },
+
+    // ---- shared DOM builders ----
+
+    statCard: function(label, value, detail, tone) {
+      const card = documentObject.createElement('article');
+      card.className = 'finance-alert-card finance-alert-card--' + tone;
+
+      const indicator = documentObject.createElement('span');
+      indicator.className = 'finance-alert-card__indicator';
+
+      const textWrap = documentObject.createElement('div');
+      const labelElement = documentObject.createElement('small');
+      labelElement.textContent = label;
+      const valueElement = documentObject.createElement('strong');
+      valueElement.textContent = value;
+      textWrap.append(labelElement, valueElement);
+
+      if (detail) {
+        const detailElement = documentObject.createElement('small');
+        detailElement.textContent = detail;
+        textWrap.appendChild(detailElement);
+      }
+
+      card.append(indicator, textWrap);
+      return card;
+    },
+
+    twoBarColumn: function(labelText, firstValue, secondValue, maxValue, firstClass, secondClass) {
+      const column = documentObject.createElement('div');
+      column.className = 'reports-column';
+      column.title = labelText + ': ' + service.formatMoney(firstValue) + ' / ' + service.formatMoney(secondValue);
+
+      const bars = documentObject.createElement('div');
+      bars.className = 'reports-column__bars';
+
+      const firstBar = documentObject.createElement('span');
+      firstBar.className = 'reports-bar ' + firstClass;
+      firstBar.style.height = service.barHeight(firstValue, maxValue) + '%';
+
+      const secondBar = documentObject.createElement('span');
+      secondBar.className = 'reports-bar ' + secondClass;
+      secondBar.style.height = service.barHeight(secondValue, maxValue) + '%';
+
+      bars.append(firstBar, secondBar);
+
+      const small = documentObject.createElement('small');
+      small.textContent = labelText;
+
+      column.append(bars, small);
+      return column;
+    },
+
+    barHeight: function(value, maxValue) {
+      const ratio = (Number(value) || 0) / (maxValue || 1);
+      return String(Math.max(Math.min(Math.round(ratio * 100), 100), 0));
+    },
+
+    emptyElement: function(message) {
+      const div = documentObject.createElement('div');
+      div.className = 'reports-empty';
+      div.textContent = message;
+      return div;
+    },
+
+    emptyRow: function(columnCount, message) {
+      const tr = documentObject.createElement('tr');
+      const td = documentObject.createElement('td');
+      td.setAttribute('colspan', String(columnCount));
+      td.appendChild(service.emptyElement(message));
+      tr.appendChild(td);
+      return tr;
+    },
+
+    setLoading: function(loading) {
+      const loadingElement = documentObject.querySelector('[data-analytics-loading]');
+      const content = documentObject.querySelector('[data-analytics-content]');
+      if (loadingElement) loadingElement.hidden = !loading;
+      if (content) content.hidden = loading;
+    },
+
+    showNotice: function(message, isError) {
+      const notice = documentObject.querySelector('[data-analytics-notice]');
+      if (!notice) return;
+      notice.textContent = message;
+      notice.hidden = false;
+      notice.classList.toggle('is-error', isError === true);
+    },
+
+    formatMoney: function(value) {
+      return '£' + (Number(value) || 0).toFixed(2);
+    },
+
+    formatDate: function(value) {
+      if (!value) return '—';
+      const parsed = new Date(value);
+      if (Number.isNaN(parsed.getTime())) return String(value);
+      return parsed.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+    }
+  };
+
+  windowObject.PayTrackerAnalyticsService = service;
+  if (documentObject.readyState === 'loading') {
+    documentObject.addEventListener('DOMContentLoaded', service.init);
+  } else {
+    service.init();
+  }
+})(window, document);

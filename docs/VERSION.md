@@ -1,6 +1,6 @@
 # Pay Tracker
 
-**Current Version:** 3.0.6
+**Current Version:** 3.0.7
 
 ## Status
 
@@ -8,7 +8,7 @@
 
 ## Development Stage
 
-Active Development — v3 roadmap Phases 2, 4, 5, 6, 7 and 8 implemented (navigation redesign, Annual Leave engine, Gmail Annual Leave import, Pay Adjustments ledger, Money Movements ledger, Transaction Matching Rules). Phase 3 (Staffline) is blocked pending real Staffline export data.
+Active Development — v3 roadmap Phases 2, 4, 5, 6, 7, 8 and 9 implemented (navigation redesign, Annual Leave engine, Gmail Annual Leave import, Pay Adjustments ledger, Money Movements ledger, Transaction Matching Rules, Ledger Analytics). Phase 3 (Staffline) is blocked pending real Staffline export data.
 
 ## Version note
 
@@ -36,7 +36,7 @@ Pay/Calendar, Finance (bills/debts), Finance Integration (Monzo bank connection,
 
 ## Next milestone
 
-v3 Phase 9 — analytics (see `Roadmap.md`). Phase 3 (Staffline schedule reconciliation) remains blocked pending real Staffline export data. Deferred follow-ups from earlier phases: Phase 7's account-balance import and automatic Money Movement creation from confirmed bank matches; Phase 8's fuel-budget-style category-vs-budget tracking and any automatic (Auto Confirm) rule application -- categories are always applied by explicit user action, never automatically.
+v3 Phase 10 — production hardening (see `Roadmap.md`): all major workflows pass end-to-end testing, no destructive migration possible, deployment matches `main`, production release tagged. Phase 3 (Staffline schedule reconciliation) remains blocked pending real Staffline export data. Deferred follow-ups from earlier phases: Phase 7's account-balance import and automatic Money Movement creation from confirmed bank matches; Phase 8's fuel-budget-style category-vs-budget tracking and any automatic (Auto Confirm) rule application; Phase 9's Staffline-based accuracy metrics (blocked with Phase 3), fuel-budget-vs-actual and Monzo pot-level flow detail (both already deferred above, now also named in the Reports page itself).
 
 ## Known cosmetic cleanup (optional)
 

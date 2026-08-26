@@ -19,7 +19,7 @@
 const PayTrackerConfig = Object.freeze({
   APP: Object.freeze({
     NAME: 'Pay Tracker',
-    VERSION: '3.0.6'
+    VERSION: '3.0.7'
   }),
 
   SHEET: Object.freeze({
