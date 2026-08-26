@@ -22,7 +22,7 @@ The v3 roadmap (`docs/Roadmap.md`, detail in `docs/v3-Roadmap-Detail.md`) is the
 
 ## Current Version
 
-Pay Tracker v3.0.7 — reconciliation foundation, safe Calendar/Annual Leave synchronisation, a navigation redesign grouped around the work-to-money flow, a per-job Annual Leave ledger, Gmail-based Annual Leave import, a Pay Adjustments ledger for missing/incorrect pay, a Money Movements ledger separating income, spending and internal transfers, configurable Transaction Matching Rules for categorising Monzo spending, and a Ledger Analytics section on Reports tying all of it together.
+Pay Tracker v3.0.8 — reconciliation foundation, safe Calendar/Annual Leave synchronisation, a navigation redesign grouped around the work-to-money flow, a per-job Annual Leave ledger, Gmail-based Annual Leave import, a Pay Adjustments ledger for missing/incorrect pay, a Money Movements ledger separating income, spending and internal transfers, configurable Transaction Matching Rules for categorising Monzo spending, a Ledger Analytics section on Reports tying all of it together, and a production-hardening pass (a consolidated test runner, a setup-function safety review, and an OAuth scope audit). This completes the v3 roadmap's Phases 1–2 and 4–10; Phase 3 (Staffline) remains blocked pending real export data.
 
 ---
 
@@ -76,6 +76,12 @@ Run `setupPayTrackerTransactionRules()` once after deployment; it is safe to run
 - Names what it cannot show yet and why (Staffline-based accuracy, fuel-budget-vs-actual, Monzo pot-level flow detail) instead of silently omitting them.
 
 Safe checks for the aggregation math are available through `runAnalyticsTests()`.
+
+### Production Hardening
+
+- `runAllPayTrackerTests()` runs every v3-era safe test suite in one call (86 checks across Reconciliation Foundation, Calendar Reconciliation, Annual Leave, Pay Adjustments, Money Movements, Transaction Rules and Analytics) and reports which suite, if any, failed, instead of one suite's exception hiding the rest.
+- Every `setupPayTracker*()` function was reviewed against "no destructive migration possible": all are additive-only, and the original core setup takes a safety backup before writing anything.
+- `appsscript.json`'s OAuth scopes were reviewed against actual usage; every scope traces to a real feature. See `docs/Changelog.md` for the full review.
 
 ### Reconciliation Foundation
 

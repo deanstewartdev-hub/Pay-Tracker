@@ -1,6 +1,6 @@
 # Pay Tracker
 
-**Current Version:** 3.0.7
+**Current Version:** 3.0.8
 
 ## Status
 
@@ -8,7 +8,7 @@
 
 ## Development Stage
 
-Active Development — v3 roadmap Phases 2, 4, 5, 6, 7, 8 and 9 implemented (navigation redesign, Annual Leave engine, Gmail Annual Leave import, Pay Adjustments ledger, Money Movements ledger, Transaction Matching Rules, Ledger Analytics). Phase 3 (Staffline) is blocked pending real Staffline export data.
+Active Development — v3 roadmap Phases 1, 2, 4, 5, 6, 7, 8, 9 and 10 implemented (reconciliation foundation, navigation redesign, Annual Leave engine, Gmail Annual Leave import, Pay Adjustments ledger, Money Movements ledger, Transaction Matching Rules, Ledger Analytics, production hardening). Phase 3 (Staffline) is blocked pending real Staffline export data -- the only roadmap phase not yet implemented.
 
 ## Version note
 
@@ -36,7 +36,11 @@ Pay/Calendar, Finance (bills/debts), Finance Integration (Monzo bank connection,
 
 ## Next milestone
 
-v3 Phase 10 — production hardening (see `Roadmap.md`): all major workflows pass end-to-end testing, no destructive migration possible, deployment matches `main`, production release tagged. Phase 3 (Staffline schedule reconciliation) remains blocked pending real Staffline export data. Deferred follow-ups from earlier phases: Phase 7's account-balance import and automatic Money Movement creation from confirmed bank matches; Phase 8's fuel-budget-style category-vs-budget tracking and any automatic (Auto Confirm) rule application; Phase 9's Staffline-based accuracy metrics (blocked with Phase 3), fuel-budget-vs-actual and Monzo pot-level flow detail (both already deferred above, now also named in the Reports page itself).
+The v3 roadmap's Phases 1–2 and 4–10 are complete. The only remaining phase is Phase 3 (Staffline schedule/timesheet import and three-way reconciliation), blocked pending real Staffline export data -- there is nothing further to build until that data is available.
+
+Production promotion is a deliberate, manual step: this repository's `main` branch and the `v3.0.8` git tag are ready, but the live production Apps Script deployment is intentionally left pointed at the last version the deploying user promoted -- promoting `main` to production is not done automatically by any automated session.
+
+Deferred follow-ups, all named in their owning phase's UI or docs rather than silently dropped: Phase 7's account-balance import and automatic Money Movement creation from confirmed bank matches; Phase 8's fuel-budget-style category-vs-budget tracking and any automatic (Auto Confirm) rule application; Phase 9's Staffline-based accuracy metrics (blocked with Phase 3), fuel-budget-vs-actual and Monzo pot-level flow detail.
 
 ## Known cosmetic cleanup (optional)
 
