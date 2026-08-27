@@ -1,0 +1,124 @@
+(function(windowObject, documentObject) {
+  const service = {
+    loaded: false,
+
+    init: function() {
+      const root = documentObject.querySelector('[data-staffline-workspace]');
+      if (!root) return;
+
+      documentObject.addEventListener('paytracker:routechange', function(event) {
+        if (event.detail.route === 'pay') service.load();
+      });
+
+      const scanForm = root.querySelector('[data-staffline-scan-form]');
+      if (scanForm) {
+        const previewButton = scanForm.querySelector('[data-staffline-preview-button]');
+        if (previewButton) previewButton.addEventListener('click', function(event) {
+          event.preventDefault();
+          service.runScan(new FormData(scanForm), true);
+        });
+        scanForm.addEventListener('submit', function(event) {
+          event.preventDefault();
+          service.runScan(new FormData(scanForm), false);
+        });
+      }
+
+      const refreshButton = root.querySelector('[data-staffline-refresh-button]');
+      if (refreshButton) refreshButton.addEventListener('click', function() { service.load(true); });
+    },
+
+    runScan: function(formData, dryRun) {
+      const status = documentObject.querySelector('[data-staffline-scan-status]');
+      if (status) status.textContent = dryRun ? 'Previewing...' : 'Scanning...';
+
+      const options = { lookbackDays: Number(formData.get('lookbackDays') || 180) };
+      const functionName = dryRun
+        ? 'previewPayTrackerStafflineGmailScan'
+        : 'scanPayTrackerStafflineGmail';
+
+      PayTrackerAppController.runServerFunction(functionName, options).then(function(result) {
+        const summary = [
+          result.messagesChecked + ' messages checked',
+          result.messagesMatched + ' timesheets matched',
+          dryRun ? '' : (result.recordsCreated + ' added, ' + result.recordsUpdated + ' updated'),
+          result.needsReview + ' need review in the Action Centre'
+        ].filter(function(part) { return part !== ''; }).join(' · ');
+
+        if (status) status.textContent = summary;
+        PayTrackerAppController.showToast(
+          (dryRun ? 'Preview complete: ' : 'Gmail scan complete: ') + summary,
+          'success'
+        );
+        if (!dryRun) service.load(true);
+      }).catch(function(error) {
+        if (status) status.textContent = 'Scan failed';
+        PayTrackerAppController.showToast(PayTrackerAppController.getErrorMessage(error), 'error');
+      });
+    },
+
+    load: function(force) {
+      if (service.loaded && force !== true) return;
+      PayTrackerAppController.runServerFunction('getPayTrackerStafflineReconciliation', {})
+        .then(function(data) {
+          service.loaded = true;
+          service.renderTable(data.rows || []);
+        })
+        .catch(function(error) {
+          PayTrackerAppController.showToast(PayTrackerAppController.getErrorMessage(error), 'error');
+        });
+    },
+
+    renderTable: function(rows) {
+      const body = documentObject.querySelector('[data-staffline-table-body]');
+      const empty = documentObject.querySelector('[data-staffline-empty]');
+      if (!body) return;
+
+      body.textContent = '';
+      if (empty) empty.hidden = rows.length > 0;
+
+      rows.forEach(function(row) {
+        const tr = documentObject.createElement('tr');
+        const cells = [
+          row.weekEnding || '',
+          row.jobId || '',
+          row.timesheetId || '',
+          row.stafflineStatus || '',
+          service.formatHours(row.calendarExpectedHours),
+          service.formatHours(row.stafflineSubmittedHours, 'n/a'),
+          service.formatHours(row.payslipPaidHours),
+          service.formatMoney(row.payslipPaidAmount),
+          row.calendarStatus || '',
+          row.paymentStatus || '',
+          row.discrepancyType || '',
+          row.reviewAction || ''
+        ];
+
+        cells.forEach(function(value, index) {
+          const td = documentObject.createElement('td');
+          td.textContent = value;
+          if (index === 10) td.setAttribute('data-staffline-discrepancy', row.discrepancyType || '');
+          tr.appendChild(td);
+        });
+
+        body.appendChild(tr);
+      });
+    },
+
+    formatHours: function(value, whenMissing) {
+      if (value === null || value === undefined || value === '') return whenMissing || '';
+      return Number(value).toFixed(2);
+    },
+
+    formatMoney: function(value) {
+      if (value === null || value === undefined || value === '') return '';
+      return '£' + Number(value).toFixed(2);
+    }
+  };
+
+  windowObject.PayTrackerStafflineService = service;
+  if (documentObject.readyState === 'loading') {
+    documentObject.addEventListener('DOMContentLoaded', service.init);
+  } else {
+    service.init();
+  }
+})(window, document);

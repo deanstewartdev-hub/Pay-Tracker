@@ -17,7 +17,7 @@
  *******************************************************/
 
 const PayTrackerAnalyticsConfig = Object.freeze({
-  VERSION: '3.0.9',
+  VERSION: '3.1.0',
 
   MONTHS_TO_INCLUDE: 12,
 
@@ -25,7 +25,7 @@ const PayTrackerAnalyticsConfig = Object.freeze({
     Object.freeze({
       key: 'staffline-accuracy',
       label: 'Staffline-vs-Calendar and Staffline-vs-payslip accuracy',
-      reason: 'Phase 3 (Staffline schedule import) is blocked pending real Staffline export data -- there is no Staffline record to compare against yet.'
+      reason: 'Phase 3 built the Staffline Timesheets/Payment Lines ledgers and the Calendar/Staffline/Payslip reconciliation itself (see the Pay workspace Timesheets tab) -- rolling that up into an Analytics summary card is real follow-up work, not done as part of this metric list yet.'
     }),
     Object.freeze({
       key: 'fuel-budget',

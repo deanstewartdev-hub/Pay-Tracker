@@ -16,13 +16,13 @@ The project has evolved beyond a simple paysheet into a full personal employment
 
 The Google Sheet acts as the database, Google Apps Script provides the backend business logic, and a standalone Apps Script web app (`Frontend/`) is the primary interface — see `docs/Architecture.md`.
 
-The v3 roadmap (`docs/Roadmap.md`, detail in `docs/v3-Roadmap-Detail.md`) is the current active development plan: a unified Job Registry and Action Centre, Staffline schedule reconciliation, a per-job Annual Leave engine, and a pay-adjustment recovery ledger.
+The v3 roadmap (`docs/Roadmap.md`, detail in `docs/v3-Roadmap-Detail.md`) is now complete: a unified Job Registry and Action Centre, Staffline schedule reconciliation, a per-job Annual Leave engine, and a pay-adjustment recovery ledger.
 
 ---
 
 ## Current Version
 
-Pay Tracker v3.0.9 — a maintenance release on top of v3.0.8 (reconciliation foundation, navigation redesign, Annual Leave engine and Gmail import, Pay Adjustments ledger, Money Movements ledger, Transaction Matching Rules, Ledger Analytics, and production hardening). v3.0.9 itself adds no new roadmap features: it corrects the version-string constants, scopes each workspace's initial data load to the page actually being viewed instead of every workspace loading on every page visit (Dashboard excepted -- see below), and adds a guarded, tested cleanup utility for a known cosmetic artifact on the Bank Transactions sheet. This completes the v3 roadmap's Phases 1–2 and 4–10; Phase 3 (Staffline) remains blocked pending real export data.
+Pay Tracker v3.1.0 — completes the v3 roadmap's Phase 3: Google Calendar → Staffline approved timesheet → payslip payment line reconciliation. Builds on v3.0.9 (reconciliation foundation, navigation redesign, Annual Leave engine and Gmail import, Pay Adjustments ledger, Money Movements ledger, Transaction Matching Rules, Ledger Analytics, and production hardening). This completes all ten phases of the original v3 roadmap.
 
 ---
 
@@ -88,6 +88,17 @@ Safe checks for the aggregation math are available through `runAnalyticsTests()`
 - Route-scoped initial workspace loading: Finance, Savings, Calendar, Settings, Reports, Life Goals and Analytics now only fetch their own data when they're the page actually being viewed, instead of every workspace fetching on every page visit. Dashboard keeps its original (always-loads) behaviour -- the same fix regressed its first load and was reverted rather than shipped unverified; a correct fix for Dashboard specifically remains a deferred follow-up.
 - A guarded `cleanupPayTrackerStrayCategoryColumns()` utility (editor-run-only, not wired to any UI) is available to tidy up the two misplaced, empty header columns the Phase 8 column-placement bug left on the real `Bank Transactions` sheet. It refuses to run if it finds any data in either column. Not run automatically by anything -- see `docs/VERSION.md`.
 
+### Staffline Reconciliation
+
+- Three-way reconciliation for Staffline placements: Google Calendar shift → Staffline approved timesheet → payslip payment line, so it is obvious where in the chain a mismatch happened (a shift never submitted to Staffline, a timesheet approved under the wrong job, or a payslip that paid the wrong hours).
+- Read-only Gmail import of Staffline "Timesheet Approved" emails (metadata only -- Timesheet ID, placement, client, approval date range, portal link) into a new Staffline Timesheets ledger. Deduplicated by Timesheet ID; rescans update the same row rather than creating a duplicate. The Staffline portal itself is never scraped, so a timesheet's actually-submitted hours are not always known -- reconciliation compares Calendar's expected hours directly against the payslip's paid hours instead of inventing a submitted-hours figure.
+- Placement wording (e.g. "Night Security C/Dun & C/Dall") maps to a Job automatically via each job's new Staffline References field (Jobs sheet) -- an unrecognised placement is never guessed, it goes to the Action Centre instead.
+- The existing Payroll Centre payslip parser is extended (not replaced) to also extract per-line Timesheet ID, description, units, rate and amount, since one combined Staffline payslip can cover several Timesheet IDs across different jobs. Stored in a new Staffline Payment Lines ledger, linked back to the Payslip Register by Payslip ID.
+- New "Timesheets" tab on the Pay workspace showing week, job, Timesheet ID, Staffline status, Calendar hours, payslip-paid hours and amount, and a plain-English reconciliation status and suggested action for every row that needs one.
+- Unresolved discrepancies go to the Action Centre; a genuine missing or incorrect amount can be tracked to recovery through the existing Pay Adjustments ledger -- neither is duplicated here.
+
+Run `setupPayTrackerStaffline()` once after deployment; it is safe to run repeatedly. Safe checks (including the 5 real fixture timesheets used during development) are available through `runStafflineReconciliationTests()`.
+
 ### Reconciliation Foundation
 
 - Unified Jobs registry seeded from the four existing employer/pay definitions
@@ -134,9 +145,9 @@ See `docs/Database.md` for the full sheet inventory and `docs/v3-phase0-audit.md
 
 ---
 
-## Planned Features (v3)
+## v3 Roadmap Status
 
-See `docs/Roadmap.md` and `docs/v3-Roadmap-Detail.md` for the full plan: Action Centre, Staffline schedule import and three-way reconciliation, per-job Annual Leave engine, Gmail Annual Leave import, pay-adjustment recovery ledger, deeper Monzo/money-movement tracking, transaction matching rules, and expanded analytics.
+All ten phases of the v3 roadmap are complete as of v3.1.0 -- see `docs/Roadmap.md` and `docs/v3-Roadmap-Detail.md` for the full plan. Real, valuable follow-ups that were deliberately deferred rather than rushed are named in their owning feature's section above (or in `docs/VERSION.md`) rather than silently dropped.
 
 ---
 

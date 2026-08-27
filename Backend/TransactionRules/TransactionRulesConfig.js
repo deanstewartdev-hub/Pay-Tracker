@@ -12,7 +12,7 @@
  *******************************************************/
 
 const PayTrackerTransactionRulesConfig = Object.freeze({
-  VERSION: '3.0.9',
+  VERSION: '3.1.0',
 
   SHEETS: Object.freeze({
     RULES: Object.freeze({

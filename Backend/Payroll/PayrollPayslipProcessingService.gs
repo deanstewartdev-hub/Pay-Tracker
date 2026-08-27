@@ -351,6 +351,63 @@ const PayTrackerPayrollPayslipProcessingService =
             values
           );
 
+        /*
+         * Additive Phase 3 hook: store per-line Staffline detail
+         * (Timesheet ID, description, units, rate, amount) so it
+         * can be reconciled against Calendar and the Staffline
+         * Timesheets ledger -- see Backend/Staffline. This never
+         * blocks the payslip import itself: a Staffline-side
+         * failure here is caught and reported, not thrown, since
+         * the whole-payslip fields above already saved
+         * successfully.
+         */
+        let stafflineLineCount = 0;
+        let stafflineLineError = '';
+
+        try {
+          const savedLines =
+            PayTrackerStafflinePaymentLineRepository
+              .replaceForPayslip(
+                normalizedPayslipId,
+                (timesheetParse.entries || []).map(
+                  function(entry) {
+                    const timesheet =
+                      PayTrackerStafflineTimesheetRepository
+                        .getByTimesheetId(
+                          entry.reference
+                        );
+
+                    return {
+                      reference: entry.reference,
+                      workDate: entry.workDate,
+                      description: entry.description,
+                      units: entry.hours,
+                      rate: entry.rate,
+                      amount: entry.amount,
+                      payCategory: entry.payCategory,
+                      validationStatus:
+                        entry.validation
+                          ? entry.validation.status
+                          : '',
+                      jobId:
+                        timesheet
+                          ? timesheet.jobId
+                          : ''
+                    };
+                  }
+                )
+              );
+
+          stafflineLineCount =
+            savedLines.length;
+        } catch (stafflineError) {
+          stafflineLineError =
+            PayTrackerPayrollPayslipProcessingService
+              .getErrorMessage_(
+                stafflineError
+              );
+        }
+
         return {
           success: true,
 
@@ -381,6 +438,14 @@ const PayTrackerPayrollPayslipProcessingService =
 
             unclassifiedReferences:
               classification.unclassifiedReferences || []
+          },
+
+          stafflinePaymentLines: {
+            savedCount:
+              stafflineLineCount,
+
+            error:
+              stafflineLineError
           },
 
           parserType:

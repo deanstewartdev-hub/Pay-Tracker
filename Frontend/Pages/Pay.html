@@ -348,6 +348,29 @@
         Adjustments
       </span>
     </button>
+
+    <button
+      class="pay-workspace-tab"
+      type="button"
+      data-pay-tab="staffline"
+      aria-selected="false"
+    >
+      <span class="pay-workspace-tab__icon">
+        <svg
+          viewBox="0 0 24 24"
+          aria-hidden="true"
+        >
+          <path
+            d="M4 4h16v2H4V4Zm0 14h16v2H4v-2ZM4 9h10v2H4V9Zm0 5h7v2H4v-2Zm13-5 4 3-4 3V9Z"
+            fill="currentColor"
+          />
+        </svg>
+      </span>
+
+      <span>
+        Timesheets
+      </span>
+    </button>
   </nav>
 
   <section
@@ -2935,6 +2958,93 @@
 
         <div data-pay-adjustments-list></div>
       </section>
+    </div>
+  </section>
+
+  <section
+    class="pay-workspace-panel"
+    data-pay-panel="staffline"
+    aria-label="Timesheets"
+    hidden
+  >
+    <div data-staffline-workspace>
+      <header class="pay-analytics__header">
+        <div>
+          <p class="pay-analytics__eyebrow">
+            Calendar -&gt; Staffline -&gt; Payslip, in one place
+          </p>
+          <h3 class="pay-analytics__title">
+            Timesheets
+          </h3>
+          <p class="pay-analytics__description">
+            Every Staffline-approved timesheet next to what Calendar expected
+            and what the payslip actually paid, so it is obvious where in the
+            chain a mismatch happened. The Staffline portal itself is never
+            scraped -- "Staffline submitted hours" is left blank when the
+            approval email does not carry a figure, rather than guessed.
+          </p>
+        </div>
+      </header>
+
+      <div class="pay-analytics-panel__header">
+        <h4>Import approved timesheets from Gmail</h4>
+        <span data-staffline-scan-status>Not scanned yet</span>
+      </div>
+
+      <form data-staffline-scan-form>
+        <label>
+          Look back
+          <select name="lookbackDays">
+            <option value="90">3 months</option>
+            <option value="180" selected>6 months</option>
+            <option value="365">12 months</option>
+          </select>
+        </label>
+        <button class="button" type="submit" data-staffline-preview-button>
+          Preview
+        </button>
+        <button class="button button--primary" type="submit" data-staffline-scan-button>
+          Scan Gmail for Staffline timesheets
+        </button>
+      </form>
+
+      <p
+        data-staffline-notice
+        class="pay-shell-summary-card__meta"
+      ></p>
+
+      <div class="pay-analytics-panel__header">
+        <h4>Reconciliation</h4>
+        <button type="button" class="button" data-staffline-refresh-button>
+          Refresh
+        </button>
+      </div>
+
+      <div class="pay-table-wrap">
+        <table class="pay-table" data-staffline-table>
+          <thead>
+            <tr>
+              <th>Week Ending</th>
+              <th>Job</th>
+              <th>Timesheet ID</th>
+              <th>Staffline Status</th>
+              <th>Calendar Hours</th>
+              <th>Staffline Hours</th>
+              <th>Payslip Hours</th>
+              <th>Payslip Paid</th>
+              <th>Calendar Match</th>
+              <th>Payment Status</th>
+              <th>Discrepancy</th>
+              <th>Review Action</th>
+            </tr>
+          </thead>
+          <tbody data-staffline-table-body></tbody>
+        </table>
+      </div>
+      <p data-staffline-empty class="pay-shell-summary-card__meta" hidden>
+        No Staffline-relevant reconciliation rows yet -- scan Gmail above,
+        and make sure the Jobs sheet's Staffline References are set.
+      </p>
     </div>
   </section>
 </div>
