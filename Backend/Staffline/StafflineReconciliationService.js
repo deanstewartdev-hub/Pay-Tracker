@@ -1,26 +1,34 @@
 /*******************************************************
- * PAY TRACKER V3.0
+ * PAY TRACKER V3.1
  * Backend/Staffline/StafflineReconciliationService.js
  *
- * Three-way reconciliation: Google Calendar shift -> Staffline
- * approved timesheet -> Payslip payment line.
+ * True three-way reconciliation: Google Calendar shift -> Staffline
+ * submitted/approved timesheet -> Payslip payment line.
  *
  * Nothing here is stored -- every call recomputes live from
  * CalendarSyncRepository, StafflineTimesheetRepository,
- * StafflinePaymentLineRepository and the Job Registry, the same
- * "nothing stored, nothing estimated" approach AnalyticsService.js
- * already uses. This keeps the view always current and avoids a
- * second place discrepancy data could go stale.
+ * StafflineTimesheetDetailRepository, StafflinePaymentLineRepository
+ * and the Job Registry, the same "nothing stored, nothing estimated"
+ * approach AnalyticsService.js already uses.
  *
- * Known, deliberate scope limit: Gmail approval emails carry a
- * timesheet's date range but never its submitted hours (the portal
- * itself was not reachable -- see docs/Changelog.md). "Calendar
- * expected hours" is therefore compared directly against "Payslip
- * paid hours"; Staffline's own role in this reconciliation is
- * existence + date-range + job classification, not an hours figure
- * of its own. HOURS_DIFFER in the Calendar<->Staffline vocabulary
- * is intentionally never produced for that reason -- it would have
- * to be fabricated.
+ * Staffline submitted hours: real, not fabricated, but real-world
+ * partial. StafflineTimesheetDetailRepository is populated by a
+ * read-only human/assistant browse of the real portal (Apps Script
+ * itself cannot authenticate there), so it exists for whichever
+ * timesheets have actually been imported that way -- not all of
+ * them. Every comparison below explicitly branches on whether real
+ * Staffline detail exists for a given timesheet:
+ * - When it exists: Calendar is compared against the real Staffline
+ *   submitted hours (the genuine three-way chain), and Staffline's
+ *   submitted hours -- not Calendar's -- are what Payslip is judged
+ *   against, so a Calendar/Staffline mismatch reads as a Timesheet
+ *   Discrepancy even when the payslip paid exactly what Staffline
+ *   submitted.
+ * - When it does not exist: falls back to the previous, coarser
+ *   comparison (Calendar directly against Payslip) and the row is
+ *   marked stafflineSubmittedHours: null so the UI can say
+ *   "Staffline detail unavailable" rather than silently implying
+ *   Calendar's figure came from Staffline.
  *******************************************************/
 
 const PayTrackerStafflineReconciliationService = Object.freeze({
@@ -43,6 +51,8 @@ const PayTrackerStafflineReconciliationService = Object.freeze({
 
     const allShifts = PayTrackerCalendarSyncRepository.getActive();
     const allTimesheets = PayTrackerStafflineTimesheetRepository.getAll();
+    const allDetails = PayTrackerStafflineTimesheetDetailRepository.getAll();
+    const allPaymentLines = PayTrackerStafflinePaymentLineRepository.getAll();
     const jobIds = jobs.map(function(job) { return job.jobId; });
 
     const relevantShifts = allShifts.filter(function(shift) { return jobIds.indexOf(shift.jobId) !== -1; });
@@ -51,27 +61,41 @@ const PayTrackerStafflineReconciliationService = Object.freeze({
     });
 
     const timesheetRows = relevantTimesheets.map(function(timesheet) {
-      return PayTrackerStafflineReconciliationService.reconcileTimesheet_(timesheet, allShifts, today);
+      const detail = PayTrackerStafflineReconciliationService.findDetail_(allDetails, timesheet.timesheetId);
+      return PayTrackerStafflineReconciliationService.reconcileTimesheet_(timesheet, detail, allShifts, allPaymentLines, today);
     });
 
     const missingRows = PayTrackerStafflineReconciliationService.findMissingFromStaffline_(
       relevantShifts, relevantTimesheets, jobs
     );
 
-    const rows = timesheetRows.concat(missingRows).sort(function(left, right) {
+    const unexpectedRows = PayTrackerStafflineReconciliationService.findUnexpectedPayments_(
+      allPaymentLines, allTimesheets, jobIds
+    );
+
+    const rows = timesheetRows.concat(missingRows).concat(unexpectedRows).sort(function(left, right) {
       return String(right.weekEnding || '').localeCompare(String(left.weekEnding || ''));
     });
 
     return { rows: rows, generatedAt: new Date().toISOString() };
   },
 
+  findDetail_: function(allDetails, timesheetId) {
+    const target = PayTrackerStafflineConfig.normalizeReference(timesheetId);
+    if (!target) return null;
+    return allDetails.filter(function(detail) {
+      return PayTrackerStafflineConfig.normalizeReference(detail.timesheetId) === target;
+    })[0] || null;
+  },
+
   /**
    * Builds one reconciliation row anchored on a real Staffline
    * timesheet (it was approved -- the question is whether Calendar
-   * agrees, and whether it was paid correctly).
+   * agrees, whether Staffline's own submitted hours agree with
+   * Calendar, and whether it was paid correctly).
    * @private
    */
-  reconcileTimesheet_: function(timesheet, allShifts, today) {
+  reconcileTimesheet_: function(timesheet, detail, allShifts, allPaymentLines, today) {
     const inWindow = allShifts.filter(function(shift) {
       return PayTrackerStafflineReconciliationService.dateWithin_(
         shift.eventStart, timesheet.timesheetStart, timesheet.timesheetEnd
@@ -81,33 +105,47 @@ const PayTrackerStafflineReconciliationService = Object.freeze({
     const forOtherJob = inWindow.filter(function(shift) { return shift.jobId !== timesheet.jobId; });
     const calendarHours = PayTrackerStafflineReconciliationService.sumHours_(forJob);
 
+    const stafflineHours = detail && detail.submittedHours !== '' && detail.submittedHours !== undefined
+      ? PayTrackerStafflineReconciliationService.round_(detail.submittedHours)
+      : null;
+
     const calendarStatus = PayTrackerStafflineReconciliationService.computeCalendarStatus_(
-      timesheet, forJob, forOtherJob
+      timesheet, forJob, forOtherJob, calendarHours, stafflineHours
     );
 
-    const paymentLines = PayTrackerStafflinePaymentLineRepository.getByTimesheetReference(timesheet.timesheetId);
+    const paymentLines = PayTrackerStafflineReconciliationService.linesForTimesheet_(allPaymentLines, timesheet.timesheetId);
     const paidHours = PayTrackerStafflineReconciliationService.sumUnits_(paymentLines);
     const paidAmount = PayTrackerStafflineReconciliationService.sumAmount_(paymentLines);
 
-    const paymentStatus = PayTrackerStafflineReconciliationService.computePaymentStatus_(
-      timesheet, paymentLines, calendarHours
+    // The hours Payslip is actually judged against: real Staffline
+    // submitted hours when known, Calendar's as a fallback -- never
+    // both at once, so a Calendar/Staffline disagreement can never
+    // also silently read as a payroll problem.
+    const expectedHours = stafflineHours !== null ? stafflineHours : calendarHours;
+
+    const paymentResult = PayTrackerStafflineReconciliationService.computePaymentStatus_(
+      timesheet, detail, paymentLines, expectedHours, allPaymentLines
     );
 
     const discrepancyType = PayTrackerStafflineReconciliationService.computeDiscrepancyType_(
-      calendarStatus, paymentStatus, timesheet, today
+      calendarStatus, paymentResult.status, timesheet, today
     );
 
     return {
       weekEnding: timesheet.timesheetEnd, jobId: timesheet.jobId || '', timesheetId: timesheet.timesheetId,
       stafflineStatus: timesheet.classificationStatus, calendarExpectedHours: calendarHours,
-      stafflineSubmittedHours: null, payslipPaidHours: paymentLines.length ? paidHours : null,
+      stafflineSubmittedHours: stafflineHours,
+      stafflineDetailAvailable: stafflineHours !== null,
+      stafflineApprovedDate: detail ? detail.approvedDate : '',
+      stafflineApprovedBy: detail ? detail.approvedBy : '',
+      payslipPaidHours: paymentLines.length ? paidHours : null,
       payslipPaidAmount: paymentLines.length ? paidAmount : null,
-      calendarStatus: calendarStatus, paymentStatus: paymentStatus, discrepancyType: discrepancyType,
+      calendarStatus: calendarStatus, paymentStatus: paymentResult.status, discrepancyType: discrepancyType,
       payslipIds: PayTrackerStafflineReconciliationService.uniquePayslipIds_(paymentLines),
       calendarEventKeys: forJob.map(function(shift) { return shift.eventKey; }),
       gmailMessageId: timesheet.gmailMessageId, actionItemId: timesheet.actionItemId || '',
       reviewAction: PayTrackerStafflineReconciliationService.suggestReviewAction_(
-        calendarStatus, paymentStatus, discrepancyType
+        calendarStatus, paymentResult.status, discrepancyType, paymentResult.note
       )
     };
   },
@@ -143,7 +181,9 @@ const PayTrackerStafflineReconciliationService = Object.freeze({
       return {
         weekEnding: week.weekEnding, jobId: week.jobId, timesheetId: '',
         stafflineStatus: '', calendarExpectedHours: PayTrackerStafflineReconciliationService.sumHours_(week.shifts),
-        stafflineSubmittedHours: null, payslipPaidHours: null, payslipPaidAmount: null,
+        stafflineSubmittedHours: null, stafflineDetailAvailable: false,
+        stafflineApprovedDate: '', stafflineApprovedBy: '',
+        payslipPaidHours: null, payslipPaidAmount: null,
         calendarStatus: 'Missing from Staffline', paymentStatus: 'Needs Review',
         discrepancyType: 'Timesheet Discrepancy', payslipIds: [],
         calendarEventKeys: week.shifts.map(function(shift) { return shift.eventKey; }),
@@ -153,28 +193,153 @@ const PayTrackerStafflineReconciliationService = Object.freeze({
     });
   },
 
-  computeCalendarStatus_: function(timesheet, forJob, forOtherJob) {
+  /**
+   * Payment lines whose Timesheet Reference does not correspond to
+   * any known Staffline Timesheet at all -- paid for something that
+   * was (as far as this app knows) never approved. Only flagged for
+   * Staffline-relevant jobs so an unrelated payslip line never shows
+   * up here.
+   * @private
+   */
+  findUnexpectedPayments_: function(allPaymentLines, allTimesheets, jobIds) {
+    const knownIds = {};
+    allTimesheets.forEach(function(timesheet) {
+      knownIds[PayTrackerStafflineConfig.normalizeReference(timesheet.timesheetId)] = true;
+    });
+
+    const byReference = {};
+    allPaymentLines.forEach(function(line) {
+      const ref = line.normalizedTimesheetId;
+      if (!ref || knownIds[ref]) return;
+      if (!byReference[ref]) byReference[ref] = [];
+      byReference[ref].push(line);
+    });
+
+    return Object.keys(byReference).map(function(ref) {
+      const lines = byReference[ref];
+      return {
+        weekEnding: lines[0].workDate || '', jobId: lines[0].jobId || '', timesheetId: ref,
+        stafflineStatus: '', calendarExpectedHours: null,
+        stafflineSubmittedHours: null, stafflineDetailAvailable: false,
+        stafflineApprovedDate: '', stafflineApprovedBy: '',
+        payslipPaidHours: PayTrackerStafflineReconciliationService.sumUnits_(lines),
+        payslipPaidAmount: PayTrackerStafflineReconciliationService.sumAmount_(lines),
+        calendarStatus: 'Needs Review', paymentStatus: 'Unexpected Payment',
+        discrepancyType: 'Payroll Underpayment', payslipIds: PayTrackerStafflineReconciliationService.uniquePayslipIds_(lines),
+        calendarEventKeys: [], gmailMessageId: '', actionItemId: '',
+        reviewAction: 'Payslip paid Timesheet ' + ref + ' but no matching Staffline approval was ever imported -- confirm this was genuinely worked and approved.'
+      };
+    });
+  },
+
+  computeCalendarStatus_: function(timesheet, forJob, forOtherJob, calendarHours, stafflineHours) {
     if (timesheet.classificationStatus === 'Needs Review') return 'Needs Review';
     if (!forJob.length && forOtherJob.length) return 'Job Mismatch';
     if (!forJob.length) return 'Extra on Staffline';
+    if (stafflineHours !== null &&
+      Math.abs(calendarHours - stafflineHours) > PayTrackerStafflineConfig.HOURS_TOLERANCE) {
+      return 'Hours Differ';
+    }
     return 'Match';
   },
 
-  computePaymentStatus_: function(timesheet, paymentLines, calendarHours) {
-    if (timesheet.classificationStatus === 'Needs Review') return 'Needs Review';
-    if (!paymentLines.length) return 'Unpaid';
+  /**
+   * Staffline <-> Payslip comparison. expectedHours is Staffline's
+   * real submitted hours when known, Calendar's as a fallback (see
+   * reconcileTimesheet_) -- this function does not know or care
+   * which, it only compares against whatever it was given.
+   * @private
+   */
+  computePaymentStatus_: function(timesheet, detail, paymentLines, expectedHours, allPaymentLines) {
+    if (timesheet.classificationStatus === 'Needs Review') return { status: 'Needs Review' };
+
+    const duplicate = PayTrackerStafflineReconciliationService.findDuplicateLine_(paymentLines);
+    if (duplicate) {
+      return { status: 'Duplicate Payment', note: duplicate };
+    }
+
+    if (!paymentLines.length) return { status: 'Unpaid' };
+    if (!expectedHours) return { status: 'Needs Review' };
 
     const paidHours = PayTrackerStafflineReconciliationService.sumUnits_(paymentLines);
-    if (!calendarHours) return 'Needs Review';
+    const hoursMatch = Math.abs(paidHours - expectedHours) <= PayTrackerStafflineConfig.HOURS_TOLERANCE;
 
-    const hoursMatch = Math.abs(paidHours - calendarHours) <= PayTrackerStafflineConfig.HOURS_TOLERANCE;
+    const expectedCategories = detail && detail.rateCategories
+      ? String(detail.rateCategories).split(';').map(function(c) { return c.trim(); }).filter(Boolean)
+      : null;
+    const paidCategories = Array.from(new Set(paymentLines.map(function(line) { return String(line.payCategory || '').trim(); })));
+
     const anyLineNeedsReview = paymentLines.some(function(line) {
       return line.validationStatus && line.validationStatus !== 'MATCHED';
     });
 
-    if (hoursMatch && anyLineNeedsReview) return 'Wrong Rate';
-    if (hoursMatch) return 'Paid';
-    return paidHours < calendarHours ? 'Underpaid' : 'Overpaid';
+    // "Partially Paid": at least one whole rate category Staffline
+    // submitted never appears on any payslip line at all -- a
+    // stronger signal than a simple hours shortfall, since it names
+    // exactly which kind of work was never paid for.
+    if (expectedCategories && expectedCategories.length &&
+      !PayTrackerStafflineReconciliationService.sameCategoryFamily_(expectedCategories, paidCategories) &&
+      paidHours < expectedHours - PayTrackerStafflineConfig.HOURS_TOLERANCE) {
+      const missingCategories = expectedCategories.filter(function(category) {
+        return paidCategories.indexOf(category) === -1;
+      });
+      if (missingCategories.length) {
+        return { status: 'Partially Paid', note: 'Missing from the payslip: ' + missingCategories.join(', ') + '.' };
+      }
+    }
+
+    if (hoursMatch && anyLineNeedsReview) {
+      return { status: 'Wrong Rate', note: 'The payslip\'s own hours x rate does not match its stated amount.' };
+    }
+
+    if (hoursMatch && expectedCategories && expectedCategories.length) {
+      const categoriesDiffer = !PayTrackerStafflineReconciliationService.sameCategoryFamily_(expectedCategories, paidCategories);
+      if (categoriesDiffer) {
+        const bothEnhancement = expectedCategories.every(function(c) { return /^(Enhanced|Overtime)\b/i.test(c); }) &&
+          paidCategories.every(function(c) { return /^(Enhanced|Overtime)\b/i.test(c); });
+        return {
+          status: bothEnhancement ? 'Wrong Enhancement' : 'Wrong Rate',
+          note: 'Staffline: ' + expectedCategories.join(', ') + '. Payslip: ' + paidCategories.join(', ') + '.'
+        };
+      }
+    }
+
+    if (hoursMatch) return { status: 'Match' };
+    return { status: paidHours < expectedHours ? 'Underpaid' : 'Overpaid' };
+  },
+
+  /**
+   * True when the two category lists name the same set (order and
+   * duplicates ignored) -- used to decide whether Payslip paid under
+   * the categories Staffline actually submitted.
+   * @private
+   */
+  sameCategoryFamily_: function(expected, paid) {
+    const a = Array.from(new Set(expected)).sort();
+    const b = Array.from(new Set(paid)).sort();
+    if (a.length !== b.length) return false;
+    return a.every(function(value, index) { return value === b[index]; });
+  },
+
+  /**
+   * A real duplicate payment: the same Timesheet Reference,
+   * description and amount appearing on two different payslips --
+   * not just two lines within the same payslip (that's normal, e.g.
+   * two "Enhanced" rows for different rates).
+   * @private
+   */
+  findDuplicateLine_: function(paymentLines) {
+    const seen = {};
+    for (let index = 0; index < paymentLines.length; index += 1) {
+      const line = paymentLines[index];
+      const key = [line.description, line.units, line.rate, line.amount].join('|');
+      if (seen[key] && seen[key] !== line.payslipId) {
+        return 'The same line (' + line.description + ', ' + line.amount + ') was paid on both ' +
+          seen[key] + ' and ' + line.payslipId + '.';
+      }
+      seen[key] = line.payslipId;
+    }
+    return null;
   },
 
   /**
@@ -187,7 +352,7 @@ const PayTrackerStafflineReconciliationService = Object.freeze({
    */
   computeDiscrepancyType_: function(calendarStatus, paymentStatus, timesheet, today) {
     if (calendarStatus === 'Missing from Staffline' || calendarStatus === 'Extra on Staffline' ||
-      calendarStatus === 'Job Mismatch') {
+      calendarStatus === 'Job Mismatch' || calendarStatus === 'Hours Differ') {
       return 'Timesheet Discrepancy';
     }
     if (paymentStatus === 'Unpaid') {
@@ -195,24 +360,37 @@ const PayTrackerStafflineReconciliationService = Object.freeze({
       const daysSinceEnd = end ? Math.round((today.getTime() - end.getTime()) / 86400000) : 0;
       return daysSinceEnd <= 21 ? 'Delayed Payment' : 'Payroll Underpayment';
     }
-    if (paymentStatus === 'Underpaid' || paymentStatus === 'Overpaid' || paymentStatus === 'Wrong Rate') {
+    if (paymentStatus === 'Underpaid' || paymentStatus === 'Overpaid' || paymentStatus === 'Wrong Rate' ||
+      paymentStatus === 'Wrong Enhancement' || paymentStatus === 'Partially Paid' ||
+      paymentStatus === 'Duplicate Payment') {
       return 'Payroll Underpayment';
     }
     return 'None';
   },
 
-  suggestReviewAction_: function(calendarStatus, paymentStatus, discrepancyType) {
+  suggestReviewAction_: function(calendarStatus, paymentStatus, discrepancyType, note) {
     if (discrepancyType === 'None') return '';
     if (calendarStatus === 'Missing from Staffline') return 'Confirm the timesheet was submitted on the Staffline portal.';
     if (calendarStatus === 'Extra on Staffline') return 'Add the missing shift to Calendar, or confirm it was worked.';
     if (calendarStatus === 'Job Mismatch') return 'Check whether this timesheet was approved under the wrong job.';
+    if (calendarStatus === 'Hours Differ') return 'Calendar and the Staffline-submitted timesheet disagree on hours -- check which one is right before looking at the payslip.';
     if (calendarStatus === 'Needs Review') return 'Confirm which job this Staffline placement belongs to.';
     if (discrepancyType === 'Delayed Payment') return 'No action yet -- still within the normal payroll processing window.';
     if (paymentStatus === 'Unpaid') return 'Raise a Pay Adjustment -- no payslip line found for this timesheet.';
+    if (paymentStatus === 'Partially Paid') return 'Raise a Pay Adjustment. ' + (note || '');
     if (paymentStatus === 'Underpaid') return 'Raise a Pay Adjustment for the missing hours.';
     if (paymentStatus === 'Overpaid') return 'Confirm the extra hours were genuinely worked.';
-    if (paymentStatus === 'Wrong Rate') return 'Check the rate applied on the payslip against the expected rate.';
+    if (paymentStatus === 'Wrong Rate') return 'Check the rate applied on the payslip against Staffline. ' + (note || '');
+    if (paymentStatus === 'Wrong Enhancement') return 'The enhancement multiplier paid does not match Staffline. ' + (note || '');
+    if (paymentStatus === 'Duplicate Payment') return note || 'This line appears to have been paid twice.';
+    if (paymentStatus === 'Unexpected Payment') return 'Confirm this payment against a real, approved Staffline timesheet.';
     return 'Review manually.';
+  },
+
+  linesForTimesheet_: function(allPaymentLines, timesheetId) {
+    const target = PayTrackerStafflineConfig.normalizeReference(timesheetId);
+    if (!target) return [];
+    return allPaymentLines.filter(function(line) { return line.normalizedTimesheetId === target; });
   },
 
   sumHours_: function(shifts) {

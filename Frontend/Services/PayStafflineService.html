@@ -25,6 +25,42 @@
 
       const refreshButton = root.querySelector('[data-staffline-refresh-button]');
       if (refreshButton) refreshButton.addEventListener('click', function() { service.load(true); });
+
+      const syncActionsButton = root.querySelector('[data-staffline-sync-actions-button]');
+      if (syncActionsButton) syncActionsButton.addEventListener('click', function() { service.syncActions(); });
+    },
+
+    syncActions: function() {
+      PayTrackerAppController.runServerFunction('syncPayTrackerStafflineDiscrepancies', { dryRun: true })
+        .then(function(preview) {
+          if (preview.created === 0) {
+            PayTrackerAppController.showToast(
+              'Nothing new to send -- ' + preview.alreadyOpen + ' already open, ' +
+              preview.skippedAmbiguous + ' need review first.',
+              'success'
+            );
+            return null;
+          }
+
+          const confirmed = windowObject.confirm(
+            'This will create ' + preview.created + ' new Action Centre item(s) ' +
+            '(' + preview.alreadyOpen + ' already open, ' + preview.skippedAmbiguous + ' skipped as needs-review-first). ' +
+            'Continue?'
+          );
+          if (!confirmed) return null;
+
+          return PayTrackerAppController.runServerFunction('syncPayTrackerStafflineDiscrepancies', { dryRun: false });
+        })
+        .then(function(result) {
+          if (!result) return;
+          PayTrackerAppController.showToast(
+            'Action Centre synced: ' + result.created + ' new, ' + result.alreadyOpen + ' already open.',
+            'success'
+          );
+        })
+        .catch(function(error) {
+          PayTrackerAppController.showToast(PayTrackerAppController.getErrorMessage(error), 'error');
+        });
     },
 
     runScan: function(formData, dryRun) {
@@ -84,7 +120,7 @@
           row.timesheetId || '',
           row.stafflineStatus || '',
           service.formatHours(row.calendarExpectedHours),
-          service.formatHours(row.stafflineSubmittedHours, 'n/a'),
+          service.formatHours(row.stafflineSubmittedHours, 'Unavailable'),
           service.formatHours(row.payslipPaidHours),
           service.formatMoney(row.payslipPaidAmount),
           row.calendarStatus || '',
@@ -96,6 +132,17 @@
         cells.forEach(function(value, index) {
           const td = documentObject.createElement('td');
           td.textContent = value;
+          if (index === 3 && (row.stafflineApprovedDate || row.stafflineApprovedBy)) {
+            td.title = 'Approved ' + (row.stafflineApprovedDate || '?') +
+              (row.stafflineApprovedBy ? ' by ' + row.stafflineApprovedBy : '') +
+              ' (from the real Staffline portal history).';
+          }
+          if (index === 5) {
+            td.setAttribute('data-staffline-detail-available', row.stafflineDetailAvailable ? 'true' : 'false');
+            if (!row.stafflineDetailAvailable) {
+              td.title = 'No real Staffline portal detail has been imported for this timesheet yet -- this is not Calendar\'s figure relabelled.';
+            }
+          }
           if (index === 10) td.setAttribute('data-staffline-discrepancy', row.discrepancyType || '');
           tr.appendChild(td);
         });

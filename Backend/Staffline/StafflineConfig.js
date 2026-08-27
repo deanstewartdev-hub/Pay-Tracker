@@ -1,12 +1,22 @@
 /*******************************************************
- * PAY TRACKER V3.0 - Staffline reconciliation config.
+ * PAY TRACKER V3.1 - Staffline reconciliation config.
  *
  * Phase 3: Google Calendar -> Staffline approved timesheet ->
  * Payslip payment line -> predicted vs actual pay -> discrepancy.
  *
- * Two additive sheets:
+ * Three additive sheets:
  * - Staffline Timesheets: one row per Gmail "Timesheet Approved"
- *   email (metadata only -- the portal itself is not scraped).
+ *   email (metadata -- placement, client, date range, approver).
+ * - Staffline Timesheet Details: one row per Timesheet ID,
+ *   populated from the real Staffline portal (read-only). Apps
+ *   Script itself cannot reach the authenticated portal -- there
+ *   is no stored credential and none will ever be stored -- so
+ *   this sheet is populated interactively (a human/assistant
+ *   browses the portal with a real session and calls the import
+ *   function with what was actually observed), never by an
+ *   automated scan the way Gmail import works. See
+ *   StafflineTimesheetDetailRepository.js for exactly which
+ *   fields the real portal reliably exposes.
  * - Staffline Payment Lines: one row per payslip payment-table
  *   line, extended from the existing whole-payslip Payslip
  *   Register (Backend/Payroll/PayslipRepository.gs), which only
@@ -14,7 +24,7 @@
  *
  * Reconciliation itself is never stored -- it is computed live
  * from Calendar-owned shifts (CalendarSyncRepository), the Job
- * Registry's stafflineReferences, this module's two sheets and
+ * Registry's stafflineReferences, this module's three sheets and
  * the Payslip Register, the same "nothing stored, nothing
  * estimated" approach already used by AnalyticsService.js.
  *******************************************************/
@@ -39,6 +49,14 @@ const PayTrackerStafflineConfig = Object.freeze({
         'Created At', 'Updated At'
       ])
     }),
+    STAFFLINE_TIMESHEET_DETAILS: Object.freeze({
+      NAME: 'Staffline Timesheet Details',
+      HEADERS: Object.freeze([
+        'Timesheet ID', 'Submitted Hours', 'Rate Unit', 'Rate Categories',
+        'Portal Status', 'Submitted Date', 'Approved Date', 'Approved By',
+        'Source', 'Source URL', 'Imported At', 'Manual Override', 'Notes'
+      ])
+    }),
     STAFFLINE_PAYMENT_LINES: Object.freeze({
       NAME: 'Staffline Payment Lines',
       HEADERS: Object.freeze([
@@ -60,8 +78,9 @@ const PayTrackerStafflineConfig = Object.freeze({
 
   // Reconciliation status vocabulary -- Staffline <-> Payslip side.
   PAYMENT_MATCH_STATUSES: Object.freeze([
-    'Paid', 'Unpaid', 'Underpaid', 'Overpaid', 'Wrong Rate', 'Delayed Payment',
-    'Needs Review'
+    'Match', 'Unpaid', 'Partially Paid', 'Underpaid', 'Overpaid', 'Wrong Rate',
+    'Wrong Enhancement', 'Delayed Payment', 'Duplicate Payment',
+    'Unexpected Payment', 'Needs Review'
   ]),
 
   // Combined three-way diagnosis -- what KIND of problem, distinguishing
