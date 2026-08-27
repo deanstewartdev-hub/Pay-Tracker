@@ -2977,11 +2977,22 @@
             Timesheets
           </h3>
           <p class="pay-analytics__description">
-            Every Staffline-approved timesheet next to what Calendar expected
-            and what the payslip actually paid, so it is obvious where in the
-            chain a mismatch happened. The Staffline portal itself is never
-            scraped -- "Staffline submitted hours" is left blank when the
-            approval email does not carry a figure, rather than guessed.
+            Every Staffline-approved timesheet next to what Calendar expected,
+            what Staffline itself says was submitted, and what the payslip
+            actually paid -- so it is obvious which link in the chain a
+            mismatch happened in. "Staffline Submitted" hours come only from
+            a real, read-only, human-reviewed look at the Staffline portal
+            for that specific timesheet (Apps Script cannot sign in to
+            Staffline itself, so this is not an automatic recurring scan).
+            Where that has not been done for a timesheet yet, this column
+            reads "Unavailable" rather than silently showing Calendar's
+            figure as if it came from Staffline. Likewise, "Payroll Paid"
+            depends on the payslip PDF pipeline (Payslips tab) having
+            actually extracted that payslip's line-by-line detail -- until
+            a payslip's lines are imported, its timesheets will correctly
+            read as unpaid here even if they were genuinely paid, so a
+            wave of "Unpaid" rows most likely means payslip lines are
+            still pending import, not a real payroll problem.
           </p>
         </div>
       </header>
@@ -3018,6 +3029,9 @@
         <button type="button" class="button" data-staffline-refresh-button>
           Refresh
         </button>
+        <button type="button" class="button" data-staffline-sync-actions-button>
+          Send discrepancies to Action Centre
+        </button>
       </div>
 
       <div class="pay-table-wrap">
@@ -3028,10 +3042,10 @@
               <th>Job</th>
               <th>Timesheet ID</th>
               <th>Staffline Status</th>
-              <th>Calendar Hours</th>
-              <th>Staffline Hours</th>
-              <th>Payslip Hours</th>
-              <th>Payslip Paid</th>
+              <th>Calendar Expected</th>
+              <th>Staffline Submitted</th>
+              <th>Payroll Paid (hrs)</th>
+              <th>Payroll Paid (£)</th>
               <th>Calendar Match</th>
               <th>Payment Status</th>
               <th>Discrepancy</th>

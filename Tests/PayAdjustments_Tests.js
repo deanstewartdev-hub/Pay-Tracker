@@ -29,8 +29,20 @@ function runPayAdjustmentsTests() {
     })
   );
 
+  // create() always appends a new permanent row (no upsert/dedup --
+  // this is a deliberate audit-trail ledger, see README) and
+  // getUnresolved()/getSummaryForJob() are correctly scoped by
+  // jobId but not by test run. A fixed 'JOB-TEST' id would
+  // accumulate one more permanently-unresolved row every time this
+  // suite runs against the same live spreadsheet, so a later run's
+  // getUnresolved('JOB-TEST') would find a *previous* run's leftover
+  // row and fail even though nothing is actually wrong. A fresh,
+  // real Utilities.getUuid()-suffixed id per run keeps every run's
+  // data -- and its assertions -- fully self-contained.
+  const testJobId = 'JOB-TEST-' + Utilities.getUuid();
+
   const adjustment = PayTrackerPayAdjustmentsRepository.create({
-    jobId: 'JOB-TEST', adjustmentType: 'Missing Basic Hours',
+    jobId: testJobId, adjustmentType: 'Missing Basic Hours',
     missingHours: 4, missingAmount: 50.84, expectedRate: 12.71
   });
   check('a new adjustment starts as Identified', adjustment.adjustmentStatus === 'Identified');
@@ -52,15 +64,15 @@ function runPayAdjustmentsTests() {
     full.adjustmentStatus === 'Recovered' && full.recoveredHours === 4
   );
 
-  const rejected = PayTrackerPayAdjustmentsRepository.create({ jobId: 'JOB-TEST', missingAmount: 10 });
+  const rejected = PayTrackerPayAdjustmentsRepository.create({ jobId: testJobId, missingAmount: 10 });
   PayTrackerPayAdjustmentsRepository.update(rejected.adjustmentId, { adjustmentStatus: 'Rejected' });
-  const unresolvedAfterBoth = PayTrackerPayAdjustmentsRepository.getUnresolved('JOB-TEST');
+  const unresolvedAfterBoth = PayTrackerPayAdjustmentsRepository.getUnresolved(testJobId);
   check('Recovered and Rejected adjustments never count as unresolved',
     unresolvedAfterBoth.length === 0
   );
 
-  PayTrackerPayAdjustmentsRepository.create({ jobId: 'JOB-TEST', missingAmount: 30 });
-  const summary = PayTrackerPayAdjustmentsSummaryService.getSummaryForJob('JOB-TEST');
+  PayTrackerPayAdjustmentsRepository.create({ jobId: testJobId, missingAmount: 30 });
+  const summary = PayTrackerPayAdjustmentsSummaryService.getSummaryForJob(testJobId);
   check('summary outstanding total excludes terminal-status adjustments',
     summary.outstandingAmount === 30
   );

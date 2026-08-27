@@ -1,9 +1,9 @@
 /*******************************************************
- * PAY TRACKER V3.0
+ * PAY TRACKER V3.1
  * Idempotent Staffline reconciliation setup.
  *
  * Additive only:
- * - Creates the two new sheets (never touches existing sheets'
+ * - Creates the three new sheets (never touches existing sheets'
  *   columns or data).
  * - Backfills each known job's stafflineReferences ONLY when it
  *   is still blank -- a manually-edited value is never touched.
@@ -29,6 +29,7 @@ const PayTrackerStafflineSetupService = Object.freeze({
   // the column to plain-text format is the standard fix.
   TEXT_FORMAT_COLUMNS: Object.freeze({
     'Staffline Timesheets': ['Timesheet ID'],
+    'Staffline Timesheet Details': ['Timesheet ID'],
     'Staffline Payment Lines': ['Normalized Timesheet ID']
   }),
 

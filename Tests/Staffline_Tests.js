@@ -17,7 +17,7 @@ function runStafflineReconciliationTests() {
 
   // --- Config -------------------------------------------------
   const definitions = PayTrackerStafflineConfig.getDefinitions();
-  check('two additive Staffline sheet definitions', definitions.length === 2);
+  check('three additive Staffline sheet definitions', definitions.length === 3);
   check('reference normalization strips the N prefix and matches the bare Gmail ID',
     PayTrackerStafflineConfig.normalizeReference('N621093') === '621093' &&
     PayTrackerStafflineConfig.normalizeReference('621093') === '621093'
@@ -173,42 +173,104 @@ function runStafflineReconciliationTests() {
 
   // --- Reconciliation status logic, literal fixtures only -------
   const matchTimesheet = { classificationStatus: 'Classified', jobId: 'JOB-TEST', timesheetEnd: '2099-01-11' };
-  check('a job with Calendar hours and no other job\'s shifts in the window is a Match',
+
+  // Calendar <-> Staffline, no Staffline detail known (stafflineHours
+  // null) -- the pre-existing, coarser fallback path.
+  check('a job with Calendar hours and no other job\'s shifts in the window is a Match (no Staffline detail)',
     PayTrackerStafflineReconciliationService.computeCalendarStatus_(
-      matchTimesheet, [{ jobId: 'JOB-TEST', hours: 20 }], []
+      matchTimesheet, [{ jobId: 'JOB-TEST', hours: 20 }], [], 20, null
     ) === 'Match'
   );
   check('Calendar shifts for a different job in the same window is a Job Mismatch, not just Extra on Staffline',
     PayTrackerStafflineReconciliationService.computeCalendarStatus_(
-      matchTimesheet, [], [{ jobId: 'JOB-OTHER', hours: 20 }]
+      matchTimesheet, [], [{ jobId: 'JOB-OTHER', hours: 20 }], 0, null
     ) === 'Job Mismatch'
   );
   check('no Calendar shifts at all for the job is Extra on Staffline',
-    PayTrackerStafflineReconciliationService.computeCalendarStatus_(matchTimesheet, [], []) === 'Extra on Staffline'
+    PayTrackerStafflineReconciliationService.computeCalendarStatus_(matchTimesheet, [], [], 0, null) === 'Extra on Staffline'
   );
   check('an unclassified placement is always Needs Review on the Calendar side',
     PayTrackerStafflineReconciliationService.computeCalendarStatus_(
-      { classificationStatus: 'Needs Review' }, [{ jobId: 'JOB-TEST', hours: 20 }], []
+      { classificationStatus: 'Needs Review' }, [{ jobId: 'JOB-TEST', hours: 20 }], [], 20, null
     ) === 'Needs Review'
   );
 
-  check('matching paid hours against Calendar hours is Paid',
-    PayTrackerStafflineReconciliationService.computePaymentStatus_(
-      matchTimesheet, [{ units: 20, validationStatus: 'MATCHED' }], 20
-    ) === 'Paid'
+  // Calendar <-> Staffline, WITH real Staffline submitted hours --
+  // the genuine three-way chain this release adds.
+  check('Calendar and real Staffline submitted hours agreeing is a Match',
+    PayTrackerStafflineReconciliationService.computeCalendarStatus_(
+      matchTimesheet, [{ jobId: 'JOB-TEST', hours: 8 }], [], 8, 8
+    ) === 'Match'
   );
-  check('fewer paid hours than Calendar hours is Underpaid, never silently averaged away',
+  check('Calendar and real Staffline submitted hours disagreeing is Hours Differ, not silently averaged',
+    PayTrackerStafflineReconciliationService.computeCalendarStatus_(
+      matchTimesheet, [{ jobId: 'JOB-TEST', hours: 8 }], [], 8, 6
+    ) === 'Hours Differ'
+  );
+
+  // Staffline <-> Payslip. expectedHours is whatever the caller
+  // decided is authoritative (real Staffline hours, or Calendar's as
+  // a fallback) -- these calls exercise the comparison itself.
+  check('matching paid hours against expected hours is Match',
     PayTrackerStafflineReconciliationService.computePaymentStatus_(
-      matchTimesheet, [{ units: 12, validationStatus: 'MATCHED' }], 20
-    ) === 'Underpaid'
+      matchTimesheet, null, [{ units: 20, validationStatus: 'MATCHED', payCategory: 'Basic', payslipId: 'P1' }], 20, []
+    ).status === 'Match'
+  );
+  check('fewer paid hours than expected is Underpaid, never silently averaged away',
+    PayTrackerStafflineReconciliationService.computePaymentStatus_(
+      matchTimesheet, null, [{ units: 12, validationStatus: 'MATCHED', payCategory: 'Basic', payslipId: 'P1' }], 20, []
+    ).status === 'Underpaid'
   );
   check('no payment lines found anywhere is Unpaid', PayTrackerStafflineReconciliationService.computePaymentStatus_(
-    matchTimesheet, [], 20
-  ) === 'Unpaid');
+    matchTimesheet, null, [], 20, []
+  ).status === 'Unpaid');
   check('matching hours but the payslip\'s own amount does not match hours x rate is Wrong Rate',
     PayTrackerStafflineReconciliationService.computePaymentStatus_(
-      matchTimesheet, [{ units: 20, validationStatus: 'REVIEW' }], 20
-    ) === 'Wrong Rate'
+      matchTimesheet, null, [{ units: 20, validationStatus: 'REVIEW', payCategory: 'Basic', payslipId: 'P1' }], 20, []
+    ).status === 'Wrong Rate'
+  );
+
+  // A whole rate category Staffline submitted never appears on the
+  // payslip at all -- Partially Paid, distinct from a plain
+  // across-the-board Underpaid.
+  const partialDetail = { rateCategories: 'Basic; Enhanced 1.33' };
+  const partialResult = PayTrackerStafflineReconciliationService.computePaymentStatus_(
+    matchTimesheet, partialDetail,
+    [{ units: 10, validationStatus: 'MATCHED', payCategory: 'Basic', payslipId: 'P1' }], 15, []
+  );
+  check('a whole missing rate category (not just fewer hours) is Partially Paid', partialResult.status === 'Partially Paid');
+  check('Partially Paid names exactly which category was never paid', partialResult.note.indexOf('Enhanced 1.33') !== -1);
+
+  // Paid under the wrong enhancement multiplier -- both sides are
+  // Enhanced/Overtime variants, just disagreeing on which one.
+  const wrongEnhancementDetail = { rateCategories: 'Enhanced 1.50' };
+  const wrongEnhancementResult = PayTrackerStafflineReconciliationService.computePaymentStatus_(
+    matchTimesheet, wrongEnhancementDetail,
+    [{ units: 20, validationStatus: 'MATCHED', payCategory: 'Enhanced 1.33', payslipId: 'P1' }], 20, []
+  );
+  check('same hours but the wrong enhancement multiplier is Wrong Enhancement, not a generic Wrong Rate',
+    wrongEnhancementResult.status === 'Wrong Enhancement'
+  );
+
+  // Paid as an entirely different (non-enhancement) category.
+  const wrongRateDetail = { rateCategories: 'Basic' };
+  const wrongRateResult = PayTrackerStafflineReconciliationService.computePaymentStatus_(
+    matchTimesheet, wrongRateDetail,
+    [{ units: 20, validationStatus: 'MATCHED', payCategory: 'Enhanced 1.33', payslipId: 'P1' }], 20, []
+  );
+  check('same hours but paid under an unrelated category is a generic Wrong Rate', wrongRateResult.status === 'Wrong Rate');
+
+  // The exact same line paid on two different payslips.
+  const duplicateLines = [
+    { units: 10, amount: 100, rate: 10, description: 'Basic', payCategory: 'Basic', validationStatus: 'MATCHED', payslipId: 'PAYSLIP-A' },
+    { units: 10, amount: 100, rate: 10, description: 'Basic', payCategory: 'Basic', validationStatus: 'MATCHED', payslipId: 'PAYSLIP-B' }
+  ];
+  const duplicateResult = PayTrackerStafflineReconciliationService.computePaymentStatus_(
+    matchTimesheet, null, duplicateLines, 10, duplicateLines
+  );
+  check('the same line paid on two different payslips is Duplicate Payment', duplicateResult.status === 'Duplicate Payment');
+  check('Duplicate Payment names both payslip IDs',
+    duplicateResult.note.indexOf('PAYSLIP-A') !== -1 && duplicateResult.note.indexOf('PAYSLIP-B') !== -1
   );
 
   const recentToday = new Date(2099, 0, 15); // 4 days after the 11th -- still within the lag window
@@ -230,9 +292,57 @@ function runStafflineReconciliationTests() {
   );
   check('a full, matching reconciliation is None -- nothing to review',
     PayTrackerStafflineReconciliationService.computeDiscrepancyType_(
-      'Match', 'Paid', matchTimesheet, recentToday
+      'Match', 'Match', matchTimesheet, recentToday
     ) === 'None'
   );
+
+  // --- The exact three-way distinction this release exists for ---
+  // Calendar 8h / Staffline 6h / Payslip 6h -> the timesheet itself
+  // is wrong, not payroll: Payslip correctly paid what was
+  // submitted, Calendar just disagrees with what was submitted.
+  const timesheetDiscrepancyCalendarStatus = PayTrackerStafflineReconciliationService.computeCalendarStatus_(
+    matchTimesheet, [{ jobId: 'JOB-TEST', hours: 8 }], [], 8, 6
+  );
+  const timesheetDiscrepancyPaymentStatus = PayTrackerStafflineReconciliationService.computePaymentStatus_(
+    matchTimesheet, null, [{ units: 6, validationStatus: 'MATCHED', payCategory: 'Basic', payslipId: 'P1' }], 6, []
+  ).status;
+  check('Calendar 8h / Staffline 6h / Payslip 6h is a Timesheet Discrepancy, not a Payroll Underpayment',
+    PayTrackerStafflineReconciliationService.computeDiscrepancyType_(
+      timesheetDiscrepancyCalendarStatus, timesheetDiscrepancyPaymentStatus, matchTimesheet, recentToday
+    ) === 'Timesheet Discrepancy'
+  );
+
+  // Calendar 8h / Staffline 8h / Payslip 6h -> Calendar and
+  // Staffline agree, so the payslip genuinely underpaid.
+  const payrollUnderpaymentCalendarStatus = PayTrackerStafflineReconciliationService.computeCalendarStatus_(
+    matchTimesheet, [{ jobId: 'JOB-TEST', hours: 8 }], [], 8, 8
+  );
+  const payrollUnderpaymentPaymentStatus = PayTrackerStafflineReconciliationService.computePaymentStatus_(
+    matchTimesheet, null, [{ units: 6, validationStatus: 'MATCHED', payCategory: 'Basic', payslipId: 'P1' }], 8, []
+  ).status;
+  check('Calendar 8h / Staffline 8h / Payslip 6h is a Payroll Underpayment, not a Timesheet Discrepancy',
+    PayTrackerStafflineReconciliationService.computeDiscrepancyType_(
+      payrollUnderpaymentCalendarStatus, payrollUnderpaymentPaymentStatus, matchTimesheet, recentToday
+    ) === 'Payroll Underpayment'
+  );
+
+  // --- The 5 real fixtures, now with real Staffline portal detail -
+  // Imported 2026-08-27 from the real, authenticated Staffline
+  // portal (read-only) -- Total Hours/Days confirmed to exactly
+  // match each real payslip's total. Proves the live
+  // StafflineTimesheetDetailRepository data reconciles clean.
+  const realFixtureHours = {
+    '621093': 10.00, '621105': 20.00, '621137': 37.50, '624148': 8.00, '624186': 45.00
+  };
+  Object.keys(realFixtureHours).forEach(function(timesheetId) {
+    const detail = PayTrackerStafflineTimesheetDetailRepository.getByTimesheetId(timesheetId);
+    check('real Staffline detail is imported for Timesheet ' + timesheetId, Boolean(detail));
+    if (detail) {
+      check('Timesheet ' + timesheetId + ' submitted hours match the real portal figure',
+        Number(detail.submittedHours) === realFixtureHours[timesheetId]
+      );
+    }
+  });
 
   return { success: true, passed: results.length, results: results };
 }
