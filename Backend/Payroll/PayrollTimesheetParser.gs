@@ -210,37 +210,42 @@ const PayTrackerPayrollTimesheetParser = Object.freeze({
     const compactText =
       String(text || '');
 
-    const patterns = [
-      /week\s+ending\s+timesheet\s+description\s+units\s+rate\s+amount\s+([\s\S]*?)hrs\s+accrued/i,
+    /*
+     * Real Staffline payslips abbreviate the header to "Wk Ending"
+     * (not "Week Ending"), so the header match must not require the
+     * full word. The section ends at "TOTAL PAY" or "TOTAL
+     * PAYMENTS" -- both real template variants use one of these
+     * immediately after the last payment row, unlike "hrs accrued"
+     * / "pay to date", which do not reliably appear there.
+     */
+    const headerMatch =
+      compactText.match(
+        /wk\s+ending\s+timesheet\s+description\s+units\s+rate\s+amount/i
+      );
 
-      /week\s+ending\s+timesheet\s+description\s+units\s+rate\s+amount\s+([\s\S]*?)total\s+pay/i,
-
-      /timesheet\s+description\s+units\s+rate\s+amount\s+([\s\S]*?)pay\s+to\s+date/i
-    ];
-
-    for (
-      let index = 0;
-      index < patterns.length;
-      index += 1
-    ) {
-      const match =
-        compactText.match(
-          patterns[index]
-        );
-
-      if (
-        match &&
-        match[1]
-      ) {
-        return String(
-          match[1]
-        )
-          .replace(/\s+/g, ' ')
-          .trim();
-      }
+    if (!headerMatch) {
+      return '';
     }
 
-    return '';
+    const afterHeader =
+      compactText.slice(
+        headerMatch.index +
+        headerMatch[0].length
+      );
+
+    const endMatch =
+      afterHeader.match(
+        /total\s+pay(?:ments)?\b/i
+      );
+
+    const section =
+      endMatch
+        ? afterHeader.slice(0, endMatch.index)
+        : afterHeader;
+
+    return section
+      .replace(/\s+/g, ' ')
+      .trim();
   },
 
   /**
@@ -258,67 +263,130 @@ const PayTrackerPayrollTimesheetParser = Object.freeze({
       String(section || '');
 
     /*
-     * Each row begins with a date and reference.
-     * The description may contain words, punctuation and
-     * an enhancement multiplier.
+     * Real Staffline payslips come in two templates. One
+     * interleaves each payment row's own deduction-column text
+     * onto the same line (e.g. "...136.90 Tax 157.60..."); the
+     * other leaves a description that legitimately embeds its own
+     * decimal number (e.g. "Enhanced 1.33" is the full description,
+     * immediately followed by the real Units/Rate/Amount columns
+     * "4.00 17.92 71.68"). A single row-wide regex with a trailing
+     * lookahead for "next date or end of string" cannot resolve
+     * either case reliably -- confirmed against real payslip text,
+     * where it silently dropped or corrupted rows.
+     *
+     * Instead: find every row's start (date + reference) first,
+     * slice the text between consecutive starts (so each slice
+     * holds exactly one row, plus any trailing junk after its real
+     * amount), then greedily match "description + 3 trailing
+     * decimal numbers" from the start of that slice with no end
+     * anchor. Greedy backtracking naturally prefers the rightmost
+     * valid 3-number window, which is always the true data columns
+     * -- trailing deduction text after them is simply left
+     * unconsumed, and a description-embedded number never has two
+     * more genuine columns following it the way the real columns
+     * do.
      */
-    const rowPattern =
-      /(\d{1,2}\/\d{1,2}\/\d{4})\s+([A-Z0-9/-]{3,30})\s+([\s\S]*?)\s+([0-9]+(?:\.\d{1,2})?)\s+([0-9]+(?:\.\d{2}))\s+([0-9,]+(?:\.\d{2}))(?=\s+\d{1,2}\/\d{1,2}\/\d{4}\s+[A-Z0-9/-]{3,30}\s+|$)/gi;
+    const startPattern =
+      /(\d{1,2}\/\d{1,2}\/\d{4})\s+([A-Z0-9]{3,15})\s+/gi;
 
-    const entries = [];
+    const starts = [];
 
-    let match;
+    let startMatch;
 
     while (
       (
-        match =
-          rowPattern.exec(text)
+        startMatch =
+          startPattern.exec(text)
       ) !== null
     ) {
+      starts.push({
+        index: startMatch.index,
+        date: startMatch[1],
+        reference: startMatch[2],
+        afterIndex: startPattern.lastIndex
+      });
+    }
+
+    const fieldPattern =
+      /^([\s\S]*)\s+([0-9]+(?:\.\d{1,2})?)\s+([0-9]+\.\d{2})\s+([0-9,]+\.\d{2})/;
+
+    const entries = [];
+
+    starts.forEach(function(start, index) {
+      const sliceEnd =
+        index + 1 < starts.length
+          ? starts[index + 1].index
+          : text.length;
+
+      const body =
+        text
+          .slice(
+            start.afterIndex,
+            sliceEnd
+          )
+          .trim();
+
+      const fieldMatch =
+        body.match(
+          fieldPattern
+        );
+
       const description =
         PayTrackerPayrollTimesheetParser
           .cleanDescription_(
-            match[3]
+            fieldMatch
+              ? fieldMatch[1]
+              : body
           );
 
-      const entry = {
+      const hours =
+        fieldMatch
+          ? PayTrackerPayrollTimesheetParser
+              .toNullableNumber_(
+                fieldMatch[2]
+              )
+          : null;
+
+      const rate =
+        fieldMatch
+          ? PayTrackerPayrollTimesheetParser
+              .toNullableMoney_(
+                fieldMatch[3]
+              )
+          : null;
+
+      const amount =
+        fieldMatch
+          ? PayTrackerPayrollTimesheetParser
+              .toNullableMoney_(
+                fieldMatch[4]
+              )
+          : null;
+
+      entries.push({
         sequence:
           entries.length + 1,
 
         workDate:
           PayTrackerPayrollTimesheetParser
             .normaliseDate_(
-              match[1]
+              start.date
             ),
 
         workDateDisplay:
-          match[1],
+          start.date,
 
         reference:
           String(
-            match[2] || ''
+            start.reference || ''
           ).trim(),
 
         description:
           description,
 
-        hours:
-          PayTrackerPayrollTimesheetParser
-            .toNullableNumber_(
-              match[4]
-            ),
-
-        rate:
-          PayTrackerPayrollTimesheetParser
-            .toNullableMoney_(
-              match[5]
-            ),
-
-        amount:
-          PayTrackerPayrollTimesheetParser
-            .toNullableMoney_(
-              match[6]
-            ),
+        hours: hours,
+        rate: rate,
+        amount: amount,
 
         enhancement:
           PayTrackerPayrollTimesheetParser
@@ -348,35 +416,12 @@ const PayTrackerPayrollTimesheetParser = Object.freeze({
         validation:
           PayTrackerPayrollTimesheetParser
             .validateEntry_({
-              hours:
-                PayTrackerPayrollTimesheetParser
-                  .toNullableNumber_(
-                    match[4]
-                  ),
-
-              rate:
-                PayTrackerPayrollTimesheetParser
-                  .toNullableMoney_(
-                    match[5]
-                  ),
-
-              amount:
-                PayTrackerPayrollTimesheetParser
-                  .toNullableMoney_(
-                    match[6]
-                  )
+              hours: hours,
+              rate: rate,
+              amount: amount
             })
-      };
-
-      entries.push(entry);
-
-      if (
-        match.index ===
-        rowPattern.lastIndex
-      ) {
-        rowPattern.lastIndex += 1;
-      }
-    }
+      });
+    });
 
     return entries;
   },

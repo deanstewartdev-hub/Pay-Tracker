@@ -1,6 +1,6 @@
 # Pay Tracker
 
-**Current Version:** 3.0.9
+**Current Version:** 3.1.0
 
 ## Status
 
@@ -8,7 +8,7 @@
 
 ## Development Stage
 
-Active Development — v3 roadmap Phases 1, 2, 4, 5, 6, 7, 8, 9 and 10 implemented (reconciliation foundation, navigation redesign, Annual Leave engine, Gmail Annual Leave import, Pay Adjustments ledger, Money Movements ledger, Transaction Matching Rules, Ledger Analytics, production hardening). Phase 3 (Staffline) is blocked pending real Staffline export data -- the only roadmap phase not yet implemented.
+v3 roadmap complete — all ten phases implemented (reconciliation foundation, navigation redesign, Annual Leave engine, Gmail Annual Leave import, Staffline reconciliation, Pay Adjustments ledger, Money Movements ledger, Transaction Matching Rules, Ledger Analytics, production hardening).
 
 ## Version note
 
@@ -36,13 +36,17 @@ Pay/Calendar, Finance (bills/debts), Finance Integration (Monzo bank connection,
 
 ## Next milestone
 
-The v3 roadmap's Phases 1–2 and 4–10 are complete. The only remaining phase is Phase 3 (Staffline schedule/timesheet import and three-way reconciliation), blocked pending real Staffline export data -- there is nothing further to build until that data is available.
+All ten phases of the v3 roadmap are complete as of v3.1.0. There is no next roadmap milestone; further work is either a deferred follow-up (below) or a new initiative.
 
-v3.0.9 is a maintenance release only -- no new roadmap work. It packages three things merged to `main` after the v3.0.8 release/promotion: a version-string correction (the code constants were still reporting 3.0.8's predecessor after that release shipped), route-scoped initial workspace loading for Finance/Savings/Calendar/Settings/Reports/Life Goals/Analytics (each now only loads its own data when it's actually the visible page, instead of every workspace loading on every page view), and a guarded, tested cleanup utility for the Bank Transactions cosmetic artifact below. Dashboard intentionally keeps its original loading behaviour -- the same route-scoping fix regressed its first load and was reverted rather than shipped unverified.
+v3.1.0 builds Phase 3: Google Calendar → Staffline approved timesheet → payslip payment line reconciliation, unblocked once real Staffline Gmail approval emails and real payslip PDFs became available. New: a read-only Gmail importer for "Timesheet Approved" emails (Staffline Timesheets ledger, deduplicated by Timesheet ID); a fix to the existing (previously unused, and broken against real Staffline text) per-line payslip parser, now wired into the Payroll Centre's processing pipeline to populate a new Staffline Payment Lines ledger; Calendar↔Staffline↔Payslip three-way reconciliation, computed live (nothing stored, nothing estimated -- same approach as Ledger Analytics); a new "Timesheets" tab on the Pay workspace; and Action Centre/Pay Adjustments integration for anything unresolved. Validated against 5 real timesheets (Timesheet IDs 621093, 621105, 621137, 624148, 624186) and, live, an 80-email real Gmail backfill (0 errors, 0 needing review) -- see `docs/Changelog.md` for the full account, including two real, pre-existing issues found and fixed along the way (a Sheets numeric-string auto-conversion gotcha, and a `toKey()` header-parsing edge case with parentheses) and one found but deliberately left alone (see "Known blocker" below).
 
 Production promotion is a deliberate step, gated on the checks documented in this release's PR -- it is not something any automated session does without those checks passing first.
 
-Deferred follow-ups, all named in their owning phase's UI or docs rather than silently dropped: Phase 7's account-balance import and automatic Money Movement creation from confirmed bank matches; Phase 8's fuel-budget-style category-vs-budget tracking and any automatic (Auto Confirm) rule application; Phase 9's Staffline-based accuracy metrics (blocked with Phase 3), fuel-budget-vs-actual and Monzo pot-level flow detail.
+Deferred follow-ups, all named in their owning phase's UI or docs rather than silently dropped: Phase 3's Staffline portal detail-level scraping (no authenticated session was available this round -- see `docs/Changelog.md`), and rolling Staffline accuracy into a Ledger Analytics card; Phase 7's account-balance import and automatic Money Movement creation from confirmed bank matches; Phase 8's fuel-budget-style category-vs-budget tracking and any automatic (Auto Confirm) rule application; Phase 9's fuel-budget-vs-actual and Monzo pot-level flow detail.
+
+## Known blocker (pre-existing, not introduced by v3.1.0)
+
+`processPayslip()` -- the step that turns an imported payslip PDF into structured actual-pay figures -- currently fails for every real payslip with `Specified permissions are not sufficient to call DocumentApp.openById. Required permissions: https://www.googleapis.com/auth/documents`. `appsscript.json`'s OAuth scopes do not include the Docs API scope this PDF-text-extraction step needs. All 48 real payslips already in the Payslip Register show an empty Import Status, suggesting this has likely never completed successfully in this deployment. This blocks the whole Payroll Centre's PDF-parsing feature, not just Staffline, and predates this release -- it was not introduced by it. Fixing it means adding `https://www.googleapis.com/auth/documents` to `appsscript.json` and the user re-authorizing the app with the broader scope, which is a deliberate step for the user to take, not something changed automatically. The new Staffline payment-line parser itself is proven correct against the real text of both real payslip PDFs (see `runStafflineReconciliationTests()`) -- only the text-extraction step ahead of it is blocked.
 
 ## Known cosmetic cleanup (optional)
 

@@ -2780,3 +2780,48 @@ gap:10px;
   color: #fecaca;
   font-weight: 760;
 }
+
+/* Timesheets / Staffline reconciliation table. */
+
+.pay-table-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--color-border, #e2e8f0);
+  border-radius: 14px;
+  background: var(--color-surface, #fff);
+}
+
+.pay-table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 960px;
+}
+
+.pay-table th,
+.pay-table td {
+  padding: .85rem 1rem;
+  text-align: left;
+  border-bottom: 1px solid var(--color-border, #e2e8f0);
+  white-space: nowrap;
+}
+
+.pay-table th {
+  color: var(--color-text-muted, #64748b);
+  font-size: .75rem;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+}
+
+.pay-table tr:last-child td {
+  border-bottom: 0;
+}
+
+.pay-table td[data-staffline-discrepancy="Payroll Underpayment"],
+.pay-table td[data-staffline-discrepancy="Timesheet Discrepancy"] {
+  color: #b91c1c;
+  font-weight: 600;
+}
+
+.pay-table td[data-staffline-discrepancy="Delayed Payment"] {
+  color: #b45309;
+  font-weight: 600;
+}
