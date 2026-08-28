@@ -267,7 +267,16 @@ const PayTrackerStafflineReconciliationService = Object.freeze({
     const expectedCategories = detail && detail.rateCategories
       ? String(detail.rateCategories).split(';').map(function(c) { return c.trim(); }).filter(Boolean)
       : null;
-    const paidCategories = Array.from(new Set(paymentLines.map(function(line) { return String(line.payCategory || '').trim(); })));
+    // Compared against the payslip line's own description, not its
+    // payCategory bucket -- payCategory deliberately coarsens e.g.
+    // "Enhanced 1.33" and "Enhanced 1.50" down to one "ENHANCED"
+    // value (see PayrollTimesheetParser.classifyPayCategory_), which
+    // would make every real multiplier-specific Staffline category
+    // read as a mismatch even when the payslip paid the right one.
+    // Real payslip line descriptions were confirmed to match
+    // Staffline's own rate-category names verbatim (both come from
+    // the same underlying agency rate-category text).
+    const paidCategories = Array.from(new Set(paymentLines.map(function(line) { return String(line.description || '').trim(); })));
 
     const anyLineNeedsReview = paymentLines.some(function(line) {
       return line.validationStatus && line.validationStatus !== 'MATCHED';
@@ -280,8 +289,9 @@ const PayTrackerStafflineReconciliationService = Object.freeze({
     if (expectedCategories && expectedCategories.length &&
       !PayTrackerStafflineReconciliationService.sameCategoryFamily_(expectedCategories, paidCategories) &&
       paidHours < expectedHours - PayTrackerStafflineConfig.HOURS_TOLERANCE) {
+      const paidCategoriesNormalized = paidCategories.map(PayTrackerStafflineReconciliationService.normalizeCategoryLabel_);
       const missingCategories = expectedCategories.filter(function(category) {
-        return paidCategories.indexOf(category) === -1;
+        return paidCategoriesNormalized.indexOf(PayTrackerStafflineReconciliationService.normalizeCategoryLabel_(category)) === -1;
       });
       if (missingCategories.length) {
         return { status: 'Partially Paid', note: 'Missing from the payslip: ' + missingCategories.join(', ') + '.' };
@@ -309,16 +319,29 @@ const PayTrackerStafflineReconciliationService = Object.freeze({
   },
 
   /**
-   * True when the two category lists name the same set (order and
-   * duplicates ignored) -- used to decide whether Payslip paid under
-   * the categories Staffline actually submitted.
+   * True when the two category lists name the same set (order,
+   * duplicates, case and surrounding whitespace all ignored) -- used
+   * to decide whether Payslip paid under the categories Staffline
+   * actually submitted. Staffline's portal-transcribed category text
+   * and the payslip PDF's independently-parsed line description are
+   * two separate pipelines that happen to use the same underlying
+   * rate-category names today (verified against all real data), but
+   * are not guaranteed to always agree on case/whitespace, so this
+   * normalizes rather than comparing raw strings.
    * @private
    */
   sameCategoryFamily_: function(expected, paid) {
-    const a = Array.from(new Set(expected)).sort();
-    const b = Array.from(new Set(paid)).sort();
+    const a = Array.from(new Set(expected.map(PayTrackerStafflineReconciliationService.normalizeCategoryLabel_))).sort();
+    const b = Array.from(new Set(paid.map(PayTrackerStafflineReconciliationService.normalizeCategoryLabel_))).sort();
     if (a.length !== b.length) return false;
     return a.every(function(value, index) { return value === b[index]; });
+  },
+
+  /**
+   * @private
+   */
+  normalizeCategoryLabel_: function(value) {
+    return String(value || '').trim().toLowerCase().replace(/\s+/g, ' ');
   },
 
   /**

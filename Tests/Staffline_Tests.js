@@ -236,7 +236,7 @@ function runStafflineReconciliationTests() {
   const partialDetail = { rateCategories: 'Basic; Enhanced 1.33' };
   const partialResult = PayTrackerStafflineReconciliationService.computePaymentStatus_(
     matchTimesheet, partialDetail,
-    [{ units: 10, validationStatus: 'MATCHED', payCategory: 'Basic', payslipId: 'P1' }], 15, []
+    [{ units: 10, validationStatus: 'MATCHED', description: 'Basic', payCategory: 'Basic', payslipId: 'P1' }], 15, []
   );
   check('a whole missing rate category (not just fewer hours) is Partially Paid', partialResult.status === 'Partially Paid');
   check('Partially Paid names exactly which category was never paid', partialResult.note.indexOf('Enhanced 1.33') !== -1);
@@ -246,7 +246,7 @@ function runStafflineReconciliationTests() {
   const wrongEnhancementDetail = { rateCategories: 'Enhanced 1.50' };
   const wrongEnhancementResult = PayTrackerStafflineReconciliationService.computePaymentStatus_(
     matchTimesheet, wrongEnhancementDetail,
-    [{ units: 20, validationStatus: 'MATCHED', payCategory: 'Enhanced 1.33', payslipId: 'P1' }], 20, []
+    [{ units: 20, validationStatus: 'MATCHED', description: 'Enhanced 1.33', payCategory: 'Enhanced 1.33', payslipId: 'P1' }], 20, []
   );
   check('same hours but the wrong enhancement multiplier is Wrong Enhancement, not a generic Wrong Rate',
     wrongEnhancementResult.status === 'Wrong Enhancement'
@@ -256,9 +256,36 @@ function runStafflineReconciliationTests() {
   const wrongRateDetail = { rateCategories: 'Basic' };
   const wrongRateResult = PayTrackerStafflineReconciliationService.computePaymentStatus_(
     matchTimesheet, wrongRateDetail,
-    [{ units: 20, validationStatus: 'MATCHED', payCategory: 'Enhanced 1.33', payslipId: 'P1' }], 20, []
+    [{ units: 20, validationStatus: 'MATCHED', description: 'Enhanced 1.33', payCategory: 'Enhanced 1.33', payslipId: 'P1' }], 20, []
   );
   check('same hours but paid under an unrelated category is a generic Wrong Rate', wrongRateResult.status === 'Wrong Rate');
+
+  // Real bug found in the 2026-08-28 release smoke test: comparing
+  // Staffline's rate-category text against the payslip's coarse
+  // payCategory bucket (e.g. both "Enhanced 1.33" and "Enhanced 1.50"
+  // collapse to "ENHANCED") made every real multiplier-specific
+  // category read as Wrong Rate/Wrong Enhancement even when correctly
+  // paid. Fixed to compare against the payslip line's own
+  // description, which real data confirmed matches Staffline's
+  // category text verbatim -- this proves the fix, not just that a
+  // mock payCategory string happens to equal itself.
+  const multiCategoryDetail = { rateCategories: 'Enhanced 1.33; Enhanced 1.50' };
+  const multiCategoryResult = PayTrackerStafflineReconciliationService.computePaymentStatus_(
+    matchTimesheet, multiCategoryDetail,
+    [
+      { units: 16, validationStatus: 'MATCHED', description: 'Enhanced 1.33', payCategory: 'Enhanced', payslipId: 'P1' },
+      { units: 4, validationStatus: 'MATCHED', description: 'Enhanced 1.50', payCategory: 'Enhanced', payslipId: 'P1' }
+    ], 20, []
+  );
+  check('multiplier-specific categories paid under their real (non-coarsened) names is Match, not Wrong Enhancement',
+    multiCategoryResult.status === 'Match'
+  );
+  check('category comparison ignores case and surrounding whitespace, not just exact string equality',
+    PayTrackerStafflineReconciliationService.computePaymentStatus_(
+      matchTimesheet, { rateCategories: ' basic ' },
+      [{ units: 20, validationStatus: 'MATCHED', description: 'BASIC', payCategory: 'Basic', payslipId: 'P1' }], 20, []
+    ).status === 'Match'
+  );
 
   // The exact same line paid on two different payslips.
   const duplicateLines = [
@@ -340,6 +367,23 @@ function runStafflineReconciliationTests() {
     if (detail) {
       check('Timesheet ' + timesheetId + ' submitted hours match the real portal figure',
         Number(detail.submittedHours) === realFixtureHours[timesheetId]
+      );
+    }
+  });
+
+  // Real end-to-end proof of the category-matching fix above: these 3
+  // fixtures have real, already-imported payslip lines (confirmed
+  // 2026-08-28) whose hours and rate categories genuinely match what
+  // Staffline submitted, so the full reconciliation must call them
+  // Match -- not the Wrong Rate/Wrong Enhancement the pre-fix
+  // comparison produced against this exact real data.
+  const knownPaidFixtures = ['621093', '621105', '621137'];
+  const realReconciliationRows = PayTrackerStafflineReconciliationService.getReconciliation({}).rows;
+  knownPaidFixtures.forEach(function(timesheetId) {
+    const row = realReconciliationRows.filter(function(r) { return r.timesheetId === timesheetId; })[0];
+    if (row && row.payslipPaidHours !== null) {
+      check('real Timesheet ' + timesheetId + ' with a real, correctly-paid payslip line reads Match, not Wrong Rate/Enhancement',
+        row.paymentStatus === 'Match'
       );
     }
   });
