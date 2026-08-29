@@ -577,6 +577,9 @@ const PayTrackerCalendarService = Object.freeze({
       tableName:
         'Night Security Warden',
 
+      jobId:
+        'JOB-NIGHT-SECURITY',
+
       shiftType:
         isWeekend
           ? 'Enhanced 1.50'
@@ -621,6 +624,7 @@ const PayTrackerCalendarService = Object.freeze({
       if (isSunday) {
         return {
           tableName: 'NHS',
+          jobId: 'JOB-NHS',
           shiftType: 'NHS Sunday',
           hours: ''
         };
@@ -629,6 +633,7 @@ const PayTrackerCalendarService = Object.freeze({
       if (isSaturday) {
         return {
           tableName: 'NHS',
+          jobId: 'JOB-NHS',
           shiftType: 'NHS Saturday',
           hours: ''
         };
@@ -636,6 +641,7 @@ const PayTrackerCalendarService = Object.freeze({
 
       return {
         tableName: 'NHS',
+        jobId: 'JOB-NHS',
         shiftType:
           'NHS 6am-2pm Basic',
         hours: ''
@@ -648,6 +654,7 @@ const PayTrackerCalendarService = Object.freeze({
       if (isSunday) {
         return {
           tableName: 'NHS',
+          jobId: 'JOB-NHS',
           shiftType: 'NHS Sunday',
           hours: ''
         };
@@ -656,6 +663,7 @@ const PayTrackerCalendarService = Object.freeze({
       if (isSaturday) {
         return {
           tableName: 'NHS',
+          jobId: 'JOB-NHS',
           shiftType: 'NHS Saturday',
           hours: ''
         };
@@ -663,6 +671,7 @@ const PayTrackerCalendarService = Object.freeze({
 
       return {
         tableName: 'NHS',
+        jobId: 'JOB-NHS',
         shiftType:
           'NHS 2pm-10pm Split',
         hours: ''
@@ -727,6 +736,9 @@ const PayTrackerCalendarService = Object.freeze({
         tableName:
           'Relief Assistant Warden',
 
+        jobId:
+          'JOB-RELIEF-WARDEN',
+
         shiftType:
           isWeekend
             ? 'Enhanced 1.50'
@@ -744,6 +756,9 @@ const PayTrackerCalendarService = Object.freeze({
       return {
         tableName:
           'Relief Assistant Warden',
+
+        jobId:
+          'JOB-RELIEF-WARDEN',
 
         shiftType:
           isWeekend
@@ -788,6 +803,7 @@ const PayTrackerCalendarService = Object.freeze({
 
     return {
       tableName: 'Logging Cash',
+      jobId: 'JOB-LOGGING-CASH',
       shiftType:
         'Logging Cash £10/hr',
       hours:
