@@ -48,7 +48,7 @@ Connect Calendar shifts → Staffline timetables/timesheets → predicted pay �
 
 1. Inspect `main` and every branch before changing anything.
 2. Check whether work already exists before writing new code.
-3. Never merge `agent/connect-payroll-centre-frontend` without re-reviewing — it is superseded (see the Phase 0 audit).
+3. ~~Never merge `agent/connect-payroll-centre-frontend` without re-reviewing~~ — resolved: re-reviewed one final time during v3.1.0 release closeout (2026-08-29), reconfirmed fully superseded by the shipped `PayrollCentreService.html` (see PR #2's closing comment), and the branch was deleted. Kept here as a record of the decision, not as an active rule.
 4. Preserve all existing PaySheet, Finance, Savings, Life Goals, Payroll Centre and Monzo data.
 5. Never auto-clear an existing sheet.
 6. Setup/migration functions must be safe to run repeatedly.
