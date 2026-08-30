@@ -30,7 +30,7 @@
  *******************************************************/
 
 const PayTrackerStafflineConfig = Object.freeze({
-  VERSION: '3.1.0',
+  VERSION: '3.1.1',
 
   GMAIL: Object.freeze({
     SENDER: 'ithelpdeskire@stafflinerecruit.com',
