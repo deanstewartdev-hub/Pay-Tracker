@@ -27,7 +27,8 @@ function runAllPayTrackerTests() {
     { name: 'Money Movements', run: runMoneyMovementsTests },
     { name: 'Transaction Rules', run: runTransactionRulesTests },
     { name: 'Analytics', run: runAnalyticsTests },
-    { name: 'Staffline Reconciliation', run: runStafflineReconciliationTests }
+    { name: 'Staffline Reconciliation', run: runStafflineReconciliationTests },
+    { name: 'Unified Sync Engine', run: runUnifiedSyncTests }
   ];
 
   const suiteResults = suites.map(function(suite) {
