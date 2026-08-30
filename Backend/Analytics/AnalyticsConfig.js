@@ -17,7 +17,7 @@
  *******************************************************/
 
 const PayTrackerAnalyticsConfig = Object.freeze({
-  VERSION: '3.1.0',
+  VERSION: '3.1.1',
 
   MONTHS_TO_INCLUDE: 12,
 

@@ -6,6 +6,26 @@ The project follows Semantic Versioning where practical.
 
 ---
 
+# v3.1.1 — Calendar jobId maintenance fix
+
+Maintenance patch on top of v3.1.0. No new roadmap features.
+
+- **Fixed**: `CalendarService.js`'s four ordinary-shift classifiers (Night Security, NHS, Relief Warden, Logging Cash) computed a `tableName` for PaySheet routing but never set a `jobId`, so every real, non-leave Calendar shift synced to Sheets got `jobId: ''`. This silently broke `StafflineReconciliationService`'s Calendar-side job matching, surfacing as false "Job Mismatch" results even for timesheets with real, correctly-logged Calendar shifts. Found during a v3.1.0 release closeout audit; confirmed live that 100% of shifts checked across the 5 known fixtures had a blank Job ID. Fixed in [PR #34](https://github.com/deanstewartdev-hub/Pay-Tracker/pull/34) by adding the correct canonical Job ID to all 10 return branches, matching the precedent `classifyAnnualLeaveEvent` already set. Purely additive -- confirmed `jobId` never touches PaySheet table/row/hours/pay, only a tracking field and one Action Centre label.
+- **Resynced real Calendar Sync Records** via the existing "Sync now" mechanism (confirmed idempotent before running it: rewrites PaySheet cells with identical values for already-matching shifts, always upserts `jobId` regardless). Live-verified before/after: `imported: 0, updated: 0, adopted: 0, removed: 0` -- a genuine no-op for PaySheet content; `jobId` now correctly populated on every real event checked.
+- **Re-audited all 5 known Staffline fixtures** (621093, 621105, 621137, 624148, 624186) post-resync:
+
+  | Timesheet | Job | Before | After | Cause |
+  |---|---|---|---|---|
+  | 621137 | NHS | Job Mismatch | Hours Differ | jobId fix resolved the mismatch; NHS calendar hours are deliberately never captured (separate, confirmed-intentional design), so hours genuinely differ. Payslip payment status: Match. |
+  | 624186 | NHS | Job Mismatch | Hours Differ | Same as above. Payslip payment status: Match. |
+  | 621093 | Relief Warden | Job Mismatch | Hours Differ | jobId fix resolved the mismatch; the matching Calendar event's computed duration (24h, a fixed day-rate classification) genuinely differs from Staffline's submitted 10h. Payslip payment status: Match. |
+  | 621105 | Night Security | Job Mismatch | Job Mismatch (unchanged) | No Night-Security-titled Calendar event exists in this week at all -- a genuine data-entry gap, not a code issue. Payslip payment status: Match. |
+  | 624148 | Night Security | Job Mismatch | Job Mismatch (unchanged) | Same as above. Payslip payment status: Match. |
+
+  In all 5 cases the underlying Staffline-vs-payslip payment status was, and remains, a genuine `Match` -- this fix never touched, and never risked, actual payroll figures. The two still-unresolved fixtures reflect real missing Calendar entries and are correctly left as "Job Mismatch" rather than being papered over.
+- **Verification**: independent second-pass review of the fix (mapping, additivity, test-dispatch path) before merge; static validation clean; `runAllPayTrackerTests()` 8/8 suites, 155/155 checks; isolated-deployment smoke test (Dashboard, Pay/Timesheets/Payslips/Annual Leave, Calendar, Action Centre, Finance); post-promotion smoke test against production itself.
+- **Production promotion**: promoted to the existing production deployment (same deployment ID, URL unchanged) on 2026-08-30 from `main` commit `149c28563fdf26709cdaa512165d695f0a2cc191`. See `docs/VERSION.md` for the exact deployment ID, version and commit SHA.
+
 # v3.1.0 — Staffline reconciliation (Phase 3)
 
 Completes the v3 roadmap: Google Calendar shift → Staffline approved timesheet → payslip payment line, reconciled three ways, unblocked once real Staffline Gmail approval emails and real payslip PDFs became available.

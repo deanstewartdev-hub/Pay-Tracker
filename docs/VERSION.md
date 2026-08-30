@@ -1,6 +1,6 @@
 # Pay Tracker
 
-**Current Version:** 3.1.0
+**Current Version:** 3.1.1
 
 ## Status
 
@@ -8,7 +8,7 @@
 
 ## Development Stage
 
-v3 roadmap complete — all ten phases implemented (reconciliation foundation, navigation redesign, Annual Leave engine, Gmail Annual Leave import, Staffline reconciliation, Pay Adjustments ledger, Money Movements ledger, Transaction Matching Rules, Ledger Analytics, production hardening).
+v3 roadmap complete — all ten phases implemented (reconciliation foundation, navigation redesign, Annual Leave engine, Gmail Annual Leave import, Staffline reconciliation, Pay Adjustments ledger, Money Movements ledger, Transaction Matching Rules, Ledger Analytics, production hardening). v3.1.1 is a maintenance patch on top of v3.1.0 -- no new roadmap features.
 
 ## Version note
 
@@ -43,6 +43,18 @@ v3.1.0 builds Phase 3: Google Calendar → Staffline approved timesheet → pays
 Production promotion is a deliberate step, gated on the checks documented in the release's PRs. v3.1.0 was promoted to the existing production deployment (`AKfycbz6IKFfwyucB2dPWzzFU9WcyJjJxeTTopK4mGfYBGCdoBkksTkqdID2QiKWYHSU6Jjg5g`, version @134) on 2026-08-29 from `main` commit `71e3d10ccc83bff0e6a4ce606e2d5ba3b0f3b50d`, after every gate below passed: static validation clean, `runAllPayTrackerTests()` 8/8 suites and 149/149 checks, a full isolated-deployment smoke test, and a post-promotion smoke test against production itself -- all documented in PRs [#30](https://github.com/deanstewartdev-hub/Pay-Tracker/pull/30) and [#31](https://github.com/deanstewartdev-hub/Pay-Tracker/pull/31).
 
 Deferred follow-ups, all named in their owning phase's UI or docs rather than silently dropped: Phase 3's Staffline portal detail-level scraping (no authenticated session was available this round -- see `docs/Changelog.md`), and rolling Staffline accuracy into a Ledger Analytics card; Phase 7's account-balance import and automatic Money Movement creation from confirmed bank matches; Phase 8's fuel-budget-style category-vs-budget tracking and any automatic (Auto Confirm) rule application; Phase 9's fuel-budget-vs-actual and Monzo pot-level flow detail.
+
+## v3.1.1 — Calendar jobId maintenance fix
+
+A v3.1.0 release closeout audit (read-only, no code changes) found that `CalendarService.js`'s four ordinary-shift classifiers (`classifyNightSecurityEvent`, `classifyNhsEvent`, `classifyReliefEvent`, `classifyLoggingEvent`) computed a `tableName` for PaySheet routing but never set a `jobId` -- so every real, non-leave Calendar shift synced to Sheets got `jobId: ''`, regardless of correct classification. This broke `StafflineReconciliationService`'s Calendar-side job matching (`shift.jobId === timesheet.jobId` can never match a blank ID), surfacing as false "Job Mismatch" results for Staffline timesheets that did have real, correctly-logged Calendar shifts in their window. Confirmed live against the real Calendar Sync Records sheet: 100% of shifts checked across the 5 known fixtures (621093, 621105, 621137, 624148, 624186) had a blank Job ID.
+
+Fixed in [PR #34](https://github.com/deanstewartdev-hub/Pay-Tracker/pull/34): added the correct canonical Job ID to all 10 return branches, following the precedent `classifyAnnualLeaveEvent` already set for booked-leave events. Traced every downstream consumer of `jobId` and confirmed it only feeds a Calendar Sync Records tracking field and one Action Centre item label -- never PaySheet table/row/hours/pay values -- so the fix is purely additive with no PaySheet regression risk. Independently re-verified by a second, fresh review pass before merge (mapping, additivity, and test-dispatch path all confirmed correct).
+
+The fix only changes how *future* Calendar syncs classify events -- it cannot retroactively repair `jobId` on shifts already written to Calendar Sync Records. A real resync was run (the existing "Sync now" mechanism, confirmed idempotent: it rewrites PaySheet cells with identical values for already-matching shifts and always upserts the tracking record's `jobId` regardless) against the real spreadsheet, live-verified before/after: `imported: 0, updated: 0, adopted: 0, removed: 0` -- a genuine no-op for PaySheet content, with `jobId` now correctly populated on the tracking records.
+
+Re-auditing the 5 known fixtures after the resync (see `Changelog.md` for the full table) confirmed: 2 fixtures (621137, 624186 -- both NHS) moved off the false "Job Mismatch" onto "Hours Differ", since `classifyNhsEvent` deliberately never computes `hours` (a separate, confirmed-intentional design, not a bug) -- so this is now an honest signal, not a false alert. 2 fixtures (621105, 624148 -- both Night Security) correctly remain "Job Mismatch": no Night-Security-titled Calendar event exists in either audited week at all, a genuine human calendar-logging gap that no code change can or should paper over. 1 fixture (621093, Relief Warden) moved off "Job Mismatch" onto "Hours Differ" -- a real Relief-Warden-titled event now matches, but its computed duration (24h, a fixed day-rate classification) genuinely differs from Staffline's submitted 10h. In all 5 cases, the underlying Staffline-vs-payslip payment status remains a genuine `Match` -- this fix and its resync never touched, and never risked, actual payroll figures.
+
+Promoted to the existing production deployment (`AKfycbz6IKFfwyucB2dPWzzFU9WcyJjJxeTTopK4mGfYBGCdoBkksTkqdID2QiKWYHSU6Jjg5g`, same URL, version @136) on 2026-08-30 from `main` commit `149c28563fdf26709cdaa512165d695f0a2cc191`, after: independent review, static validation clean, `runAllPayTrackerTests()` 8/8 suites and 155/155 checks, an isolated-deployment smoke test (Dashboard, Pay/Timesheets/Payslips/Annual Leave, Calendar, Action Centre, Finance -- all clean, no console errors), the real Calendar resync verified before/after, a full re-audit of all 5 known fixtures, and a post-promotion smoke test against production itself.
 
 ## Resolved since initial v3.1.0 merge
 
