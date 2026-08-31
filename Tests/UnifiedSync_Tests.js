@@ -18,9 +18,50 @@
  * suite -- see the PR description for that verification's result.
  *
  * Writes real rows to the live Sync Status sheet, upserted by
- * task ID (never appended) -- safe to run repeatedly against a
- * live spreadsheet, same convention as every other v3 suite.
+ * task ID (never appended) -- unlike other v3 suites' domain data
+ * (where a leftover test row is harmless clutter), a real task ID's
+ * Sync Status row is ACTIVE STATE the live Unified Sync Engine
+ * reads to decide whether to skip a real sync as "still fresh".
+ * Overwriting it with synthetic test data doesn't just leave
+ * clutter -- it corrupts the freshness signal production depends
+ * on (confirmed live: a full runAllPayTrackerTests() pass
+ * immediately before a real production promotion left MONZO_POTS
+ * showing a stale, fake "Injected test success." row instead of
+ * its real last-sync time). Every real task ID this suite touches
+ * (CALENDAR, STAFFLINE_GMAIL, PAYSLIP_GMAIL, MONZO_TRANSACTIONS,
+ * MONZO_POTS, RECONCILIATION, ...) is snapshotted before the suite
+ * runs and restored exactly in a finally block below -- the same
+ * backup/restore convention this file already uses for trigger
+ * state (see originalTriggerState further down). Only its own
+ * synthetic TEST_ and _TASK-suffixed IDs are left as real, harmless rows.
  *******************************************************/
+
+function snapshotPayTrackerSyncStateRows_(taskIds) {
+  const snapshot = {};
+  taskIds.forEach(function(taskId) {
+    snapshot[taskId] = PayTrackerSyncStateRepository.getByTaskId(taskId);
+  });
+  return snapshot;
+}
+
+function restorePayTrackerSyncStateRows_(snapshot) {
+  const sheet = PayTrackerSyncStateRepository.getSheet();
+  const headers = PayTrackerSyncConfig.SHEET.HEADERS;
+  Object.keys(snapshot).forEach(function(taskId) {
+    const original = snapshot[taskId];
+    const current = PayTrackerSyncStateRepository.getByTaskId(taskId);
+    if (original) {
+      const row = headers.map(function(header) {
+        return original[PayTrackerJobRegistryRepository.toKey(header)];
+      });
+      sheet.getRange(current ? current.rowNumber : sheet.getLastRow() + 1, 1, 1, row.length).setValues([row]);
+    } else if (current) {
+      // No row existed for this task before the suite ran -- remove
+      // the one it created so the sheet returns to its prior shape.
+      sheet.deleteRow(current.rowNumber);
+    }
+  });
+}
 
 function runUnifiedSyncTests() {
   const results = [];
@@ -38,6 +79,12 @@ function runUnifiedSyncTests() {
       PayTrackerSyncService.RUNNERS[taskId] = original;
     }
   }
+
+  const realTaskSyncStateSnapshot = snapshotPayTrackerSyncStateRows_(
+    PayTrackerSyncConfig.TASKS.map(function(task) { return task.id; })
+  );
+
+  try {
 
   // --- Task registry shape ---
 
@@ -494,6 +541,9 @@ function runUnifiedSyncTests() {
   check('getPayTrackerSyncTriggerStatus() is callable and returns the same shape',
     typeof getPayTrackerSyncTriggerStatus().enabled === 'boolean'
   );
+  } finally {
+    restorePayTrackerSyncStateRows_(realTaskSyncStateSnapshot);
+  }
 
   return { success: true, passed: results.length, results: results };
 }
