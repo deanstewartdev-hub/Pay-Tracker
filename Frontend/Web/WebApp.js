@@ -11,7 +11,7 @@
 
 const PAY_TRACKER_WEB_CONFIG = Object.freeze({
   APP_NAME: 'Pay Tracker',
-  VERSION: '3.1.1',
+  VERSION: '3.2.0',
   DEFAULT_ROUTE: 'dashboard',
   ENTRY_TEMPLATE: 'Frontend/Index',
 

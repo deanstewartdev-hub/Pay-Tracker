@@ -1,6 +1,6 @@
 # Pay Tracker
 
-**Current Version:** 3.1.1
+**Current Version:** 3.2.0
 
 ## Status
 
@@ -8,7 +8,7 @@
 
 ## Development Stage
 
-v3 roadmap complete — all ten phases implemented (reconciliation foundation, navigation redesign, Annual Leave engine, Gmail Annual Leave import, Staffline reconciliation, Pay Adjustments ledger, Money Movements ledger, Transaction Matching Rules, Ledger Analytics, production hardening). v3.1.1 is a maintenance patch on top of v3.1.0 -- no new roadmap features.
+v3 roadmap complete — all ten phases implemented (reconciliation foundation, navigation redesign, Annual Leave engine, Gmail Annual Leave import, Staffline reconciliation, Pay Adjustments ledger, Money Movements ledger, Transaction Matching Rules, Ledger Analytics, production hardening). v3.1.1 was a maintenance patch on top of v3.1.0. v3.2.0 is a post-roadmap initiative: a Unified Sync Engine that orchestrates every existing external-source sync behind one task registry, freshness gating and background schedule -- see below.
 
 ## Version note
 
@@ -55,6 +55,27 @@ The fix only changes how *future* Calendar syncs classify events -- it cannot re
 Re-auditing the 5 known fixtures after the resync (see `Changelog.md` for the full table) confirmed: 2 fixtures (621137, 624186 -- both NHS) moved off the false "Job Mismatch" onto "Hours Differ", since `classifyNhsEvent` deliberately never computes `hours` (a separate, confirmed-intentional design, not a bug) -- so this is now an honest signal, not a false alert. 2 fixtures (621105, 624148 -- both Night Security) correctly remain "Job Mismatch": no Night-Security-titled Calendar event exists in either audited week at all, a genuine human calendar-logging gap that no code change can or should paper over. 1 fixture (621093, Relief Warden) moved off "Job Mismatch" onto "Hours Differ" -- a real Relief-Warden-titled event now matches, but its computed duration (24h, a fixed day-rate classification) genuinely differs from Staffline's submitted 10h. In all 5 cases, the underlying Staffline-vs-payslip payment status remains a genuine `Match` -- this fix and its resync never touched, and never risked, actual payroll figures.
 
 Promoted to the existing production deployment (`AKfycbz6IKFfwyucB2dPWzzFU9WcyJjJxeTTopK4mGfYBGCdoBkksTkqdID2QiKWYHSU6Jjg5g`, same URL, version @136) on 2026-08-30 from `main` commit `149c28563fdf26709cdaa512165d695f0a2cc191`, after: independent review, static validation clean, `runAllPayTrackerTests()` 8/8 suites and 155/155 checks, an isolated-deployment smoke test (Dashboard, Pay/Timesheets/Payslips/Annual Leave, Calendar, Action Centre, Finance -- all clean, no console errors), the real Calendar resync verified before/after, a full re-audit of all 5 known fixtures, and a post-promotion smoke test against production itself.
+
+## v3.2.0 — Unified Sync Engine
+
+A central orchestrator (`Backend/Sync/`) replacing manual, per-page "sync now" clicking as the app's primary freshness mechanism. Full detail (task registry, freshness TTLs, real findings) in `docs/Changelog.md`; audit basis in `docs/v3.2-unified-sync-audit.md`.
+
+**What shipped**: a task registry wrapping all 6 real external syncs (Calendar, Staffline Gmail, Payslip Gmail + processing, Annual Leave Gmail, Monzo transactions, Monzo pots) plus Staffline Reconciliation's zero-write recompute, with dependency ordering, per-task freshness TTLs, and two-tier concurrency safety (a short-lived Properties-backed run-lock, plus each task's own existing document lock); a "Sync Status" sheet persisting per-task health, upserted by task ID, never erasing a last-known-good timestamp on a later failure; a startup screen showing real per-task progress with a time-boxed "Continue to Pay Tracker" fallback so a slow sync (a stale Calendar re-check genuinely took 3.5-4.5 minutes against the real dataset -- see below) never blocks entry to the app; a "Refresh Everything" action (the existing header refresh button) running a forced full re-check through the same engine and progress UI; three time-driven triggers (06:00 full, 12:00 lightweight, 18:00 full, `Europe/London`).
+
+**Real, live-caught findings during the build** (each fixed and re-verified before shipping):
+- `mapPayslipResult_` read a field (`scan.recordsCreated`) that doesn't exist on `PayTrackerPayslipImportService.scanGmail()`'s real return shape (`payslipsImported`) -- caught by the deliberate one-time live-wiring verification, not the mocked automated suite. Beyond a cosmetic `"undefined new"` message, it made a real batch of processed payslips incorrectly report "Already current" instead of "Updated".
+- A bare `<`/`>`/`<=`/`>=` comparison in new frontend JS (inside `Frontend/App/AppController.html`'s relative-time helpers) got HTML-entity-escaped by `HtmlService`'s template evaluation, silently killing the entire containing `<script>` block -- a previously-documented recurring platform pitfall for this codebase. Confirmed via the Apps Script executions log (the new sync RPCs never fired at all) and fixed with `Math.sign()`-based comparisons.
+- Live testing against the real deployment surfaced that a stale Calendar sync can legitimately run several minutes -- the original design only offered a "Continue to Pay Tracker" fallback on a hard failure, which would have trapped a routine stale-Calendar startup at the loading screen for minutes. Fixed by racing the sync against a 7-second timer, after which Continue is offered regardless of whether the sync failed or is just still working; the eventual real result surfaces as a toast once it lands.
+- `runUnifiedSyncTests()` writes real rows to the live "Sync Status" sheet keyed by real task IDs -- unlike other v3 suites' domain data, that sheet is active state the live engine reads to decide whether to skip a real sync as "still fresh", not harmless clutter. Caught at the worst possible moment: a full test run as the final pre-promotion gate check left `MONZO_POTS` showing fake test data instead of its real last-sync time, right as v3.2 went live. Fixed by snapshotting every real task's row before the suite runs and restoring it exactly in a `finally` block, mirroring the trigger-state backup/restore convention already used elsewhere in the same file.
+- The pre-existing standalone `runAutomaticPayTrackerCalendarSync` trigger (installed before v3.2, calling the same `PayTrackerCalendarService.sync()` the new engine's own Calendar task now also calls) became actively redundant once the new engine's own Calendar task existed, and was observed failing/timing out in production from lock contention with a concurrent real sync request. Disabled (`disableAutomaticPayTrackerCalendarSync()`) once the new engine's own triggers were installed and verified.
+
+**Verification**: static validation clean; `runAllPayTrackerTests()` 9/9 suites, 218/218 checks; a dedicated isolated test deployment (separate from production, same shared spreadsheet) smoke-tested clean; a real, live full sync run repeatedly against production data with no unexplained writes (confirmed via `duplicatesSkipped` counts on every Gmail-based source and Monzo's own existing dedup logic); Annual Leave's real, pre-existing "no email rules configured" account gap correctly surfaces as a graceful, non-fatal Failed status rather than a crash.
+
+**Production promotion**: promoted to the existing production deployment (`AKfycbz6IKFfwyucB2dPWzzFU9WcyJjJxeTTopK4mGfYBGCdoBkksTkqdID2QiKWYHSU6Jjg5g`, same URL) on 2026-08-31, from `main` commit `979f3ad` (v3.1.1 was version @137, `main` commit `1b66fef`; v3.2.0 is version @140). Post-promotion smoke test against production itself confirmed a clean startup (real per-task progress, correct freshness gating) and a clean forced full re-sync. The three new time-driven triggers were installed and verified live (exact handler names/hours/timezone, no duplicates) only after that smoke test passed, per the release gate; one further manual production sync was run and inspected through the released code before leaving the triggers enabled.
+
+**Known limitation, unchanged from prior releases**: the Staffline portal has no API and no authenticated headless path reachable from Apps Script -- it is not, and will not become, part of the automatic sync. It stays human/assistant-driven and is always shown as a distinct "Manual" source in the sync UI, never as a failed automatic sync.
+
+**Rollback plan** (not needed -- documented for completeness): remove the three new triggers (`removePayTrackerSyncTriggers()`), redeploy the same production deployment ID back to version @137 (`clasp deploy -i <id> -V 137`), verify a clean post-rollback smoke test, and never leave a known-bad version live in the interim.
 
 ## Resolved since initial v3.1.0 merge
 

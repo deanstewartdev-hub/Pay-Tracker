@@ -22,11 +22,23 @@ The v3 roadmap (`docs/Roadmap.md`, detail in `docs/v3-Roadmap-Detail.md`) is now
 
 ## Current Version
 
-Pay Tracker v3.1.0 — completes the v3 roadmap's Phase 3: Google Calendar → Staffline approved timesheet → payslip payment line reconciliation. Builds on v3.0.9 (reconciliation foundation, navigation redesign, Annual Leave engine and Gmail import, Pay Adjustments ledger, Money Movements ledger, Transaction Matching Rules, Ledger Analytics, and production hardening). This completes all ten phases of the original v3 roadmap.
+Pay Tracker v3.2.0 — a Unified Sync Engine that replaces manual, per-page "sync now" clicking with one orchestrator: real per-task freshness gating, automatic background scheduling, and a startup screen that shows real sync progress instead of a bare spinner. Builds on v3.1.1 (Calendar jobId maintenance fix) and the completed v3.1.0 roadmap (Staffline reconciliation, Annual Leave engine, Pay Adjustments/Money Movements ledgers, Transaction Matching Rules, Ledger Analytics, production hardening).
 
 ---
 
 ## Current Features
+
+### Unified Sync Engine
+
+- A central orchestrator (`Backend/Sync/`) wrapping every existing external-source sync (Calendar, Staffline Gmail, Payslip Gmail + processing, Annual Leave Gmail, Monzo transactions, Monzo pots) and one derived recompute (Staffline Reconciliation) behind one task registry, dependency ordering and per-task freshness TTL -- it never rewrites the underlying import logic, only decides when to call it.
+- The startup screen (`#app-loading`) shows real per-task progress -- Waiting/Checking/Updated/Already current/Needs attention/Failed/Manual, with real counts and messages, never a fabricated percentage -- reading a fast freshness check first, then the real sync result once it lands.
+- A stale sync is never allowed to block the app for more than a few seconds: past a short timeout (or on genuine failure), a "Continue to Pay Tracker" option appears and the sync keeps running in the background, surfacing its real result as a toast once it lands.
+- The existing header refresh button now runs a full, forced re-check through the same engine and progress UI ("Refresh Everything"); every existing page-specific "Sync now"/"Refresh" button is unchanged and still calls its own source directly.
+- Background schedule: three time-driven triggers (06:00 full, 12:00 lightweight -- Calendar/Monzo/Reconciliation only, 18:00 full), `Europe/London`, idempotent to install/remove, concurrency-safe (a second request while a sync is already running joins it rather than starting a duplicate).
+- The Staffline portal has no API and no authenticated headless path -- it stays human/assistant-driven and is always shown as a distinct "Manual" source, never as a failed automatic sync.
+- Sync health (last attempt/success, status, message, error) persists to a new "Sync Status" sheet, one row per task, upserted in place -- a failed attempt never erases the last known-good timestamp.
+
+Run `setupPayTrackerSync()` once after deployment; it is safe to run repeatedly. Safe checks are available through `runUnifiedSyncTests()`.
 
 ### Navigation
 
@@ -147,7 +159,7 @@ See `docs/Database.md` for the full sheet inventory and `docs/v3-phase0-audit.md
 
 ## v3 Roadmap Status
 
-All ten phases of the v3 roadmap are complete as of v3.1.0 -- see `docs/Roadmap.md` and `docs/v3-Roadmap-Detail.md` for the full plan. Real, valuable follow-ups that were deliberately deferred rather than rushed are named in their owning feature's section above (or in `docs/VERSION.md`) rather than silently dropped.
+All ten phases of the v3 roadmap are complete as of v3.1.0 -- see `docs/Roadmap.md` and `docs/v3-Roadmap-Detail.md` for the full plan. Real, valuable follow-ups that were deliberately deferred rather than rushed are named in their owning feature's section above (or in `docs/VERSION.md`) rather than silently dropped. v3.2.0's Unified Sync Engine is a post-roadmap initiative -- it changes how the existing v3 features stay fresh, not what they do.
 
 ---
 
@@ -200,6 +212,8 @@ Finance
 Savings
 
 Calendar
+
+Sync
 
 Backup
 

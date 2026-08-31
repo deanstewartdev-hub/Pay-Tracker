@@ -14,7 +14,7 @@
  *******************************************************/
 
 const PayTrackerPayAdjustmentsConfig = Object.freeze({
-  VERSION: '3.1.1',
+  VERSION: '3.2.0',
 
   SHEETS: Object.freeze({
     ADJUSTMENTS: Object.freeze({
