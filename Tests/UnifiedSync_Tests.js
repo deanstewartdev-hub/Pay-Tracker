@@ -1,13 +1,21 @@
 /*******************************************************
  * PAY TRACKER V3.2 - Unified Sync Engine unit checks.
  *
- * Scoped to what this PR actually builds: task registry shape,
- * freshness calculation, dependency ordering, concurrency/
- * run-lock safety, and result persistence. Task runners are
- * still stubs in this PR (see Backend/Sync/SyncService.js) --
- * source-specific idempotency (Calendar, Staffline, Monzo, etc.)
- * is tested where each of those already lives, and again once
- * this engine calls the real thing in the next PR.
+ * Covers task registry shape, freshness calculation, dependency
+ * ordering, concurrency/run-lock safety, result persistence, the
+ * real-source result mappers (pure functions, tested with
+ * synthetic inputs), and trigger management.
+ *
+ * Deliberately never calls a real RUNNERS.* entry -- every engine-
+ * mechanics check below temporarily swaps in a fast, injected fake
+ * runner (restored via try/finally), exactly the same convention
+ * Tests/CalendarReconciliation_Tests.js already uses for
+ * classifyEvent(): test pure logic with synthetic inputs, never
+ * invoke live Calendar/Gmail/Monzo calls from the automated suite.
+ * Real wiring correctness (does RUNNERS.CALENDAR actually call
+ * PayTrackerCalendarService.sync() and get back what
+ * mapCalendarResult_ expects) is verified once, live, outside this
+ * suite -- see the PR description for that verification's result.
  *
  * Writes real rows to the live Sync Status sheet, upserted by
  * task ID (never appended) -- safe to run repeatedly against a
@@ -19,6 +27,16 @@ function runUnifiedSyncTests() {
   function check(name, condition) {
     if (!condition) throw new Error('Failed: ' + name);
     results.push({ name: name, passed: true });
+  }
+
+  function withFakeRunner(taskId, fakeRunner, callback) {
+    const original = PayTrackerSyncService.RUNNERS[taskId];
+    PayTrackerSyncService.RUNNERS[taskId] = fakeRunner;
+    try {
+      return callback();
+    } finally {
+      PayTrackerSyncService.RUNNERS[taskId] = original;
+    }
   }
 
   // --- Task registry shape ---
@@ -80,16 +98,10 @@ function runUnifiedSyncTests() {
   })());
 
   // --- Freshness calculation ---
+  // Read-only against whatever's already in the Sync Status sheet
+  // (from real app usage or a prior live wiring check) -- never
+  // triggers a new sync itself.
 
-  const freshTaskId = 'TEST_FRESHNESS_TASK';
-  PayTrackerSyncStateRepository.recordResult({
-    taskId: freshTaskId, taskName: 'Test Freshness Task',
-    status: PayTrackerSyncConfig.TASK_STATUSES.UPDATED,
-    durationMs: 100, runId: 'TEST-RUN-1', triggerSource: 'MANUAL'
-  });
-  // computeFreshness reads task config from PayTrackerSyncConfig, so
-  // exercise it against a real task ID instead, using an injected
-  // `now` far enough in the future to force staleness deterministically.
   const calendarRecord = PayTrackerSyncStateRepository.getByTaskId('CALENDAR');
   if (calendarRecord && calendarRecord.lastSuccess) {
     const justNow = new Date(new Date(calendarRecord.lastSuccess).getTime() + 60 * 1000);
@@ -112,13 +124,23 @@ function runUnifiedSyncTests() {
   check('freshness for an unknown task ID reports not fresh, not a throw',
     PayTrackerSyncService.computeFreshness('NOT_A_REAL_TASK', new Date()).fresh === false);
 
-  // --- run() persistence, aggregation, and dependency-failure skip ---
+  // --- run() persistence, aggregation ---
+  // CALENDAR and STAFFLINE_GMAIL swapped to fast fake successes --
+  // RECONCILIATION is left real since it's a pure, cheap Sheets
+  // read with zero external calls (confirmed in the v3.2 audit).
 
-  const runResult = PayTrackerSyncService.run({
-    triggerSource: PayTrackerSyncConfig.TRIGGER_SOURCES.MANUAL,
-    taskIds: ['CALENDAR', 'STAFFLINE_GMAIL', 'RECONCILIATION'],
-    force: true,
-    now: new Date()
+  const fakeSuccess = function() {
+    return { status: PayTrackerSyncConfig.TASK_STATUSES.UPDATED, created: 1, updated: 0, skipped: 0, message: 'Injected test success.' };
+  };
+
+  const runResult = withFakeRunner('CALENDAR', fakeSuccess, function() {
+    return withFakeRunner('STAFFLINE_GMAIL', fakeSuccess, function() {
+      return PayTrackerSyncService.run({
+        triggerSource: PayTrackerSyncConfig.TRIGGER_SOURCES.MANUAL,
+        taskIds: ['CALENDAR', 'STAFFLINE_GMAIL', 'RECONCILIATION'],
+        force: true, now: new Date()
+      });
+    });
   });
 
   check('run() returns one result per requested task', runResult.tasks.length === 3);
@@ -128,58 +150,85 @@ function runUnifiedSyncTests() {
     const s = runResult.summary;
     return (s.updated + s.alreadyCurrent + s.skipped + s.failed + s.manual + s.unavailable) === s.totalTasks;
   })());
-  check('unwired stub tasks report Unavailable, not a false Updated',
-    runResult.tasks.every(function(t) { return t.status === PayTrackerSyncConfig.TASK_STATUSES.UNAVAILABLE; })
-  );
+  check('every requested task reports a real, recognised status', (function() {
+    const validStatuses = Object.keys(PayTrackerSyncConfig.TASK_STATUSES).map(function(key) {
+      return PayTrackerSyncConfig.TASK_STATUSES[key];
+    });
+    return runResult.tasks.every(function(t) { return validStatuses.indexOf(t.status) !== -1; });
+  })());
   check('run() persisted a Sync Status row for each requested task', (function() {
     return ['CALENDAR', 'STAFFLINE_GMAIL', 'RECONCILIATION'].every(function(id) {
       const record = PayTrackerSyncStateRepository.getByTaskId(id);
       return Boolean(record) && record.runId === runResult.runId;
     });
   })());
-  check('re-running the same task upserts in place rather than appending a new row', (function() {
+  check('re-running the same task upserts in place rather than appending a new row', withFakeRunner('CALENDAR', fakeSuccess, function() {
     const before = PayTrackerSyncStateRepository.getAll().length;
     PayTrackerSyncService.run({ triggerSource: 'MANUAL', taskIds: ['CALENDAR'], force: true, now: new Date() });
     const after = PayTrackerSyncStateRepository.getAll().length;
     return after === before;
-  })());
+  }));
 
   // --- force / freshness-skip behaviour ---
   // Freshness only ever engages after a genuine success (Updated or
-  // Already current) -- an Unavailable stub result must never look
-  // "fresh" to a later run, so this needs a runner that actually
-  // succeeds, not the real (still-stubbed) STAFFLINE_GMAIL one.
+  // Already current) -- a Failed result must never look "fresh" to
+  // a later run.
 
-  const originalStafflineRunner = PayTrackerSyncService.RUNNERS.STAFFLINE_GMAIL;
-  PayTrackerSyncService.RUNNERS.STAFFLINE_GMAIL = function() {
-    return { status: PayTrackerSyncConfig.TASK_STATUSES.UPDATED, created: 1, updated: 0, skipped: 0, message: 'Injected test success.' };
+  withFakeRunner('STAFFLINE_GMAIL', fakeSuccess, function() {
+    const firstRun = PayTrackerSyncService.run({ triggerSource: 'MANUAL', taskIds: ['STAFFLINE_GMAIL'], force: true, now: new Date() });
+    check('a genuinely successful run reports Updated, not a fake status',
+      firstRun.tasks[0].status === PayTrackerSyncConfig.TASK_STATUSES.UPDATED
+    );
+    const secondRun = PayTrackerSyncService.run({ triggerSource: 'MANUAL', taskIds: ['STAFFLINE_GMAIL'], force: false, now: new Date() });
+    check('without force, a task synced moments ago is skipped as already-current',
+      secondRun.tasks[0].status === PayTrackerSyncConfig.TASK_STATUSES.ALREADY_CURRENT
+    );
+    const thirdRun = PayTrackerSyncService.run({ triggerSource: 'MANUAL', taskIds: ['STAFFLINE_GMAIL'], force: true, now: new Date() });
+    check('with force:true, a task synced moments ago still runs',
+      thirdRun.tasks[0].status !== PayTrackerSyncConfig.TASK_STATUSES.ALREADY_CURRENT
+    );
+  });
+
+  const fakeFailure = function() {
+    return { status: PayTrackerSyncConfig.TASK_STATUSES.FAILED, error: 'Injected test failure.' };
   };
+  // computeFreshness needs a real task ID (it looks up that task's own
+  // TTL from PayTrackerSyncConfig), but by this point in the suite
+  // PAYSLIP_GMAIL may already carry a lastSuccess timestamp from an
+  // earlier real run in this same environment -- and per the
+  // last-known-good design (tested above), a Failed attempt correctly
+  // preserves that old success rather than erasing it. So this check
+  // explicitly clears the Last Success cell first, to control for
+  // "never succeeded" rather than assume it.
+  check('a Failed result never counts as fresh for a later run', withFakeRunner('PAYSLIP_GMAIL', fakeFailure, function() {
+    const sheet = PayTrackerSyncStateRepository.getSheet();
+    const existing = PayTrackerSyncStateRepository.getByTaskId('PAYSLIP_GMAIL');
+    if (existing) sheet.getRange(existing.rowNumber, 4).setValue('');
 
-  const firstRun = PayTrackerSyncService.run({ triggerSource: 'MANUAL', taskIds: ['STAFFLINE_GMAIL'], force: true, now: new Date() });
-  check('a genuinely successful run reports Updated, not a fake status',
-    firstRun.tasks[0].status === PayTrackerSyncConfig.TASK_STATUSES.UPDATED
-  );
-  const secondRun = PayTrackerSyncService.run({ triggerSource: 'MANUAL', taskIds: ['STAFFLINE_GMAIL'], force: false, now: new Date() });
-  check('without force, a task synced moments ago is skipped as already-current',
-    secondRun.tasks[0].status === PayTrackerSyncConfig.TASK_STATUSES.ALREADY_CURRENT
-  );
-  const thirdRun = PayTrackerSyncService.run({ triggerSource: 'MANUAL', taskIds: ['STAFFLINE_GMAIL'], force: true, now: new Date() });
-  check('with force:true, a task synced moments ago still runs',
-    thirdRun.tasks[0].status !== PayTrackerSyncConfig.TASK_STATUSES.ALREADY_CURRENT
-  );
-
-  PayTrackerSyncService.RUNNERS.STAFFLINE_GMAIL = originalStafflineRunner;
-  check('an Unavailable (still-stubbed) result never counts as fresh for a later run', (function() {
     PayTrackerSyncService.run({ triggerSource: 'MANUAL', taskIds: ['PAYSLIP_GMAIL'], force: true, now: new Date() });
-    const stillUnavailable = PayTrackerSyncService.run({ triggerSource: 'MANUAL', taskIds: ['PAYSLIP_GMAIL'], force: false, now: new Date() });
-    return stillUnavailable.tasks[0].status === PayTrackerSyncConfig.TASK_STATUSES.UNAVAILABLE;
-  })());
+    const stillFailed = PayTrackerSyncService.run({ triggerSource: 'MANUAL', taskIds: ['PAYSLIP_GMAIL'], force: false, now: new Date() });
+    return stillFailed.tasks[0].status === PayTrackerSyncConfig.TASK_STATUSES.FAILED;
+  }));
 
   // --- trigger-source eligibility filtering ---
+  // Every real runner swapped to a fast fake -- this block tests
+  // WHICH tasks get selected for a SCHEDULED pass, not what any one
+  // source actually does.
 
-  const scheduledRun = PayTrackerSyncService.run({
-    triggerSource: PayTrackerSyncConfig.TRIGGER_SOURCES.SCHEDULED, now: new Date(), force: true
-  });
+  const allFakeRunners = {};
+  PayTrackerSyncConfig.TASKS.forEach(function(task) { allFakeRunners[task.id] = fakeSuccess; });
+  const scheduledRun = (function() {
+    const originals = {};
+    Object.keys(allFakeRunners).forEach(function(id) {
+      originals[id] = PayTrackerSyncService.RUNNERS[id];
+      PayTrackerSyncService.RUNNERS[id] = allFakeRunners[id];
+    });
+    try {
+      return PayTrackerSyncService.run({ triggerSource: PayTrackerSyncConfig.TRIGGER_SOURCES.SCHEDULED, now: new Date(), force: true });
+    } finally {
+      Object.keys(originals).forEach(function(id) { PayTrackerSyncService.RUNNERS[id] = originals[id]; });
+    }
+  })();
   check('a SCHEDULED run only includes scheduledEligible tasks',
     scheduledRun.tasks.every(function(t) {
       return PayTrackerSyncConfig.getTask(t.taskId).scheduledEligible === true;
@@ -188,14 +237,11 @@ function runUnifiedSyncTests() {
 
   // --- dependency-failure propagation ---
 
-  const originalRunner = PayTrackerSyncService.RUNNERS.CALENDAR;
-  PayTrackerSyncService.RUNNERS.CALENDAR = function() {
-    return { status: PayTrackerSyncConfig.TASK_STATUSES.FAILED, error: 'Injected test failure.' };
-  };
-  const failureRun = PayTrackerSyncService.run({
-    triggerSource: 'MANUAL', taskIds: ['CALENDAR', 'RECONCILIATION'], force: true, now: new Date()
+  const failureRun = withFakeRunner('CALENDAR', fakeFailure, function() {
+    return PayTrackerSyncService.run({
+      triggerSource: 'MANUAL', taskIds: ['CALENDAR', 'RECONCILIATION'], force: true, now: new Date()
+    });
   });
-  PayTrackerSyncService.RUNNERS.CALENDAR = originalRunner;
 
   const reconciliationResult = failureRun.tasks.filter(function(t) { return t.taskId === 'RECONCILIATION'; })[0];
   check('a failed dependency causes the dependent task to be skipped, not run',
@@ -288,7 +334,9 @@ function runUnifiedSyncTests() {
     );
     properties.deleteProperty(PayTrackerSyncConfig.RUN_LOCK_PROPERTY_KEY);
 
-    const realRun = PayTrackerSyncController.runSync({ triggerSource: 'MANUAL', taskIds: ['CALENDAR'], force: true });
+    const realRun = withFakeRunner('CALENDAR', fakeSuccess, function() {
+      return PayTrackerSyncController.runSync({ triggerSource: 'MANUAL', taskIds: ['CALENDAR'], force: true });
+    });
     check('runSync() runs and releases the lock when none was active', realRun.alreadyRunning === false);
     check('runSync() releases the lock after completing', PayTrackerSyncController.getActiveRun() === null);
   } finally {
@@ -297,13 +345,16 @@ function runUnifiedSyncTests() {
   }
 
   // --- budget/checkpoint behaviour ---
+  // The run budget is already exhausted before the loop starts (see
+  // `now`), so the budget check fires before any runner would ever
+  // be invoked -- no fake needed, this never reaches a real call.
 
   const budgetRun = PayTrackerSyncService.run({
     triggerSource: 'MANUAL', taskIds: ['CALENDAR', 'STAFFLINE_GMAIL'],
     force: true, budgetMilliseconds: 1, now: new Date(Date.now() - 10000)
   });
   check('a task starting after the run budget is exhausted is marked Skipped, not silently dropped',
-    budgetRun.tasks.some(function(t) { return t.status === PayTrackerSyncConfig.TASK_STATUSES.SKIPPED; })
+    budgetRun.tasks.every(function(t) { return t.status === PayTrackerSyncConfig.TASK_STATUSES.SKIPPED; })
   );
 
   // --- getSyncStatusSummary() shape ---
@@ -318,6 +369,131 @@ function runUnifiedSyncTests() {
 
   const setupResult = PayTrackerSyncSetupService.setup();
   check('re-running sync setup is idempotent (no error, no data loss)', setupResult.success === true);
+
+  // --- Real-source result mappers (PR B) ---
+  // These are pure functions -- given a real function's already-
+  // observed return shape as a synthetic input, they must classify
+  // status/message correctly with zero Calendar/Gmail/Monzo calls
+  // of their own, exactly like CalendarReconciliation_Tests.js
+  // tests classifyEvent() without ever touching a real calendar.
+
+  check('mapCalendarResult_ reports Updated when anything changed', (function() {
+    const r = PayTrackerSyncService.mapCalendarResult_({
+      imported: 2, updated: 1, adopted: 0, removed: 0, skipped: 3, reviewItems: 1, ignored: 4, totalEvents: 11
+    });
+    return r.status === PayTrackerSyncConfig.TASK_STATUSES.UPDATED && r.created === 2 && r.updated === 1;
+  })());
+  check('mapCalendarResult_ reports Already current when nothing changed', (function() {
+    const r = PayTrackerSyncService.mapCalendarResult_({
+      imported: 0, updated: 0, adopted: 0, removed: 0, skipped: 5, reviewItems: 0, ignored: 2, totalEvents: 7
+    });
+    return r.status === PayTrackerSyncConfig.TASK_STATUSES.ALREADY_CURRENT;
+  })());
+
+  check('mapGmailScanResult_ reports Failed when the scan itself did not succeed', (function() {
+    const r = PayTrackerSyncService.mapGmailScanResult_({ success: false, errors: ['Gmail quota exceeded'] }, 'Test');
+    return r.status === PayTrackerSyncConfig.TASK_STATUSES.FAILED && r.error === 'Gmail quota exceeded';
+  })());
+  check('mapGmailScanResult_ reports Needs attention when the scan succeeded but had per-message errors', (function() {
+    const r = PayTrackerSyncService.mapGmailScanResult_({
+      success: true, recordsCreated: 1, recordsUpdated: 0, messagesChecked: 5, messagesMatched: 2, needsReview: 0,
+      errors: ['One message could not be parsed']
+    }, 'Test');
+    return r.status === PayTrackerSyncConfig.TASK_STATUSES.NEEDS_ATTENTION;
+  })());
+  check('mapGmailScanResult_ reports Updated when records changed with no errors', (function() {
+    const r = PayTrackerSyncService.mapGmailScanResult_({
+      success: true, recordsCreated: 3, recordsUpdated: 0, messagesChecked: 5, messagesMatched: 3, needsReview: 0, errors: []
+    }, 'Test');
+    return r.status === PayTrackerSyncConfig.TASK_STATUSES.UPDATED && r.created === 3;
+  })());
+  check('mapGmailScanResult_ reports Already current when nothing changed with no errors', (function() {
+    const r = PayTrackerSyncService.mapGmailScanResult_({
+      success: true, recordsCreated: 0, recordsUpdated: 0, messagesChecked: 5, messagesMatched: 0, needsReview: 0, errors: []
+    }, 'Test');
+    return r.status === PayTrackerSyncConfig.TASK_STATUSES.ALREADY_CURRENT;
+  })());
+
+  check('mapPayslipResult_ reports Failed when the scan itself did not succeed',
+    PayTrackerSyncService.mapPayslipResult_({ success: false, errors: ['boom'] }, { completed: 0, failed: 0 }).status
+      === PayTrackerSyncConfig.TASK_STATUSES.FAILED
+  );
+  check('mapPayslipResult_ reports Needs attention when processing had failures', (function() {
+    const r = PayTrackerSyncService.mapPayslipResult_(
+      { success: true, payslipsImported: 2, messagesChecked: 3, messagesMatched: 2, errors: [] },
+      { completed: 1, failed: 1 }
+    );
+    return r.status === PayTrackerSyncConfig.TASK_STATUSES.NEEDS_ATTENTION && /1 payslip\(s\) failed processing/.test(r.error);
+  })());
+  check('mapPayslipResult_ reports Updated when scanned and processed cleanly', (function() {
+    const r = PayTrackerSyncService.mapPayslipResult_(
+      { success: true, payslipsImported: 2, messagesChecked: 3, messagesMatched: 2, errors: [] },
+      { completed: 2, failed: 0 }
+    );
+    return r.status === PayTrackerSyncConfig.TASK_STATUSES.UPDATED && r.created === 2 && r.updated === 2;
+  })());
+  check('mapPayslipResult_ reports Updated (not Already current) when nothing was newly imported but the batch processed existing payslips -- regression for the real PayslipImportService.scanGmail() shape (payslipsImported, not recordsCreated)', (function() {
+    const r = PayTrackerSyncService.mapPayslipResult_(
+      { success: true, payslipsImported: 0, duplicatesSkipped: 2, messagesChecked: 2, messagesMatched: 2, errors: [] },
+      { completed: 5, failed: 0 }
+    );
+    return r.status === PayTrackerSyncConfig.TASK_STATUSES.UPDATED && r.created === 0 && r.updated === 5 &&
+      r.message.indexOf('undefined') === -1;
+  })());
+
+  check('mapMonzoTransactionsResult_ reports Updated when anything happened', (function() {
+    const r = PayTrackerSyncService.mapMonzoTransactionsResult_({ imported: 2, suggestions: 0, paymentsMatched: 0, message: 'ok' });
+    return r.status === PayTrackerSyncConfig.TASK_STATUSES.UPDATED && r.message === 'ok';
+  })());
+  check('mapMonzoTransactionsResult_ reports Already current when nothing happened', (function() {
+    const r = PayTrackerSyncService.mapMonzoTransactionsResult_({ imported: 0, suggestions: 0, paymentsMatched: 0, message: 'ok' });
+    return r.status === PayTrackerSyncConfig.TASK_STATUSES.ALREADY_CURRENT;
+  })());
+
+  check('mapMonzoPotsResult_ reports Updated when a linked pot changed',
+    PayTrackerSyncService.mapMonzoPotsResult_({ potsUpdated: 1, potsSeen: 3 }).status === PayTrackerSyncConfig.TASK_STATUSES.UPDATED
+  );
+  check('mapMonzoPotsResult_ reports Already current when no linked pot changed',
+    PayTrackerSyncService.mapMonzoPotsResult_({ potsUpdated: 0, potsSeen: 3 }).status === PayTrackerSyncConfig.TASK_STATUSES.ALREADY_CURRENT
+  );
+
+  check('monzoNotConnectedResult_ reports Manual, not Failed (never reads as a broken sync)',
+    PayTrackerSyncService.monzoNotConnectedResult_().status === PayTrackerSyncConfig.TASK_STATUSES.MANUAL
+  );
+
+  // --- Scheduled trigger management (real ScriptApp triggers -- safe
+  // and fully reversible: create, verify, remove, verify gone) ---
+
+  const originalTriggerState = PayTrackerSyncAutomationService.getStatus();
+  try {
+    PayTrackerSyncAutomationService.disable();
+    check('disable() leaves no v3.2 sync triggers installed',
+      PayTrackerSyncAutomationService.getStatus().triggerCount === 0
+    );
+
+    const enabled = PayTrackerSyncAutomationService.enable();
+    check('enable() installs exactly one trigger per schedule',
+      enabled.triggerCount === PayTrackerSyncAutomationService.SCHEDULES.length &&
+      enabled.schedules.every(function(s) { return s.triggerCount === 1; })
+    );
+    check('enable() reports the correct timezone', enabled.timezone === 'Europe/London');
+
+    const reEnabled = PayTrackerSyncAutomationService.enable();
+    check('calling enable() again does not create duplicate triggers',
+      reEnabled.triggerCount === PayTrackerSyncAutomationService.SCHEDULES.length
+    );
+
+    const disabled = PayTrackerSyncAutomationService.disable();
+    check('disable() removes every v3.2 sync trigger', disabled.triggerCount === 0 && disabled.enabled === false);
+  } finally {
+    // Restore whatever state existed before this test ran.
+    if (originalTriggerState.enabled) PayTrackerSyncAutomationService.enable();
+    else PayTrackerSyncAutomationService.disable();
+  }
+
+  check('getPayTrackerSyncTriggerStatus() is callable and returns the same shape',
+    typeof getPayTrackerSyncTriggerStatus().enabled === 'boolean'
+  );
 
   return { success: true, passed: results.length, results: results };
 }
