@@ -22,8 +22,31 @@ const PayTrackerAppController = Object.freeze({
     sidebarCollapsed: false,
     mobileMenuOpen: false,
     theme: 'light',
-    profileMenuOpen: false
+    profileMenuOpen: false,
+    startupSyncPromise: null,
+    syncTaskElements: {},
+    syncContinueHandler: null
   },
+
+  /**
+   * Unified Sync Engine task status -> CSS modifier class, for the
+   * startup/refresh progress rows. Matches
+   * PayTrackerSyncConfig.TASK_STATUSES on the server exactly --
+   * these are real, server-reported statuses, never a fabricated
+   * percentage.
+   */
+  SYNC_TASK_STATUS_CLASS: Object.freeze({
+    'Waiting': 'waiting',
+    'Checking': 'checking',
+    'Syncing': 'syncing',
+    'Updated': 'updated',
+    'Already current': 'already-current',
+    'Skipped': 'skipped',
+    'Needs attention': 'needs-attention',
+    'Failed': 'failed',
+    'Manual': 'manual',
+    'Unavailable': 'unavailable'
+  }),
 
   selectors: Object.freeze({
     body: 'body',
@@ -40,6 +63,9 @@ const PayTrackerAppController = Object.freeze({
     loadingScreen: '#app-loading',
     errorScreen: '#app-error',
     retryButton: '#retry-app-button',
+    syncTasksList: '#app-loading-tasks',
+    syncSummary: '#app-loading-summary',
+    syncContinueButton: '#app-loading-continue',
     pageTitle: '#header-page-title',
     pageSubtitle: '#header-page-subtitle',
     toastRegion: '#toast-region'
@@ -84,6 +110,14 @@ const PayTrackerAppController = Object.freeze({
           focusMain: false
         }
       );
+
+      PayTrackerAppController.state.startupSyncPromise =
+        PayTrackerAppController.runSyncPass(
+          'STARTUP',
+          { manageOverlay: false }
+        );
+
+      await PayTrackerAppController.state.startupSyncPromise;
 
       await PayTrackerAppController.refreshBootstrap();
 
@@ -963,10 +997,9 @@ const PayTrackerAppController = Object.freeze({
         );
       }
 
-      PayTrackerAppController.showToast(
-        'Refreshing Pay Tracker...',
-        'info',
-        1800
+      await PayTrackerAppController.runSyncPass(
+        'MANUAL',
+        { manageOverlay: true, force: true }
       );
 
       const bootstrap =
@@ -1027,6 +1060,638 @@ const PayTrackerAppController = Object.freeze({
         );
       }
     }
+  },
+
+  /**
+   * Returns a promise that resolves once the startup sync pass has
+   * finished (successfully, partially, or gracefully failed). Page
+   * services that load unconditionally at startup (currently just
+   * Dashboard -- every other page is already gated behind its own
+   * route becoming active, per PR #26) should await this before
+   * their first load() so they read post-sync, not pre-sync, data.
+   * Resolves immediately once startup has actually started, even
+   * if called before initialize() has set the promise up yet.
+   *
+   * @return {Promise<void>}
+   */
+  getStartupSyncPromise: function() {
+    return (
+      PayTrackerAppController.state.startupSyncPromise ||
+      Promise.resolve()
+    );
+  },
+
+  /**
+   * Runs one Unified Sync Engine pass and renders real, per-task
+   * progress into the loading screen -- used both for the startup
+   * sync (manageOverlay:false, since initialize() already owns
+   * showing/hiding the loading screen around the whole startup
+   * sequence) and for the header "Refresh Everything" action
+   * (manageOverlay:true, since nothing else is showing the overlay
+   * for a manual refresh). Every status/message/count rendered
+   * here comes straight from the engine's real return value --
+   * never a fabricated percentage.
+   *
+   * Never rejects: a genuine sync failure (as opposed to an
+   * individual task reporting Failed, which the engine already
+   * handles gracefully) is shown to the user with a "Continue to
+   * Pay Tracker" fallback rather than blocking startup.
+   *
+   * @param {string} triggerSource 'STARTUP' or 'MANUAL'.
+   * @param {Object=} options {manageOverlay}
+   * @return {Promise<Object|null>} The engine's run result, or
+   *   null if sync could not be attempted/completed.
+   */
+  runSyncPass: async function(
+    triggerSource,
+    options
+  ) {
+    const config = Object.assign(
+      { manageOverlay: true, continueAfterMs: 7000, force: false },
+      options || {}
+    );
+
+    if (config.manageOverlay) {
+      PayTrackerAppController.showLoading();
+    }
+
+    PayTrackerAppController.resetSyncUi();
+
+    if (!PayTrackerAppController.isAppsScriptAvailable()) {
+      if (config.manageOverlay) {
+        PayTrackerAppController.hideLoading();
+      }
+
+      return null;
+    }
+
+    let statusSummary = null;
+
+    try {
+      statusSummary =
+        await PayTrackerAppController.runServerFunction(
+          'getPayTrackerSyncStatus'
+        );
+
+      PayTrackerAppController.renderSyncTasksFromStatus(
+        statusSummary
+      );
+    } catch (error) {
+      console.error(
+        'Pay Tracker could not read sync status.',
+        error
+      );
+    }
+
+    const syncPromise = PayTrackerAppController
+      .runServerFunction(
+        'runPayTrackerSync',
+        {
+          triggerSource: triggerSource,
+          force: config.force
+        }
+      )
+      .then(function(result) {
+        if (result && result.alreadyRunning) {
+          PayTrackerAppController.renderSyncMessage(
+            'A sync is already in progress elsewhere -- ' +
+            'continuing with the latest available data.'
+          );
+        } else if (result) {
+          PayTrackerAppController.renderSyncResults(
+            result
+          );
+        }
+
+        return result;
+      });
+
+    const outcome =
+      await PayTrackerAppController.settleSyncPass(
+        syncPromise,
+        statusSummary,
+        config
+      );
+
+    if (outcome.backgrounded) {
+      // The user chose to continue before the sync finished
+      // (real-world Calendar syncs can run several minutes on a
+      // stale calendar -- see docs/v3.2-unified-sync-audit.md).
+      // Apps Script executions aren't cancellable and the request
+      // is already in flight, so let it finish server-side and
+      // just surface the eventual real result quietly rather than
+      // ever blocking startup on it.
+      syncPromise
+        .then(function(result) {
+          if (result && !result.alreadyRunning) {
+            PayTrackerAppController.showToast(
+              'Background sync finished: ' +
+              PayTrackerAppController.summarizeSyncResult(
+                result.summary
+              ),
+              'info',
+              6000
+            );
+          }
+        })
+        .catch(function(error) {
+          console.error(
+            'Pay Tracker background sync failed.',
+            error
+          );
+        });
+    }
+
+    if (config.manageOverlay) {
+      PayTrackerAppController.hideLoading();
+    }
+
+    return outcome.result;
+  },
+
+  /**
+   * Resolves once the sync either genuinely settles (success or
+   * failure) OR the user clicks "Continue to Pay Tracker" -- offered
+   * automatically once `config.continueAfterMs` has elapsed (sync is
+   * just slow, not failed) and immediately on a genuine failure.
+   * Never leaves the user waiting indefinitely: a failure that the
+   * user doesn't click through resolves on its own after a short
+   * safety-net timeout.
+   *
+   * @param {Promise<Object>} syncPromise runPayTrackerSync() call.
+   * @param {Object|null} statusSummary Prior getPayTrackerSyncStatus()
+   *   result, for the "last successful sync" fallback message.
+   * @param {Object} config {continueAfterMs}
+   * @return {Promise<{result:Object|null, backgrounded:boolean}>}
+   */
+  settleSyncPass: function(
+    syncPromise,
+    statusSummary,
+    config
+  ) {
+    let continueResolve = null;
+
+    const continuePromise = new Promise(
+      function(resolve) {
+        continueResolve = resolve;
+      }
+    );
+
+    const slowTimeoutId =
+      Math.sign(config.continueAfterMs) === 1
+        ? window.setTimeout(
+            function() {
+              PayTrackerAppController.showSyncContinueButton(
+                'Still syncing your latest data -- this ' +
+                'can take a while the first time. You can ' +
+                'continue now; it will keep going in the ' +
+                'background.',
+                function() {
+                  continueResolve({ backgrounded: true });
+                }
+              );
+            },
+            config.continueAfterMs
+          )
+        : null;
+
+    const settledSyncPromise = syncPromise
+      .then(function(result) {
+        return { result: result, backgrounded: false };
+      })
+      .catch(function(error) {
+        console.error(
+          'Pay Tracker sync pass failed.',
+          error
+        );
+
+        PayTrackerAppController.showSyncContinueButton(
+          PayTrackerAppController.buildSyncFailureMessage(
+            error,
+            statusSummary
+          ),
+          function() {
+            continueResolve({
+              result: null,
+              backgrounded: false
+            });
+          }
+        );
+
+        return new Promise(function(resolve) {
+          window.setTimeout(function() {
+            resolve({ result: null, backgrounded: false });
+          }, 8000);
+        });
+      });
+
+    return Promise.race([
+      settledSyncPromise,
+      continuePromise
+    ]).then(function(outcome) {
+      if (slowTimeoutId) {
+        window.clearTimeout(slowTimeoutId);
+      }
+
+      PayTrackerAppController.hideSyncContinueButton();
+
+      return outcome;
+    });
+  },
+
+  /**
+   * Shows the loading screen's "Continue to Pay Tracker" button with
+   * a specific message, wired to call `onClick` once.
+   *
+   * @param {string} message
+   * @param {Function} onClick
+   */
+  showSyncContinueButton: function(message, onClick) {
+    PayTrackerAppController.renderSyncMessage(message);
+
+    const continueButton =
+      PayTrackerAppController.query(
+        PayTrackerAppController
+          .selectors
+          .syncContinueButton
+      );
+
+    if (!continueButton) {
+      return;
+    }
+
+    if (PayTrackerAppController.state.syncContinueHandler) {
+      continueButton.removeEventListener(
+        'click',
+        PayTrackerAppController.state.syncContinueHandler
+      );
+    }
+
+    PayTrackerAppController.state.syncContinueHandler =
+      onClick;
+
+    continueButton.hidden = false;
+    continueButton.addEventListener('click', onClick);
+  },
+
+  /**
+   * Hides the "Continue to Pay Tracker" button and detaches its
+   * handler.
+   */
+  hideSyncContinueButton: function() {
+    const continueButton =
+      PayTrackerAppController.query(
+        PayTrackerAppController
+          .selectors
+          .syncContinueButton
+      );
+
+    if (!continueButton) {
+      return;
+    }
+
+    continueButton.hidden = true;
+
+    if (PayTrackerAppController.state.syncContinueHandler) {
+      continueButton.removeEventListener(
+        'click',
+        PayTrackerAppController.state.syncContinueHandler
+      );
+
+      PayTrackerAppController.state.syncContinueHandler =
+        null;
+    }
+  },
+
+  /**
+   * Builds the "couldn't refresh" message shown alongside the
+   * Continue button on a genuine sync failure, including the most
+   * recent real last-successful-sync time when one is known.
+   *
+   * @param {*} error
+   * @param {Object|null} statusSummary
+   * @return {string}
+   */
+  buildSyncFailureMessage: function(
+    error,
+    statusSummary
+  ) {
+    const lastSuccess =
+      PayTrackerAppController.getMostRecentSyncTimestamp(
+        statusSummary
+      );
+
+    const lastSuccessText =
+      lastSuccess
+        ? (
+            ' Showing data from your last successful ' +
+            'sync (' +
+            PayTrackerAppController.formatRelativeTime(
+              lastSuccess
+            ) +
+            ').'
+          )
+        : '';
+
+    return (
+      'Pay Tracker could not refresh your data just now.' +
+      lastSuccessText
+    );
+  },
+
+  /**
+   * Clears the loading screen's per-task progress UI back to its
+   * empty state before a new sync pass starts rendering into it.
+   */
+  resetSyncUi: function() {
+    const list =
+      PayTrackerAppController.query(
+        PayTrackerAppController.selectors.syncTasksList
+      );
+
+    const summaryEl =
+      PayTrackerAppController.query(
+        PayTrackerAppController.selectors.syncSummary
+      );
+
+    if (list) {
+      list.hidden = true;
+      list.innerHTML = '';
+    }
+
+    if (summaryEl) {
+      summaryEl.hidden = true;
+      summaryEl.textContent = '';
+    }
+
+    PayTrackerAppController.hideSyncContinueButton();
+
+    PayTrackerAppController.state.syncTaskElements = {};
+  },
+
+  /**
+   * Renders the initial per-task list from a read-only
+   * getPayTrackerSyncStatus() call -- real last-known status and
+   * freshness for every task, shown immediately so the user isn't
+   * looking at a blank screen while the actual sync runs.
+   *
+   * @param {Object} statusSummary Result of
+   *   getPayTrackerSyncStatus().
+   */
+  renderSyncTasksFromStatus: function(statusSummary) {
+    const list =
+      PayTrackerAppController.query(
+        PayTrackerAppController.selectors.syncTasksList
+      );
+
+    if (
+      !list ||
+      !statusSummary ||
+      !Array.isArray(statusSummary.tasks)
+    ) {
+      return;
+    }
+
+    list.hidden = false;
+    list.innerHTML = '';
+
+    const elements = {};
+
+    statusSummary.tasks.forEach(function(task) {
+      const item = document.createElement('li');
+      const initialStatus =
+        task.fresh ? 'Already current' : 'Checking';
+
+      item.className =
+        'app-loading__task app-loading__task--' +
+        (
+          PayTrackerAppController
+            .SYNC_TASK_STATUS_CLASS[initialStatus] ||
+          'checking'
+        );
+
+      item.dataset.taskId = task.taskId;
+
+      const name = document.createElement('span');
+      name.className = 'app-loading__task-name';
+      name.textContent = task.taskName;
+
+      const status = document.createElement('span');
+      status.className = 'app-loading__task-status';
+      status.textContent = initialStatus;
+
+      item.appendChild(name);
+      item.appendChild(status);
+      list.appendChild(item);
+
+      elements[task.taskId] = {
+        item: item,
+        status: status
+      };
+    });
+
+    PayTrackerAppController.state.syncTaskElements =
+      elements;
+  },
+
+  /**
+   * Renders the real, final per-task results from a completed
+   * runPayTrackerSync() call over whatever rows
+   * renderSyncTasksFromStatus() already drew.
+   *
+   * @param {Object} result Result of runPayTrackerSync().
+   */
+  renderSyncResults: function(result) {
+    const elements =
+      PayTrackerAppController.state.syncTaskElements || {};
+
+    const tasks =
+      Array.isArray(result.tasks) ? result.tasks : [];
+
+    tasks.forEach(function(task) {
+      const refs = elements[task.taskId];
+
+      if (!refs) {
+        return;
+      }
+
+      const statusClass =
+        PayTrackerAppController
+          .SYNC_TASK_STATUS_CLASS[task.status] ||
+        'unavailable';
+
+      refs.item.className =
+        'app-loading__task app-loading__task--' +
+        statusClass;
+
+      refs.status.textContent = task.status;
+      refs.item.title = task.message || '';
+    });
+
+    PayTrackerAppController.renderSyncMessage(
+      PayTrackerAppController.summarizeSyncResult(
+        result.summary
+      )
+    );
+  },
+
+  /**
+   * Builds a one-line, real-counts summary from the engine's
+   * summarize_() output (e.g. "3 updated, 4 already current") --
+   * never a percentage, since the engine doesn't compute one.
+   *
+   * @param {Object} summary Result.summary from runPayTrackerSync().
+   * @return {string} Summary line.
+   */
+  summarizeSyncResult: function(summary) {
+    if (!summary) {
+      return '';
+    }
+
+    const parts = [];
+
+    if (summary.updated) {
+      parts.push(summary.updated + ' updated');
+    }
+
+    if (summary.alreadyCurrent) {
+      parts.push(
+        summary.alreadyCurrent + ' already current'
+      );
+    }
+
+    if (summary.failed) {
+      parts.push(summary.failed + ' need attention');
+    }
+
+    if (summary.manual) {
+      parts.push(summary.manual + ' manual');
+    }
+
+    if (summary.skipped) {
+      parts.push(summary.skipped + ' skipped');
+    }
+
+    return parts.length
+      ? parts.join(', ') + '.'
+      : 'Pay Tracker data is up to date.';
+  },
+
+  /**
+   * Sets (or hides) the loading screen's one-line status message.
+   *
+   * @param {string} message Message text.
+   */
+  renderSyncMessage: function(message) {
+    const summaryEl =
+      PayTrackerAppController.query(
+        PayTrackerAppController.selectors.syncSummary
+      );
+
+    if (!summaryEl) {
+      return;
+    }
+
+    summaryEl.hidden = !message;
+    summaryEl.textContent = message || '';
+  },
+
+  /**
+   * Handles a genuine sync-run failure (the server call itself
+   * threw -- not an individual task reporting Failed, which the
+   * engine already reports gracefully as a per-task row). Shows
+   * the last successful sync time already known from the earlier
+   * status read, offers "Continue to Pay Tracker", and resolves
+   * either when the user clicks it or after a short safety-net
+   * timeout -- sync never permanently blocks entry to the app.
+   *
+   * @param {*} error The error thrown by runPayTrackerSync().
+   * @param {Object|null} statusSummary Prior getPayTrackerSyncStatus()
+   *   result, if it succeeded.
+   * @param {boolean} manageOverlay Whether this call owns hiding
+   *   the loading screen once resolved.
+   * @return {Promise<void>}
+   */
+  /**
+   * Finds the most recent lastSuccess timestamp across every task
+   * in a getPayTrackerSyncStatus() result.
+   *
+   * @param {Object|null} statusSummary
+   * @return {Date|null}
+   */
+  getMostRecentSyncTimestamp: function(statusSummary) {
+    if (
+      !statusSummary ||
+      !Array.isArray(statusSummary.tasks)
+    ) {
+      return null;
+    }
+
+    let latest = null;
+
+    statusSummary.tasks.forEach(function(task) {
+      if (!task.lastSuccess) {
+        return;
+      }
+
+      const date = new Date(task.lastSuccess);
+
+      if (Number.isNaN(date.getTime())) {
+        return;
+      }
+
+      const isNewer =
+        !latest ||
+        Math.sign(date.getTime() - latest.getTime()) === 1;
+
+      if (isNewer) {
+        latest = date;
+      }
+    });
+
+    return latest;
+  },
+
+  /**
+   * Formats a Date as a short relative time string.
+   *
+   * @param {Date|null} date
+   * @return {string}
+   */
+  formatRelativeTime: function(date) {
+    if (!date) {
+      return 'unknown';
+    }
+
+    const diffMs = Date.now() - date.getTime();
+    const minutes = Math.round(diffMs / 60000);
+
+    if (Math.sign(minutes) !== 1) {
+      return 'just now';
+    }
+
+    if (Math.sign(minutes - 60) === -1) {
+      return (
+        minutes + ' minute' +
+        (minutes === 1 ? '' : 's') + ' ago'
+      );
+    }
+
+    const hours = Math.round(minutes / 60);
+
+    if (Math.sign(hours - 24) === -1) {
+      return (
+        hours + ' hour' +
+        (hours === 1 ? '' : 's') + ' ago'
+      );
+    }
+
+    const days = Math.round(hours / 24);
+
+    return (
+      days + ' day' +
+      (days === 1 ? '' : 's') + ' ago'
+    );
   },
 
   /**

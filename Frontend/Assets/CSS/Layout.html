@@ -676,6 +676,73 @@ body.is-mobile-menu-open .sidebar-overlay {
   font-weight: 650;
 }
 
+.app-loading__tasks {
+  list-style: none;
+  width: 100%;
+  max-width: 320px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 4px 0 0;
+  padding: 0;
+}
+
+.app-loading__task {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 7px 12px;
+  border-radius: var(--radius-medium);
+  background: var(--color-surface-soft);
+  border: 1px solid var(--color-border);
+  font-size: 12px;
+}
+
+.app-loading__task-name {
+  color: var(--color-text);
+  font-weight: 600;
+}
+
+.app-loading__task-status {
+  font-weight: 650;
+  font-size: 11px;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+}
+
+.app-loading__task--updated .app-loading__task-status,
+.app-loading__task--already-current .app-loading__task-status {
+  color: var(--color-success);
+}
+
+.app-loading__task--needs-attention .app-loading__task-status,
+.app-loading__task--manual .app-loading__task-status,
+.app-loading__task--skipped .app-loading__task-status {
+  color: var(--color-warning);
+}
+
+.app-loading__task--failed .app-loading__task-status {
+  color: var(--color-danger);
+}
+
+.app-loading__task--checking .app-loading__task-status,
+.app-loading__task--syncing .app-loading__task-status,
+.app-loading__task--waiting .app-loading__task-status {
+  color: var(--color-primary);
+}
+
+.app-loading__summary {
+  color: var(--color-text-muted);
+  font-size: 11px;
+  text-align: center;
+  max-width: 320px;
+}
+
+.app-loading__continue {
+  margin-top: 2px;
+}
+
 /* =====================================================
    Responsive layout
    ===================================================== */
