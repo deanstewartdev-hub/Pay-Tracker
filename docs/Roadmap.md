@@ -74,4 +74,12 @@ Connect Calendar shifts → Staffline timetables/timesheets → predicted pay �
 
 Annual Leave (Phase 4) must not start before the Job Registry (Phase 1) exists — every AL record must belong to exactly one job.
 
+---
+
+# v3.2 — Unified Sync Engine
+
+Post-roadmap initiative, not a v3 phase — completed 2026-08-31. Replaces manual, per-page "sync now" clicking with one orchestrator: a task registry with per-task freshness gating, a startup screen showing real sync progress, a background schedule (three time-driven triggers), and a "Refresh Everything" action. See `docs/v3.2-unified-sync-audit.md` for the audit this was built from, and `docs/VERSION.md` / `docs/Changelog.md` for the full release record.
+
+Changes how the v3 roadmap's existing features stay fresh, not what they do — the Staffline portal's manual-only limitation (no API, no headless auth path) is unchanged and always shown as such, never as a failed sync.
+
 Full field-level specification for every sheet, ledger and phase (Job record, Unified Shift record, Annual Leave sheets, Pay Adjustments columns, Money Movements columns, Transaction Matching Rules, report list) lives in `docs/v3-Roadmap-Detail.md`. This file intentionally stays high-level so it doesn't drift out of sync with that detail again.
