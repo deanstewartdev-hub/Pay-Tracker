@@ -13,15 +13,17 @@
  * docs/v3.2-unified-sync-audit.md for why PR #26's route-scoped
  * loading must not be reverted by this engine.
  *
- * Task runner bodies below are intentionally stubbed in this PR
- * (v3.2 architecture) -- each one traces to a specific, cited,
- * already-proven-safe function in docs/v3.2-unified-sync-audit.md
- * and is wired to the real thing in the next PR (real source
- * integration + scheduler). Everything else here -- freshness,
- * dependency ordering, concurrency, result persistence -- is
- * real and fully tested against these stubs, since the engine
- * treats a runner as an opaque function returning a result shape
- * regardless of what's inside it.
+ * Every task runner below wraps a real, already-proven function
+ * cited in docs/v3.2-unified-sync-audit.md -- nothing here
+ * reimplements Calendar/Gmail/Monzo import logic, it only
+ * orchestrates when those existing functions run and maps their
+ * real return values onto one common status shape. The
+ * status/message mapping for each source is a separate, pure
+ * function (mapCalendarResult_, mapGmailScanResult_, etc.) so it
+ * can be unit tested with synthetic inputs -- the engine itself
+ * never needs to make a live Calendar/Gmail/Monzo call to be
+ * tested, matching how every other test suite in this codebase
+ * already avoids live external calls.
  *******************************************************/
 
 const PayTrackerSyncService = Object.freeze({
@@ -227,34 +229,251 @@ const PayTrackerSyncService = Object.freeze({
   },
 
   /**
+   * How many days back a Gmail-based scan looks each time the
+   * engine runs it. Each source's own default (365 days via
+   * PayTrackerPayslipImportService.normalizeScanOptions, shared by
+   * Staffline/Payslip/Annual Leave) is a sensible one-off backfill
+   * default for a human running a manual scan, but far too wide for
+   * a routine 6-hourly automated check -- every dedup-safe function
+   * would still have to read and skip hundreds of already-seen
+   * messages every run. 7 days gives generous overlap against the
+   * 360-minute freshness TTL these tasks use (see SyncConfig.js)
+   * even if a run or two is missed, without re-scanning a year of
+   * mail on every pass.
+   */
+  GMAIL_SCAN_LOOKBACK_DAYS: 7,
+
+  /**
+   * Pure result -> engine-shape mappers, deliberately separated
+   * from the RUNNERS below that make the real external call. Every
+   * existing test suite in this codebase (including Calendar's own)
+   * avoids invoking live Calendar/Gmail/Monzo calls from the
+   * automated runAllPayTrackerTests() suite -- only pure logic is
+   * unit tested, exactly as CalendarReconciliation_Tests.js does
+   * for classifyEvent(). Splitting the mapping out this way lets
+   * Tests/UnifiedSync_Tests.js exercise every status/message branch
+   * below with synthetic inputs, with zero live network calls.
+   */
+  mapCalendarResult_: function(result) {
+    const changed = result.imported + result.updated + result.adopted + result.removed;
+    return {
+      status: changed > 0
+        ? PayTrackerSyncConfig.TASK_STATUSES.UPDATED
+        : PayTrackerSyncConfig.TASK_STATUSES.ALREADY_CURRENT,
+      created: result.imported,
+      updated: result.updated + result.adopted,
+      skipped: result.skipped,
+      message: result.totalEvents + ' events checked, ' + result.imported + ' new, ' +
+        result.reviewItems + ' review item(s), ' + result.ignored + ' not recognised.'
+    };
+  },
+
+  /**
+   * Shared by Staffline Gmail and Annual Leave Gmail -- both
+   * PayTrackerStafflineGmailImportService.scanGmail and
+   * PayTrackerAnnualLeaveGmailImportService.scanGmail return the
+   * identical {success, recordsCreated, recordsUpdated,
+   * messagesChecked, messagesMatched, needsReview, errors} shape
+   * (both built on the same normalizeScanOptions/runScan
+   * convention), so one mapper genuinely covers both rather than
+   * two near-identical copies.
+   */
+  mapGmailScanResult_: function(result, sourceLabel) {
+    if (!result.success) {
+      return {
+        status: PayTrackerSyncConfig.TASK_STATUSES.FAILED,
+        message: sourceLabel + ' Gmail scan did not complete.',
+        error: (result.errors || []).join('; ')
+      };
+    }
+    const changed = result.recordsCreated + result.recordsUpdated;
+    const hasErrors = (result.errors || []).length > 0;
+    return {
+      status: hasErrors
+        ? PayTrackerSyncConfig.TASK_STATUSES.NEEDS_ATTENTION
+        : (changed > 0 ? PayTrackerSyncConfig.TASK_STATUSES.UPDATED : PayTrackerSyncConfig.TASK_STATUSES.ALREADY_CURRENT),
+      created: result.recordsCreated,
+      updated: result.recordsUpdated,
+      skipped: result.messagesChecked - result.messagesMatched,
+      message: result.messagesMatched + ' ' + sourceLabel + ' email(s) checked, ' + result.recordsCreated + ' new' +
+        (result.needsReview ? ', ' + result.needsReview + ' needs review' : '') + '.',
+      error: hasErrors ? result.errors.join('; ') : ''
+    };
+  },
+
+  mapPayslipResult_: function(scan, processed) {
+    if (!scan.success) {
+      return { status: PayTrackerSyncConfig.TASK_STATUSES.FAILED, message: 'Payslip Gmail scan did not complete.', error: (scan.errors || []).join('; ') };
+    }
+    const hasErrors = (scan.errors || []).length > 0 || processed.failed > 0;
+    const changed = scan.payslipsImported + processed.completed;
+    return {
+      status: hasErrors
+        ? PayTrackerSyncConfig.TASK_STATUSES.NEEDS_ATTENTION
+        : (changed > 0 ? PayTrackerSyncConfig.TASK_STATUSES.UPDATED : PayTrackerSyncConfig.TASK_STATUSES.ALREADY_CURRENT),
+      created: scan.payslipsImported,
+      updated: processed.completed,
+      skipped: scan.messagesChecked - scan.messagesMatched,
+      message: scan.messagesMatched + ' payslip email(s) checked, ' + scan.payslipsImported +
+        ' new, ' + processed.completed + ' processed.',
+      error: hasErrors ? [].concat(scan.errors || []).concat(
+        processed.failed ? [processed.failed + ' payslip(s) failed processing'] : []
+      ).join('; ') : ''
+    };
+  },
+
+  mapMonzoTransactionsResult_: function(result) {
+    return {
+      status: result.imported > 0 || result.suggestions > 0 || result.paymentsMatched > 0
+        ? PayTrackerSyncConfig.TASK_STATUSES.UPDATED
+        : PayTrackerSyncConfig.TASK_STATUSES.ALREADY_CURRENT,
+      created: result.imported,
+      updated: result.paymentsMatched,
+      message: result.message
+    };
+  },
+
+  mapMonzoPotsResult_: function(result) {
+    return {
+      status: result.potsUpdated > 0 ? PayTrackerSyncConfig.TASK_STATUSES.UPDATED : PayTrackerSyncConfig.TASK_STATUSES.ALREADY_CURRENT,
+      updated: result.potsUpdated,
+      message: result.potsSeen + ' pot(s) seen, ' + result.potsUpdated + ' linked pot balance(s) updated.'
+    };
+  },
+
+  /**
+   * A function, not a static object literal -- a top-level object
+   * literal inside this Object.freeze() would evaluate
+   * PayTrackerSyncConfig.TASK_STATUSES.MANUAL at script-load time,
+   * before every file is guaranteed loaded, which is exactly the
+   * class of cross-file load-order bug this codebase's other
+   * services avoid by only referencing another file's config from
+   * inside a function body (called later, never at load time).
+   */
+  monzoNotConnectedResult_: function() {
+    return {
+      status: PayTrackerSyncConfig.TASK_STATUSES.MANUAL,
+      message: 'Monzo is not connected. Connect it from Finance to enable automatic sync.'
+    };
+  },
+
+  /**
    * taskId -> function(task) -> {status, created, updated,
-   * skipped, message, error}. Stubbed here; wired to real,
-   * already-audited functions in the next PR. Deliberately a
-   * plain object (not frozen) so the follow-up PR's diff is a
-   * simple, reviewable edit to each function body -- the engine
-   * logic above never changes.
+   * skipped, message, error}. Each wraps a real, already-audited
+   * function (see docs/v3.2-unified-sync-audit.md) in
+   * PayTrackerUtils.withDocumentLock exactly as its own existing
+   * callers already do (e.g. runAutomaticPayTrackerCalendarSync)
+   * -- none of these source functions lock themselves, so the
+   * caller always has. Nothing here rewrites the underlying import
+   * logic; every call is to an existing, proven, unchanged function.
    */
   RUNNERS: {
     CALENDAR: function() {
-      return { status: PayTrackerSyncConfig.TASK_STATUSES.UNAVAILABLE, message: 'Not yet wired to PayTrackerCalendarService.sync().' };
+      const result = PayTrackerUtils.withDocumentLock(function() {
+        return PayTrackerCalendarService.sync();
+      });
+      return PayTrackerSyncService.mapCalendarResult_(result);
     },
+
     STAFFLINE_GMAIL: function() {
-      return { status: PayTrackerSyncConfig.TASK_STATUSES.UNAVAILABLE, message: 'Not yet wired to PayTrackerStafflineGmailImportService.scanGmail().' };
+      const result = PayTrackerUtils.withDocumentLock(function() {
+        return PayTrackerStafflineGmailImportService.scanGmail({
+          lookbackDays: PayTrackerSyncService.GMAIL_SCAN_LOOKBACK_DAYS
+        });
+      });
+      return PayTrackerSyncService.mapGmailScanResult_(result, 'Staffline approval');
     },
+
     PAYSLIP_GMAIL: function() {
-      return { status: PayTrackerSyncConfig.TASK_STATUSES.UNAVAILABLE, message: 'Not yet wired to PayTrackerPayslipImportService.scanGmail().' };
+      const result = PayTrackerUtils.withDocumentLock(function() {
+        const scan = PayTrackerPayslipImportService.scanGmail({
+          lookbackDays: PayTrackerSyncService.GMAIL_SCAN_LOOKBACK_DAYS
+        });
+        // Auditing this (docs/v3.2-unified-sync-audit.md, finding #8)
+        // found scanning and processing were never wired together --
+        // processPayslip() overwrites by Payslip ID (no duplicate
+        // rows) and is safe to re-run, so it's safe to chain here.
+        // Small, capped batch: this only needs to catch up on
+        // whatever THIS scan just found, not clear a large backlog
+        // in one automated pass.
+        const processed = PayTrackerPayrollPayslipProcessingService.processBatch({
+          limit: 5, onlyUnprocessed: true
+        });
+        return { scan: scan, processed: processed };
+      });
+      return PayTrackerSyncService.mapPayslipResult_(result.scan, result.processed);
     },
+
     ANNUAL_LEAVE_GMAIL: function() {
-      return { status: PayTrackerSyncConfig.TASK_STATUSES.UNAVAILABLE, message: 'Not yet wired to PayTrackerAnnualLeaveGmailImportService.scanGmail().' };
+      const result = PayTrackerUtils.withDocumentLock(function() {
+        return PayTrackerAnnualLeaveGmailImportService.scanGmail({
+          lookbackDays: PayTrackerSyncService.GMAIL_SCAN_LOOKBACK_DAYS
+        });
+      });
+      return PayTrackerSyncService.mapGmailScanResult_(result, 'Annual Leave');
     },
+
+    // Monzo's OAuth refresh has no headless path (audit finding #5)
+    // -- if it isn't connected at all, that's a real, distinct
+    // condition from a failure: report it as Manual (connect from
+    // Finance), not Failed, so the startup screen doesn't read it as
+    // a broken sync. If it IS connected but the refresh token has
+    // since expired, PayTrackerMonzoService.sync() throws a real,
+    // already-actionable message ("...Reconnect Monzo from Finance
+    // to continue syncing.") which the engine's own try/catch in
+    // run() surfaces as this task's error -- no special-casing
+    // needed for that path.
     MONZO_TRANSACTIONS: function() {
-      return { status: PayTrackerSyncConfig.TASK_STATUSES.UNAVAILABLE, message: 'Not yet wired to PayTrackerMonzoService.sync().' };
+      if (!PayTrackerMonzoService.hasAccessToken()) return PayTrackerSyncService.monzoNotConnectedResult_();
+      const result = PayTrackerUtils.withDocumentLock(function() {
+        return PayTrackerMonzoService.sync();
+      });
+      return PayTrackerSyncService.mapMonzoTransactionsResult_(result);
     },
+
+    // Deliberately its own independent Monzo /pots call (not shared
+    // with MONZO_TRANSACTIONS's sync(), which also refreshes pots as
+    // a side effect) -- keeps each task correctly self-contained and
+    // individually freshness-gated, and /pots is a light, cheap,
+    // read-mostly endpoint, so the occasional overlap with a
+    // Transactions run costs nothing meaningful. Never creates a
+    // Savings Pot and never fabricates a transaction -- only
+    // overwrites the live balance on pots the user has explicitly
+    // linked (PayTrackerSavingsService.applyMonzoPotBalances).
     MONZO_POTS: function() {
-      return { status: PayTrackerSyncConfig.TASK_STATUSES.UNAVAILABLE, message: 'Not yet wired to PayTrackerMonzoService pot refresh.' };
+      if (!PayTrackerMonzoService.hasAccessToken()) return PayTrackerSyncService.monzoNotConnectedResult_();
+      const result = PayTrackerUtils.withDocumentLock(function() {
+        const accessToken = PayTrackerMonzoService.getAccessToken();
+        const accounts = (PayTrackerMonzoService.request('/accounts', {}, accessToken).accounts) || [];
+        if (!accounts.length) throw new Error('Monzo did not return an available account.');
+        const pots = PayTrackerMonzoService.fetchPots(accounts[0].id, accessToken);
+        const potsUpdated = PayTrackerSavingsService.applyMonzoPotBalances(pots);
+        return { potsUpdated: potsUpdated, potsSeen: pots.length };
+      });
+      return PayTrackerSyncService.mapMonzoPotsResult_(result);
     },
+
+    // Pure read, confirmed zero writes (docs/v3.2-unified-sync-audit.md)
+    // -- never calls syncPayTrackerStafflineDiscrepancies, so this
+    // can safely run unattended without ever bulk-creating Action
+    // Centre items. It only ever reports a count of what would need
+    // review, exactly as the v3.2 spec requires ("Startup may
+    // calculate '2 items need review' without auto-writing false
+    // alerts").
     RECONCILIATION: function() {
-      return { status: PayTrackerSyncConfig.TASK_STATUSES.UNAVAILABLE, message: 'Not yet wired to PayTrackerStafflineReconciliationService.getReconciliation().' };
+      const reconciliation = PayTrackerStafflineReconciliationService.getReconciliation();
+      const rows = reconciliation.rows || [];
+      const needsAttention = rows.filter(function(row) {
+        return row.calendarStatus === 'Job Mismatch' || row.calendarStatus === 'Hours Differ' ||
+          row.calendarStatus === 'Needs Review' || row.paymentStatus === 'Needs Review' ||
+          row.paymentStatus === 'Payroll Underpayment';
+      });
+      return {
+        status: PayTrackerSyncConfig.TASK_STATUSES.UPDATED,
+        updated: rows.length,
+        message: rows.length + ' timesheet(s) reconciled' +
+          (needsAttention.length ? ', ' + needsAttention.length + ' item(s) need review.' : ', all current.')
+      };
     }
   }
 });
