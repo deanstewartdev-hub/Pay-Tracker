@@ -5,7 +5,9 @@
  * Purpose:
  * - Perform manual read-only Gmail searches for Annual Leave emails
  * - Match against Annual Leave Email Rules (one rule = one Job ID)
- * - Extract leave dates and status from the subject/body
+ * - Extract leave dates/hours/status from a PDF or DOCX attachment
+ *   (never from the email's own sent date, and never from quoted
+ *   reply-chain text -- see extractAttachmentText/stripQuotedReplyText)
  * - Auto-import only High-confidence matches into Annual Leave Usage
  * - Send Medium/Low confidence matches to the Action Centre
  * - Update (never duplicate) the same thread's record on a
@@ -30,6 +32,23 @@ const PayTrackerAnnualLeaveGmailImportService = Object.freeze({
     'leave confirmation', 'time off', 'absence request', 'leave cancelled',
     'holiday cancelled', 'leave balance', ' AL '
   ]),
+
+  // Causeway Coast and Glens Borough Council's warden contact handles
+  // paperwork for two separate jobs (Relief Warden day shifts AND
+  // Night Security) from the same sender/subject pattern, so the Job
+  // ID can never be inferred from sender/subject alone for this
+  // domain -- it must come from positive wording inside the
+  // attachment. Absence of a Night Security marker is NOT evidence of
+  // Relief Warden; both markers, or neither, mean the job is unclear.
+  CAUSEWAY_COUNCIL_SENDER_DOMAIN: 'causewaycoastandglens.gov.uk',
+
+  CAUSEWAY_NIGHT_SECURITY_MARKERS: Object.freeze(['night shift', 'night security']),
+
+  CAUSEWAY_RELIEF_WARDEN_MARKERS: Object.freeze([
+    'caravan park', 'caravan site', 'relief warden', 'assistant warden'
+  ]),
+
+  TEMPORARY_ATTACHMENT_FOLDER_NAME: 'Pay Tracker Temporary Annual Leave Attachment Extraction',
 
   scanGmail: function(options) {
     return PayTrackerAnnualLeaveGmailImportService.runScan(options, false);
@@ -114,10 +133,20 @@ const PayTrackerAnnualLeaveGmailImportService = Object.freeze({
   },
 
   /**
-   * Processes one Gmail message: matches rules, extracts dates and
-   * status, scores confidence, then either creates/updates an
+   * Processes one Gmail message: matches rules, extracts dates/hours
+   * and status, scores confidence, then either creates/updates an
    * Annual Leave Usage record (High confidence) or a source-linked
    * Action Centre review item (Medium/Low). Never both.
+   *
+   * Dates/hours are read only from a PDF/DOCX attachment when one is
+   * present, or from the email body with quoted reply-chain text
+   * stripped out when it is not -- never from the raw body (which can
+   * contain a quoted prior message's own date/timestamp) and never
+   * from the email's sent date. A message from an attachment-required
+   * ambiguous sender (see CAUSEWAY_COUNCIL_SENDER_DOMAIN) only gets a
+   * Job ID when the attachment contains unambiguous wording for
+   * exactly one job; otherwise it is routed to Needs Review rather
+   * than guessed.
    */
   processMessage: function(input) {
     const message = input.message;
@@ -133,22 +162,55 @@ const PayTrackerAnnualLeaveGmailImportService = Object.freeze({
 
     if (!matchedRule) return { matched: false };
 
-    const combinedText = [metadata.emailSubject, metadata.bodyText].join(' ');
-    const dateRange = PayTrackerAnnualLeaveGmailImportService.extractDateRange(combinedText);
-    const status = PayTrackerAnnualLeaveGmailImportService.detectLeaveStatus(combinedText);
-
-    const confidence = PayTrackerAnnualLeaveGmailImportService.computeConfidence({
-      rule: matchedRule, dateRange: dateRange, status: status
-    });
+    const strippedBody = PayTrackerAnnualLeaveGmailImportService.stripQuotedReplyText(metadata.bodyText);
 
     const existing = PayTrackerAnnualLeaveGmailImportService.findByGmailMessageId(metadata.gmailMessageId);
-    if (existing) return { matched: true, duplicate: true, status: status };
+    if (existing) {
+      const cheapStatus = PayTrackerAnnualLeaveGmailImportService.detectLeaveStatus(
+        [metadata.emailSubject, strippedBody].join(' ')
+      );
+      return { matched: true, duplicate: true, status: cheapStatus };
+    }
+
+    const attachmentExtraction = PayTrackerAnnualLeaveGmailImportService.extractAttachmentText(message);
+    const hasAttachmentText = Boolean(attachmentExtraction.text);
+    const scopedText = [
+      metadata.emailSubject,
+      hasAttachmentText ? attachmentExtraction.text : strippedBody
+    ].join(' ');
+
+    const dateRange = PayTrackerAnnualLeaveGmailImportService.extractDateRange(scopedText);
+    const status = PayTrackerAnnualLeaveGmailImportService.detectLeaveStatus(scopedText);
+    const hoursRequested = PayTrackerAnnualLeaveGmailImportService.extractHours(scopedText);
+
+    let effectiveJobId = matchedRule.jobId;
+    let jobEvidence = '';
+    if (PayTrackerAnnualLeaveGmailImportService.isFromCausewayCouncil(metadata.emailSender)) {
+      const classification = PayTrackerAnnualLeaveGmailImportService.classifyCausewayJobFromAttachment(
+        hasAttachmentText ? attachmentExtraction.text : ''
+      );
+      effectiveJobId = classification.jobId;
+      jobEvidence = classification.reason;
+    }
+
+    const confidence = PayTrackerAnnualLeaveGmailImportService.computeConfidence({
+      rule: { jobId: effectiveJobId }, dateRange: dateRange, status: status
+    });
+
+    const attachmentSummary = attachmentExtraction.attachmentNames.length
+      ? 'Attachments read: ' + attachmentExtraction.attachmentNames.join(', ') + '.'
+      : 'No usable attachment text was available.';
+    const extractionErrorSummary = attachmentExtraction.errors.length
+      ? ' Extraction errors: ' + attachmentExtraction.errors.join('; ') + '.'
+      : '';
 
     if (dryRun) {
       return {
-        matched: true, preview: true, jobId: matchedRule.jobId, status: status,
-        dateRange: dateRange, confidence: confidence,
-        emailSubject: metadata.emailSubject, emailSender: metadata.emailSender
+        matched: true, preview: true, jobId: effectiveJobId, status: status,
+        dateRange: dateRange, hoursRequested: hoursRequested, confidence: confidence,
+        emailSubject: metadata.emailSubject, emailSender: metadata.emailSender,
+        jobEvidence: jobEvidence, attachmentNames: attachmentExtraction.attachmentNames,
+        attachmentErrors: attachmentExtraction.errors
       };
     }
 
@@ -165,40 +227,220 @@ const PayTrackerAnnualLeaveGmailImportService = Object.freeze({
       }
 
       const record = PayTrackerAnnualLeaveUsageRepository.create({
-        jobId: matchedRule.jobId,
+        jobId: effectiveJobId,
         leaveStart: dateRange.start || '',
         leaveEnd: dateRange.end || dateRange.start || '',
+        hoursRequested: hoursRequested || 0,
         leaveStatus: status,
         sourceType: 'Gmail',
         gmailMessageId: metadata.gmailMessageId,
         gmailThreadId: metadata.gmailThreadId,
         approvalConfidence: confidence,
         manualReviewStatus: 'Not Needed',
-        notes: 'Imported from Gmail: "' + metadata.emailSubject + '"'
+        notes: 'Imported from Gmail: "' + metadata.emailSubject + '". ' + attachmentSummary +
+          (jobEvidence ? ' Job evidence: ' + jobEvidence : '')
       });
-      return { matched: true, created: true, status: status, jobId: matchedRule.jobId, alUsageId: record.alUsageId };
+      return { matched: true, created: true, status: status, jobId: effectiveJobId, alUsageId: record.alUsageId };
     }
 
     PayTrackerActionCentreRepository.create({
       actionType: 'Annual Leave Email Needs Review',
-      title: 'Confirm Annual Leave email for ' + (matchedRule.jobId || 'an unclear job'),
+      title: 'Confirm Annual Leave email for ' + (effectiveJobId || 'an unclear job'),
       description: [
         'Subject: ' + metadata.emailSubject,
-        dateRange.start ? 'Detected dates: ' + dateRange.start + ' to ' + (dateRange.end || dateRange.start) : 'No dates detected',
-        'Detected status: ' + (status || 'Unclear')
-      ].join(' | '),
+        'Sender: ' + metadata.emailSender,
+        dateRange.start
+          ? 'Detected dates: ' + dateRange.start + ' to ' + (dateRange.end || dateRange.start)
+          : 'No confident leave dates were found.',
+        hoursRequested ? 'Detected hours: ' + hoursRequested : 'No explicit hours found.',
+        'Detected status: ' + (status || 'Unclear'),
+        jobEvidence ? 'Job evidence: ' + jobEvidence : '',
+        attachmentSummary + extractionErrorSummary
+      ].filter(Boolean).join(' | '),
       priority: 'Normal',
-      jobId: matchedRule.jobId || '',
+      jobId: effectiveJobId || '',
       sourceType: 'Gmail',
       sourceId: metadata.gmailMessageId,
       confidence: confidence,
-      suggestedResolution: 'Review the email and, if correct, add an Annual Leave usage record manually.'
+      suggestedResolution: 'Review the email' +
+        (attachmentExtraction.attachmentNames.length ? ' and its attachment(s)' : '') +
+        ' and, if correct, add an Annual Leave usage record manually.'
     });
 
     return {
       matched: true, created: false, needsReview: true, status: status,
-      jobId: matchedRule.jobId, confidence: confidence
+      jobId: effectiveJobId, confidence: confidence, jobEvidence: jobEvidence
     };
+  },
+
+  /**
+   * Removes quoted reply-chain text from a plain-text email body so
+   * date/status extraction never reads a prior message's own
+   * date/timestamp as if it were the current email's content. Drops
+   * everything from the first "On ... wrote:" / "-----Original
+   * Message-----" / Outlook "From:"+"Sent:" header onward, plus any
+   * line already prefixed with "&gt;".
+   */
+  stripQuotedReplyText: function(text) {
+    const lines = String(text || '').split(/\r?\n/);
+    const kept = [];
+    for (let index = 0; index < lines.length; index += 1) {
+      const line = lines[index];
+      const trimmed = line.trim();
+      if (/^>/.test(trimmed)) continue;
+      if (/^on\s.{0,120}wrote:\s*$/i.test(trimmed)) break;
+      if (/^-{2,}\s*original message\s*-{2,}$/i.test(trimmed)) break;
+      if (/^from:\s/i.test(trimmed) && /^sent:\s/i.test((lines[index + 1] || '').trim())) break;
+      kept.push(line);
+    }
+    return kept.join(' ').replace(/\s+/g, ' ').trim();
+  },
+
+  /**
+   * Best-effort "N hours"/"N.N hours" extraction. Returns a number
+   * only when that exact wording is present -- never inferred from
+   * date ranges or day counts.
+   */
+  extractHours: function(text) {
+    const match = String(text || '').match(/(\d+(?:\.\d+)?)\s*hours?\b/i);
+    if (!match) return null;
+    const hours = Number(match[1]);
+    return Number.isFinite(hours) && hours > 0 ? hours : null;
+  },
+
+  isFromCausewayCouncil: function(sender) {
+    return String(sender || '').toLowerCase().indexOf(
+      PayTrackerAnnualLeaveGmailImportService.CAUSEWAY_COUNCIL_SENDER_DOMAIN
+    ) !== -1;
+  },
+
+  /**
+   * Resolves the real Job ID for a Causeway Coast and Glens Borough
+   * Council email using only positive wording found in the
+   * attachment. Absence of a Night Security marker is never treated
+   * as proof of Relief Warden (and vice versa) -- both markers, or
+   * neither, return a null jobId so the caller routes to Needs Review.
+   */
+  classifyCausewayJobFromAttachment: function(attachmentText) {
+    const text = String(attachmentText || '').toLowerCase();
+    const service = PayTrackerAnnualLeaveGmailImportService;
+    const hasNight = service.CAUSEWAY_NIGHT_SECURITY_MARKERS.some(function(marker) {
+      return text.indexOf(marker) !== -1;
+    });
+    const hasRelief = service.CAUSEWAY_RELIEF_WARDEN_MARKERS.some(function(marker) {
+      return text.indexOf(marker) !== -1;
+    });
+
+    if (hasNight && hasRelief) {
+      return {
+        jobId: null,
+        reason: 'Both Night Security and Relief Warden wording were found in the attachment -- cannot determine the job automatically.'
+      };
+    }
+    if (hasNight) {
+      return { jobId: 'JOB-NIGHT-SECURITY', reason: 'Attachment text contains Night Security wording.' };
+    }
+    if (hasRelief) {
+      return { jobId: 'JOB-RELIEF-WARDEN', reason: 'Attachment text contains Relief Warden / Caravan Park wording.' };
+    }
+    return {
+      jobId: null,
+      reason: 'No identifiable Relief Warden or Night Security wording was found in the attachment text.'
+    };
+  },
+
+  /**
+   * Extracts text from every PDF/DOCX/image attachment on a message
+   * by round-tripping each through a temporary Google Doc conversion
+   * (same technique as PayTrackerPayrollPdfTextService, adapted for a
+   * Gmail attachment Blob instead of a stored Drive file). One
+   * attachment failing to convert/read does not stop the others --
+   * its filename is recorded in `errors` so the caller can flag the
+   * message for manual review instead of silently ignoring it.
+   */
+  extractAttachmentText: function(message) {
+    const attachments = message.getAttachments();
+    const texts = [];
+    const attachmentNames = [];
+    const errors = [];
+
+    for (let index = 0; index < attachments.length; index += 1) {
+      const attachment = attachments[index];
+      const name = attachment.getName() || ('attachment-' + (index + 1));
+      try {
+        const text = PayTrackerAnnualLeaveGmailImportService.extractTextFromAttachmentBlob(
+          attachment.copyBlob(), name
+        );
+        if (text) {
+          texts.push(text);
+          attachmentNames.push(name);
+        } else {
+          errors.push(name + ': no readable text after conversion');
+        }
+      } catch (attachmentError) {
+        errors.push(name + ': ' + PayTrackerAnnualLeaveGmailImportService.getErrorMessage(attachmentError));
+      }
+    }
+
+    return {
+      text: texts.join('\n\n'),
+      attachmentNames: attachmentNames,
+      errors: errors,
+      attachmentCount: attachments.length
+    };
+  },
+
+  extractTextFromAttachmentBlob: function(blob, filename) {
+    let temporaryDocumentId = '';
+    try {
+      const folder = PayTrackerAnnualLeaveGmailImportService.getOrCreateTemporaryAttachmentFolder_();
+      const converted = Drive.Files.create(
+        {
+          name: 'TEMP - AL ATTACHMENT - ' + (filename || 'attachment') + ' - ' + Utilities.getUuid(),
+          mimeType: 'application/vnd.google-apps.document',
+          parents: [folder.getId()]
+        },
+        blob,
+        { fields: 'id,name,mimeType' }
+      );
+      if (!converted || !converted.id) {
+        throw new Error('Drive did not return a converted document ID.');
+      }
+      temporaryDocumentId = String(converted.id);
+      return PayTrackerAnnualLeaveGmailImportService.readConvertedAttachmentText_(temporaryDocumentId);
+    } finally {
+      if (temporaryDocumentId) {
+        try {
+          DriveApp.getFileById(temporaryDocumentId).setTrashed(true);
+        } catch (cleanupError) {
+          console.warn('Temporary Annual Leave attachment extraction document could not be trashed.', cleanupError);
+        }
+      }
+    }
+  },
+
+  readConvertedAttachmentText_: function(documentId) {
+    const maximumAttempts = 8;
+    const retryDelayMilliseconds = 750;
+
+    for (let attempt = 1; attempt <= maximumAttempts; attempt += 1) {
+      try {
+        const body = DocumentApp.openById(documentId).getBody();
+        const text = body ? String(body.getText() || '').trim() : '';
+        if (text) return text;
+      } catch (readError) {
+        // Drive conversion may not be immediately readable -- retry below.
+      }
+      if (attempt < maximumAttempts) Utilities.sleep(retryDelayMilliseconds);
+    }
+    return '';
+  },
+
+  getOrCreateTemporaryAttachmentFolder_: function() {
+    const name = PayTrackerAnnualLeaveGmailImportService.TEMPORARY_ATTACHMENT_FOLDER_NAME;
+    const folders = DriveApp.getFoldersByName(name);
+    if (folders.hasNext()) return folders.next();
+    return DriveApp.createFolder(name);
   },
 
   findByGmailMessageId: function(gmailMessageId) {
