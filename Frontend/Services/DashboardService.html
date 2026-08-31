@@ -37,6 +37,22 @@ const PayTrackerDashboardService = Object.freeze({
 
     PayTrackerDashboardService.registerEvents();
 
+    // Dashboard is the only page that loads unconditionally at
+    // startup (every other page waits for its own route to become
+    // active -- see PR #26's route-scoped loading). Waiting for the
+    // Unified Sync Engine's startup pass here means Dashboard reads
+    // post-sync, not pre-sync, data on first paint.
+    if (
+      window.PayTrackerAppController &&
+      typeof window
+        .PayTrackerAppController
+        .getStartupSyncPromise === 'function'
+    ) {
+      await window
+        .PayTrackerAppController
+        .getStartupSyncPromise();
+    }
+
     await PayTrackerDashboardService.load();
   },
 
