@@ -40,6 +40,14 @@ const PayTrackerAnnualLeaveGmailImportService = Object.freeze({
   // domain -- it must come from positive wording inside the
   // attachment. Absence of a Night Security marker is NOT evidence of
   // Relief Warden; both markers, or neither, mean the job is unclear.
+  //
+  // Known limitation: this is a hardcoded single-employer special
+  // case rather than a generic "Attachment Contains" condition on the
+  // Email Rules sheet (which already reserves an unused "Attachment
+  // Required" column for something like this). A second ambiguous
+  // employer would need its own constants/branch here, not just two
+  // new spreadsheet rows. Left as a known follow-up rather than
+  // redesigning the rule-matching engine inside this bug-fix PR.
   CAUSEWAY_COUNCIL_SENDER_DOMAIN: 'causewaycoastandglens.gov.uk',
 
   CAUSEWAY_NIGHT_SECURITY_MARKERS: Object.freeze(['night shift', 'night security']),
@@ -154,7 +162,10 @@ const PayTrackerAnnualLeaveGmailImportService = Object.freeze({
     const dryRun = input.dryRun === true;
 
     const metadata = PayTrackerPayslipImportService.getMessageMetadata(message);
-    metadata.bodyText = message.getPlainBody();
+    // Stripped before rule matching, not after -- a "Body Contains" rule
+    // must never match on a prior message's quoted content any more than
+    // date/status extraction should read one.
+    metadata.bodyText = PayTrackerAnnualLeaveGmailImportService.stripQuotedReplyText(message.getPlainBody());
 
     const matchedRule = rules.filter(function(rule) {
       return PayTrackerAnnualLeaveEmailRulesRepository.matches(rule, metadata);
@@ -162,35 +173,51 @@ const PayTrackerAnnualLeaveGmailImportService = Object.freeze({
 
     if (!matchedRule) return { matched: false };
 
-    const strippedBody = PayTrackerAnnualLeaveGmailImportService.stripQuotedReplyText(metadata.bodyText);
-
     const existing = PayTrackerAnnualLeaveGmailImportService.findByGmailMessageId(metadata.gmailMessageId);
     if (existing) {
-      const cheapStatus = PayTrackerAnnualLeaveGmailImportService.detectLeaveStatus(
-        [metadata.emailSubject, strippedBody].join(' ')
-      );
-      return { matched: true, duplicate: true, status: cheapStatus };
+      // The record's own stored status is the ground truth -- recomputing
+      // a cheap guess from body text alone can disagree with what was
+      // actually derived (possibly from an attachment) when it was first
+      // imported, which would corrupt the scan's reported counts.
+      return { matched: true, duplicate: true, status: existing.leaveStatus || 'Requested' };
     }
 
     const attachmentExtraction = PayTrackerAnnualLeaveGmailImportService.extractAttachmentText(message);
-    const hasAttachmentText = Boolean(attachmentExtraction.text);
-    const scopedText = [
-      metadata.emailSubject,
-      hasAttachmentText ? attachmentExtraction.text : strippedBody
-    ].join(' ');
+    const attachmentText = attachmentExtraction.text;
+    const hasAttachmentText = Boolean(attachmentText);
 
-    const dateRange = PayTrackerAnnualLeaveGmailImportService.extractDateRange(scopedText);
-    const status = PayTrackerAnnualLeaveGmailImportService.detectLeaveStatus(scopedText);
-    const hoursRequested = PayTrackerAnnualLeaveGmailImportService.extractHours(scopedText);
+    // Dates stay attachment-exclusive when an attachment is present: never
+    // merge in body text for dates, since an incidental date mentioned in
+    // a reply (today's date, a signature, an unrelated event) could widen
+    // extractDateRange's min/max range into something wrong. Status/hours
+    // wording, by contrast, legitimately lives in either the reply or the
+    // attached form (often only the reply says "Approved"), so those are
+    // read from both -- quoted-reply text is already stripped out of
+    // metadata.bodyText above, so this never reintroduces the original bug.
+    const dateSourceText = [metadata.emailSubject, hasAttachmentText ? attachmentText : metadata.bodyText].join(' ');
+    const statusSourceText = [metadata.emailSubject, metadata.bodyText, attachmentText].filter(Boolean).join(' ');
+
+    const dateRange = PayTrackerAnnualLeaveGmailImportService.extractDateRange(dateSourceText);
+    const status = PayTrackerAnnualLeaveGmailImportService.detectLeaveStatus(statusSourceText);
+    const hoursRequested = PayTrackerAnnualLeaveGmailImportService.extractHours(statusSourceText);
+
+    const openThreadRecord = PayTrackerAnnualLeaveGmailImportService.findOpenByThreadId(metadata.gmailThreadId);
 
     let effectiveJobId = matchedRule.jobId;
     let jobEvidence = '';
     if (PayTrackerAnnualLeaveGmailImportService.isFromCausewayCouncil(metadata.emailSender)) {
-      const classification = PayTrackerAnnualLeaveGmailImportService.classifyCausewayJobFromAttachment(
-        hasAttachmentText ? attachmentExtraction.text : ''
-      );
+      const classification = PayTrackerAnnualLeaveGmailImportService.classifyCausewayJobFromAttachment(attachmentText);
       effectiveJobId = classification.jobId;
       jobEvidence = classification.reason;
+      if (!effectiveJobId && openThreadRecord && openThreadRecord.jobId) {
+        // No attachment on THIS message (e.g. a plain-text cancellation
+        // reply) -- reuse the Job ID already established with real
+        // evidence earlier in this same Gmail thread, rather than leaving
+        // a legitimate follow-up permanently stuck at Low confidence.
+        // This recalls an already-verified fact, it does not guess one.
+        effectiveJobId = openThreadRecord.jobId;
+        jobEvidence = 'No attachment evidence on this message; reused the Job ID already established earlier in this Gmail thread (' + openThreadRecord.jobId + ').';
+      }
     }
 
     const confidence = PayTrackerAnnualLeaveGmailImportService.computeConfidence({
@@ -215,15 +242,16 @@ const PayTrackerAnnualLeaveGmailImportService = Object.freeze({
     }
 
     if (confidence === PayTrackerAnnualLeaveConfig.CONFIDENCE_LEVELS.HIGH) {
-      const threadRecord = PayTrackerAnnualLeaveGmailImportService.findOpenByThreadId(metadata.gmailThreadId);
-
-      if (status === 'Cancelled' && threadRecord) {
-        PayTrackerAnnualLeaveUsageRepository.update(threadRecord.alUsageId, {
+      if (status === 'Cancelled' && openThreadRecord) {
+        PayTrackerAnnualLeaveUsageRepository.update(openThreadRecord.alUsageId, {
           leaveStatus: 'Cancelled',
-          notes: (threadRecord.notes ? threadRecord.notes + ' | ' : '') +
+          notes: (openThreadRecord.notes ? openThreadRecord.notes + ' | ' : '') +
             'Cancelled by a later email in the same thread.'
         });
-        return { matched: true, created: false, updated: true, status: status };
+        return {
+          matched: true, created: false, updated: true, status: status,
+          jobId: effectiveJobId, confidence: confidence, jobEvidence: jobEvidence
+        };
       }
 
       const record = PayTrackerAnnualLeaveUsageRepository.create({
@@ -237,10 +265,13 @@ const PayTrackerAnnualLeaveGmailImportService = Object.freeze({
         gmailThreadId: metadata.gmailThreadId,
         approvalConfidence: confidence,
         manualReviewStatus: 'Not Needed',
-        notes: 'Imported from Gmail: "' + metadata.emailSubject + '". ' + attachmentSummary +
+        notes: 'Imported from Gmail: "' + metadata.emailSubject + '". ' + attachmentSummary + extractionErrorSummary +
           (jobEvidence ? ' Job evidence: ' + jobEvidence : '')
       });
-      return { matched: true, created: true, status: status, jobId: effectiveJobId, alUsageId: record.alUsageId };
+      return {
+        matched: true, created: true, status: status, jobId: effectiveJobId, alUsageId: record.alUsageId,
+        jobEvidence: jobEvidence, attachmentNames: attachmentExtraction.attachmentNames, attachmentErrors: attachmentExtraction.errors
+      };
     }
 
     PayTrackerActionCentreRepository.create({
@@ -277,9 +308,14 @@ const PayTrackerAnnualLeaveGmailImportService = Object.freeze({
    * Removes quoted reply-chain text from a plain-text email body so
    * date/status extraction never reads a prior message's own
    * date/timestamp as if it were the current email's content. Drops
-   * everything from the first "On ... wrote:" / "-----Original
-   * Message-----" / Outlook "From:"+"Sent:" header onward, plus any
-   * line already prefixed with "&gt;".
+   * everything from the first quote/forward marker onward -- a
+   * single-line or wrapped-across-two-lines "On ... wrote:", a
+   * "-----Original Message-----" divider, an Apple Mail "Begin
+   * forwarded message:" marker, or an Outlook "From:" line followed
+   * by "Sent:"/"Date:" -- plus any line already prefixed with "&gt;".
+   * Indentation-only quoting with none of these markers is a known,
+   * unhandled residual case -- acceptable because the caller prefers
+   * attachment content for dates whenever one is present.
    */
   stripQuotedReplyText: function(text) {
     const lines = String(text || '').split(/\r?\n/);
@@ -287,10 +323,13 @@ const PayTrackerAnnualLeaveGmailImportService = Object.freeze({
     for (let index = 0; index < lines.length; index += 1) {
       const line = lines[index];
       const trimmed = line.trim();
+      const nextTrimmed = (lines[index + 1] || '').trim();
       if (/^>/.test(trimmed)) continue;
       if (/^on\s.{0,120}wrote:\s*$/i.test(trimmed)) break;
+      if (/^on\s.{0,120}$/i.test(trimmed) && /wrote:\s*$/i.test(nextTrimmed)) break;
       if (/^-{2,}\s*original message\s*-{2,}$/i.test(trimmed)) break;
-      if (/^from:\s/i.test(trimmed) && /^sent:\s/i.test((lines[index + 1] || '').trim())) break;
+      if (/^begin forwarded message:?\s*$/i.test(trimmed)) break;
+      if (/^from:\s/i.test(trimmed) && /^(sent|date):\s/i.test(nextTrimmed)) break;
       kept.push(line);
     }
     return kept.join(' ').replace(/\s+/g, ' ').trim();
@@ -299,12 +338,34 @@ const PayTrackerAnnualLeaveGmailImportService = Object.freeze({
   /**
    * Best-effort "N hours"/"N.N hours" extraction. Returns a number
    * only when that exact wording is present -- never inferred from
-   * date ranges or day counts.
+   * date ranges or day counts. When more than one "N hours" figure
+   * appears (e.g. a balance line and a requested-hours line on the
+   * same form), only a match near "request"/"leave"/"holiday" wording
+   * is trusted; with no such context on any match, this returns null
+   * rather than guessing which figure is the real one.
    */
   extractHours: function(text) {
-    const match = String(text || '').match(/(\d+(?:\.\d+)?)\s*hours?\b/i);
-    if (!match) return null;
-    const hours = Number(match[1]);
+    const value = String(text || '');
+    const pattern = /(\d+(?:\.\d+)?)\s*hours?\b/gi;
+    const matches = [];
+    let match;
+    while ((match = pattern.exec(value)) !== null) {
+      matches.push({ value: Number(match[1]), index: match.index });
+    }
+    if (!matches.length) return null;
+    if (matches.length === 1) {
+      const hours = matches[0].value;
+      return Number.isFinite(hours) && hours > 0 ? hours : null;
+    }
+
+    const contextPattern = /\b(request|requested|requesting|leave|holiday)\b/i;
+    const contextual = matches.filter(function(candidate) {
+      const windowStart = Math.max(0, candidate.index - 60);
+      const windowEnd = Math.min(value.length, candidate.index + 60);
+      return contextPattern.test(value.slice(windowStart, windowEnd));
+    });
+    if (!contextual.length) return null;
+    const hours = contextual[0].value;
     return Number.isFinite(hours) && hours > 0 ? hours : null;
   },
 
@@ -353,13 +414,24 @@ const PayTrackerAnnualLeaveGmailImportService = Object.freeze({
    * Extracts text from every PDF/DOCX/image attachment on a message
    * by round-tripping each through a temporary Google Doc conversion
    * (same technique as PayTrackerPayrollPdfTextService, adapted for a
-   * Gmail attachment Blob instead of a stored Drive file). One
-   * attachment failing to convert/read does not stop the others --
-   * its filename is recorded in `errors` so the caller can flag the
-   * message for manual review instead of silently ignoring it.
+   * Gmail attachment Blob instead of a stored Drive file -- kept as a
+   * self-contained copy here rather than a shared helper, to keep
+   * this bug-fix isolated from Payroll's file). One attachment
+   * failing to convert/read does not stop the others -- its filename
+   * is recorded in `errors` so the caller can flag the message for
+   * manual review instead of silently ignoring it.
+   *
+   * Known limitation: every attachment is converted sequentially with
+   * no execution-time budget check. A scan over many threads whose
+   * messages each carry several attachments could, in the worst case,
+   * approach Apps Script's synchronous execution limit. Excluding
+   * inline images (see getAttachments options below) reduces this
+   * risk but does not eliminate it for messages with several genuine
+   * attachments; a resumable/batched scan is a larger change left for
+   * a follow-up if this becomes a real problem in practice.
    */
   extractAttachmentText: function(message) {
-    const attachments = message.getAttachments();
+    const attachments = message.getAttachments({ includeInlineImages: false, includeAttachments: true });
     const texts = [];
     const attachmentNames = [];
     const errors = [];
@@ -385,8 +457,7 @@ const PayTrackerAnnualLeaveGmailImportService = Object.freeze({
     return {
       text: texts.join('\n\n'),
       attachmentNames: attachmentNames,
-      errors: errors,
-      attachmentCount: attachments.length
+      errors: errors
     };
   },
 
@@ -422,16 +493,24 @@ const PayTrackerAnnualLeaveGmailImportService = Object.freeze({
   readConvertedAttachmentText_: function(documentId) {
     const maximumAttempts = 8;
     const retryDelayMilliseconds = 750;
+    let lastError = null;
 
     for (let attempt = 1; attempt <= maximumAttempts; attempt += 1) {
       try {
         const body = DocumentApp.openById(documentId).getBody();
         const text = body ? String(body.getText() || '').trim() : '';
         if (text) return text;
+        lastError = null; // read succeeded but the document is genuinely empty so far -- not an error.
       } catch (readError) {
-        // Drive conversion may not be immediately readable -- retry below.
+        // Drive conversion may not be immediately readable -- retry below,
+        // but remember the real error in case every attempt fails the
+        // same way, so the caller can report why rather than just "no text".
+        lastError = readError;
       }
       if (attempt < maximumAttempts) Utilities.sleep(retryDelayMilliseconds);
+    }
+    if (lastError) {
+      throw new Error(PayTrackerAnnualLeaveGmailImportService.getErrorMessage(lastError));
     }
     return '';
   },
