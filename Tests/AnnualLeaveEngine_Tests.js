@@ -93,5 +93,137 @@ function runAnnualLeaveEngineTests() {
     }) !== PayTrackerAnnualLeaveConfig.CONFIDENCE_LEVELS.HIGH
   );
 
+  check('confidence is never High/Medium when the job could not be disambiguated (null jobId)',
+    gmailService.computeConfidence({
+      rule: { jobId: null }, dateRange: { start: '2026-04-06' }, status: 'Approved'
+    }) === PayTrackerAnnualLeaveConfig.CONFIDENCE_LEVELS.LOW
+  );
+
+  // --- Regression: real Gmail thread shapes that produced a wrong
+  // auto-import before the attachment-based date fix. Reconstructed
+  // to match the failure mode found during the 2026-08-31 Gmail
+  // investigation, not verbatim source text.
+
+  // Shape 1 (NHS): a reply-chain email whose body contains a quoted
+  // prior message with its own send date ("On Mon, 16 Mar 2026, ...
+  // wrote:"), while the real leave dates only appear as ordinal days
+  // with no year ("6th April" / "4th April") -- a format
+  // extractDateRange correctly never guesses a year for.
+  {
+    const quotedReplyBody =
+      'Hi, confirming my leave request for 6th April and 4th April as discussed.\n\n' +
+      'On Mon, 16 Mar 2026, 14:14, Aodhan Traynor <aodhan.traynor@northerntrust.hscni.net> wrote:\n' +
+      '> Please confirm your annual leave dates for the rota.\n' +
+      '> Thanks, Aodhan';
+
+    const rawExtraction = gmailService.extractDateRange(quotedReplyBody);
+    check('pre-fix bug reproduced: scanning the RAW body finds the quoted reply\'s own date (16 Mar 2026), not a real leave date',
+      rawExtraction.start === '2026-03-16'
+    );
+
+    const stripped = gmailService.stripQuotedReplyText(quotedReplyBody);
+    check('stripQuotedReplyText removes the quoted "On ... wrote:" block and everything after it',
+      stripped.indexOf('16 Mar 2026') === -1 && stripped.indexOf('Aodhan') === -1 &&
+      stripped.indexOf('6th April') !== -1
+    );
+
+    const fixedExtraction = gmailService.extractDateRange(stripped);
+    check('fix verified: scanning the STRIPPED body finds no date (ordinal day with no year is never guessed) -- must route to Needs Review, not a wrong date',
+      Object.keys(fixedExtraction).length === 0
+    );
+  }
+
+  // Shape 2 (Causeway Coast and Glens): identical sender/subject
+  // ("Re: Holiday Request Form" from causewaycoastandglens.gov.uk)
+  // used for both Relief Warden and Night Security correspondence --
+  // the Job ID can only come from positive wording inside the
+  // attachment, never from "not the other job".
+  check('clear Relief Warden attachment wording resolves to JOB-RELIEF-WARDEN',
+    gmailService.classifyCausewayJobFromAttachment(
+      'Cushendall Holiday and Leisure Park -- Relief Assistant Warden -- Caravan Park annual leave form'
+    ).jobId === 'JOB-RELIEF-WARDEN'
+  );
+  check('clear Night Security attachment wording resolves to JOB-NIGHT-SECURITY',
+    gmailService.classifyCausewayJobFromAttachment(
+      'Client Name: Causeway Coast and Glens Borough Council (Night Shift) -- Night Security Warden leave form'
+    ).jobId === 'JOB-NIGHT-SECURITY'
+  );
+  check('mixed wording (both jobs mentioned) is never guessed -- routes to Needs Review',
+    gmailService.classifyCausewayJobFromAttachment(
+      'Caravan Park Relief Warden cover arranged during Night Shift leave'
+    ).jobId === null
+  );
+  check('no identifiable wording is never guessed -- routes to Needs Review',
+    gmailService.classifyCausewayJobFromAttachment(
+      'Holiday Request Form -- please sign and return.'
+    ).jobId === null
+  );
+  check('no attachment text at all is never guessed -- routes to Needs Review',
+    gmailService.classifyCausewayJobFromAttachment('').jobId === null
+  );
+  check('mentioning "Warden" alone (not "Relief Warden"/"Assistant Warden") is never treated as proof of Relief Warden',
+    gmailService.classifyCausewayJobFromAttachment('Please contact the Warden Cushendall office for queries.').jobId === null
+  );
+
+  check('extractHours reads explicit "N hours" wording',
+    gmailService.extractHours('Approved for 7.5 hours of annual leave.') === 7.5
+  );
+  check('extractHours returns null rather than guessing when no hours wording is present',
+    gmailService.extractHours('Approved for 6th and 4th April.') === null
+  );
+  check('extractHours ignores an unrelated "N hours" figure and finds the one near "requested"',
+    gmailService.extractHours(
+      'Current balance: 120.5 hours available. Please note this reflects your full entitlement for the year. ' +
+      'Hours requested for annual leave: 7.5 hours.'
+    ) === 7.5
+  );
+  check('extractHours returns null (not a guess) when multiple figures are found and none has request/leave context nearby',
+    gmailService.extractHours('Standard shift is 7.5 hours. Overtime last week was 3 hours.') === null
+  );
+
+  // Regression: stripQuotedReplyText must also catch quote/forward
+  // conventions beyond a single-line "On ... wrote:" -- found during
+  // self-review of the original fix, which only handled the unwrapped
+  // case its own test exercised above.
+  check('stripQuotedReplyText strips a wrapped "On ..." / "... wrote:" attribution split across two lines',
+    gmailService.extractDateRange(
+      gmailService.stripQuotedReplyText(
+        'Confirming leave for 6th April.\n\n' +
+        'On Mon, 16 Mar 2026, 14:14, Aodhan Traynor\n' +
+        '<aodhan.traynor@northerntrust.hscni.net> wrote:\n' +
+        '> Please confirm your annual leave dates for the rota.'
+      )
+    ).start === undefined
+  );
+  check('stripQuotedReplyText strips an Apple Mail "Begin forwarded message:" block',
+    gmailService.stripQuotedReplyText(
+      'Approved, see below.\n\n' +
+      'Begin forwarded message:\n\n' +
+      'From: Jane HR <jane@example.com>\n' +
+      'Subject: Annual leave\n' +
+      'Date: 16 March 2026 14:14\n' +
+      'To: dean@example.com\n\n' +
+      'Your leave on 2 January 2020 has been cancelled due to staffing.'
+    ).indexOf('2 January 2020') === -1
+  );
+
+  // Regression: status/hours wording that lives only in the covering
+  // reply (not the attachment) must still be found -- found during
+  // self-review, where scopedText originally discarded the body
+  // entirely whenever an attachment was present.
+  {
+    const subject = 'Annual leave';
+    const bodyStatusOnly = 'Approved - see attached rota confirmation.';
+    const attachmentDatesOnly = '27 Jul 2026 to 29 Jul 2026';
+    const mergedStatusText = [subject, bodyStatusOnly, attachmentDatesOnly].filter(Boolean).join(' ');
+    check('status wording from the covering reply is still found when an attachment is also present',
+      gmailService.detectLeaveStatus(mergedStatusText) === 'Approved'
+    );
+    const dateOnlyFromAttachment = gmailService.extractDateRange([subject, attachmentDatesOnly].join(' '));
+    check('dates still come from the attachment alone, not widened by body text, when both are present',
+      dateOnlyFromAttachment.start === '2026-07-27' && dateOnlyFromAttachment.end === '2026-07-29'
+    );
+  }
+
   return { success: true, passed: results.length, results: results };
 }
