@@ -30,10 +30,17 @@ const PayTrackerSyncStateRepository = Object.freeze({
 
   /**
    * Upserts one task's latest result. Only overwrites lastSuccess
-   * when this attempt actually succeeded (or was already-current),
-   * so a failed attempt never erases the last known-good timestamp
-   * -- that timestamp is exactly what the Failure Experience UI
-   * shows ("Monzo data last successfully updated: 4 hours ago").
+   * when this attempt actually synced (Updated, or an Already-current
+   * result from a run that really checked the source), so a failed
+   * attempt never erases the last known-good timestamp -- that
+   * timestamp is exactly what the Failure Experience UI shows
+   * ("Monzo data last successfully updated: 4 hours ago").
+   *
+   * A task merely SKIPPED because it was still fresh (skippedAsFresh)
+   * never moves lastSuccess: freshness is measured from the last real
+   * sync, not from the last time something looked at it. Otherwise
+   * each skip would restart the TTL and a user opening the app more
+   * often than the TTL would starve the real sync forever.
    */
   recordResult: function(input) {
     const value = input || {};
@@ -42,8 +49,9 @@ const PayTrackerSyncStateRepository = Object.freeze({
     const now = new Date();
     const succeeded = value.status === PayTrackerSyncConfig.TASK_STATUSES.UPDATED ||
       value.status === PayTrackerSyncConfig.TASK_STATUSES.ALREADY_CURRENT;
+    const refreshesFreshness = succeeded && value.skippedAsFresh !== true;
 
-    const lastSuccess = succeeded ? now
+    const lastSuccess = refreshesFreshness ? now
       : (existing && existing.lastSuccess ? existing.lastSuccess : '');
 
     const row = [
