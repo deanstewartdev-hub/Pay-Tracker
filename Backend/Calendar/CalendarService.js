@@ -327,18 +327,6 @@ const PayTrackerCalendarService = Object.freeze({
     const isWeekend =
       isSaturday || isSunday;
 
-    const durationHours =
-      PayTrackerCalendarService
-        .getShiftDurationHours(
-          event
-        );
-
-    const timePatterns =
-      PayTrackerCalendarService
-        .detectTimePatterns(
-          cleanTitle
-        );
-
     if (
       PayTrackerCalendarService
         .isAnnualLeaveTitle(cleanTitle)
@@ -350,6 +338,20 @@ const PayTrackerCalendarService = Object.freeze({
           contextEvents || []
         );
     }
+
+    const timePatterns =
+      PayTrackerCalendarService
+        .detectTimePatterns(
+          cleanTitle
+        );
+
+    // Computed after the leave branch: classifyAnnualLeaveEvent
+    // derives its own duration, so leave events never pay for this.
+    const durationHours =
+      PayTrackerCalendarService
+        .getShiftDurationHours(
+          event
+        );
 
     const nightSecurityMatch =
       PayTrackerCalendarService
@@ -453,7 +455,7 @@ const PayTrackerCalendarService = Object.freeze({
       if (uniqueRoles.length === 1) role = uniqueRoles[0];
     }
 
-    const duration = PayTrackerCalendarService.getLeaveDurationHours(event);
+    const duration = PayTrackerCalendarService.getShiftDurationHours(event);
     const mappings = {
       nhs: {
         jobId: 'JOB-NHS', tableName: 'NHS', shiftType: 'Basic', hours: ''
@@ -504,21 +506,36 @@ const PayTrackerCalendarService = Object.freeze({
   },
 
 
-  getLeaveDurationHours: function(event) {
-    const duration = PayTrackerCalendarService.getShiftDurationHours(event);
-    return duration && duration <= 16 ? duration : null;
-  },
+  /**
+   * The longest event duration still treated as a real worked shift
+   * (or booked leave day). Anything longer is a calendar artefact --
+   * a timed event left running overnight, or one dragged across
+   * days -- not a trustworthy hours figure.
+   */
+  MAX_PLAUSIBLE_SHIFT_HOURS: 16,
 
 
   /**
-   * Returns the event duration in hours, or null when it can't be
-   * trusted as a worked-hours figure.
+   * The ONLY duration to use for worked/leave hours. Returns the
+   * event duration in hours, or null when it can't be trusted, in
+   * which case callers fall back to their role's standard shift
+   * length (Night Security 4, Relief 10 or 4, Logging 8).
    *
-   * An all-day Google Calendar event spans midnight to midnight, so
-   * its raw duration is 24 hours (or a multiple of it) regardless of
-   * what the title says the shift was -- e.g. an all-day "NIGHT
-   * 8pm- 12pm" event is a 4-hour shift, not 24. Callers fall back to
-   * their role's standard shift length when this returns null.
+   * Untrusted means:
+   * - an all-day event: Google Calendar reports it as midnight to
+   *   midnight, so 24 hours (or a multiple) whatever the shift really
+   *   was -- e.g. an all-day "NIGHT 8pm- 12pm" event is a 4-hour
+   *   shift, not 24;
+   * - a duration over MAX_PLAUSIBLE_SHIFT_HOURS;
+   * - an event whose all-day flag can't be read.
+   *
+   * Never use getRawEventDurationHours() for hours.
+   *
+   * Known limit: sync() credits an event to its start date only, so
+   * an all-day work shift spanning several days would be recorded
+   * once (at the standard length), not once per day. No such work
+   * event exists in the live calendar today (the multi-day all-day
+   * events are trips, which are not shifts).
    *
    * @param {GoogleAppsScript.Calendar.CalendarEvent} event
    * @return {number|null}
@@ -531,7 +548,9 @@ const PayTrackerCalendarService = Object.freeze({
     } catch (error) {
       return null;
     }
-    return PayTrackerCalendarService.getEventDurationHours(event);
+    const duration = PayTrackerCalendarService.getRawEventDurationHours(event);
+    return duration && duration <= PayTrackerCalendarService.MAX_PLAUSIBLE_SHIFT_HOURS
+      ? duration : null;
   },
 
 
@@ -1271,14 +1290,17 @@ const PayTrackerCalendarService = Object.freeze({
 
 
   /**
-   * Returns the event duration in decimal hours.
+   * Returns the RAW event duration in decimal hours (end minus
+   * start), or null when it cannot be determined.
    *
-   * Returns null when the duration cannot be determined.
+   * "Raw" is deliberate: an all-day event reports 24 hours here
+   * whatever the shift really was. Do not use this for worked or
+   * leave hours -- use getShiftDurationHours().
    *
    * @param {GoogleAppsScript.Calendar.CalendarEvent} event
    * @return {number|null}
    */
-  getEventDurationHours: function (
+  getRawEventDurationHours: function (
     event
   ) {
     if (
