@@ -42,7 +42,7 @@ function runCalendarReconciliationTests() {
   check('ambiguous leave is sent for review',
     PayTrackerCalendarService.classifyAnnualLeaveEvent(ambiguousLeave, day, []).needsReview === true);
   check('all-day leave does not become 24 paid hours',
-    PayTrackerCalendarService.getLeaveDurationHours(nhsLeave) === null);
+    PayTrackerCalendarService.getShiftDurationHours(nhsLeave) === null);
 
   // Real bug found in the v3.1.0 release closeout's Calendar<->Staffline
   // Job ID audit: classifyNhsEvent/classifyNightSecurityEvent/
@@ -93,7 +93,7 @@ function runCalendarReconciliationTests() {
   const saturdayMatch = PayTrackerCalendarService.classifyEvent(allDayNightSaturday, new Date(2026, 4, 9));
 
   check('raw all-day duration really is 24h (the premise of the bug)',
-    PayTrackerCalendarService.getEventDurationHours(allDayNightWeekday) === 24);
+    PayTrackerCalendarService.getRawEventDurationHours_(allDayNightWeekday) === 24);
   check('an all-day NIGHT 8pm- 12pm weekday shift is 4 hours, not 24',
     weekdayMatch.jobId === 'JOB-NIGHT-SECURITY' && weekdayMatch.hours === 4 &&
     weekdayMatch.shiftType === 'Enhanced 1.33');
@@ -115,6 +115,54 @@ function runCalendarReconciliationTests() {
       event('Logging cash job', new Date(2026, 7, 15, 0, 0, 0), new Date(2026, 7, 16, 0, 0, 0), '', true),
       new Date(2026, 7, 15)
     ).hours === 8);
+
+  // Hardening from the PR #42 review. A timed shift must still use its
+  // REAL duration end to end through classifyEvent (the 8pm-12am fixture
+  // above is exactly the 4h default, so it can't tell "duration used"
+  // from "default used"), but a duration over MAX_PLAUSIBLE_SHIFT_HOURS
+  // is a calendar artefact, not a shift.
+  const timedNight = function(startHour, endHour, endDayOffset) {
+    return event('Night Security 8pm-12am', new Date(2026, 6, 8, startHour, 0, 0), new Date(2026, 6, 8 + (endDayOffset || 0), endHour, 0, 0), '', false);
+  };
+  check('a timed night shift of 6h (20:00-02:00) is recorded as 6 hours, not the 4h default',
+    PayTrackerCalendarService.classifyEvent(timedNight(20, 2, 1), new Date(2026, 6, 8)).hours === 6);
+  check('a timed night shift of 12h (20:00-08:00) is still a plausible length and is trusted',
+    PayTrackerCalendarService.classifyEvent(timedNight(20, 8, 1), new Date(2026, 6, 8)).hours === 12);
+  check('a timed event over the 16h limit (17h) is treated as an artefact and falls back to 4h',
+    PayTrackerCalendarService.classifyEvent(timedNight(20, 13, 1), new Date(2026, 6, 8)).hours === 4);
+  check('a timed event left running for 24h falls back to 4h, not 24',
+    PayTrackerCalendarService.classifyEvent(timedNight(20, 20, 1), new Date(2026, 6, 8)).hours === 4);
+  check('an event whose all-day flag cannot be read is not trusted and falls back to 4h',
+    PayTrackerCalendarService.classifyEvent((function() {
+      const broken = timedNight(20, 2, 1);
+      broken.isAllDayEvent = function() { throw new Error('flag unavailable'); };
+      return broken;
+    })(), new Date(2026, 6, 8)).hours === 4);
+
+  // Leave shares the same duration rule (getLeaveDurationHours was folded
+  // into getShiftDurationHours): a real timed leave slot keeps its length,
+  // an implausible one falls back to the role default.
+  const timedLeave = function(startHour, endHour, endDayOffset) {
+    return event('Annual Leave', new Date(2026, 7, 24, startHour, 0, 0), new Date(2026, 7, 24 + (endDayOffset || 0), endHour, 0, 0), 'Relief Warden', false);
+  };
+  check('timed Annual Leave of 6h keeps its real length',
+    PayTrackerCalendarService.classifyAnnualLeaveEvent(timedLeave(9, 15), new Date(2026, 7, 24), []).hours === 6);
+  check('timed Annual Leave over 16h falls back to the Relief default of 10h',
+    PayTrackerCalendarService.classifyAnnualLeaveEvent(timedLeave(9, 9, 1), new Date(2026, 7, 24), []).hours === 10);
+
+  // The same leave rules, but through classifyEvent -- the real entry
+  // point sync() and the Pay workspace call -- so the order of its
+  // leave branch relative to the duration step is covered too.
+  check('through classifyEvent: all-day Relief leave is flagged as leave and gets the 10h default, not 24h',
+    (function() {
+      const match = PayTrackerCalendarService.classifyEvent(
+        event('Annual Leave', new Date(2026, 7, 24, 0, 0, 0), new Date(2026, 7, 25, 0, 0, 0), 'Relief Warden', true),
+        new Date(2026, 7, 24)
+      );
+      return match.isAnnualLeave === true && match.jobId === 'JOB-RELIEF-WARDEN' && match.hours === 10;
+    })());
+  check('through classifyEvent: timed Relief leave of 6h keeps its real length',
+    PayTrackerCalendarService.classifyEvent(timedLeave(9, 15), new Date(2026, 7, 24)).hours === 6);
 
   return { success: true, passed: results.length, results: results };
 }
