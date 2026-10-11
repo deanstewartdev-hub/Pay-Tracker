@@ -329,7 +329,7 @@ const PayTrackerCalendarService = Object.freeze({
 
     const durationHours =
       PayTrackerCalendarService
-        .getEventDurationHours(
+        .getShiftDurationHours(
           event
         );
 
@@ -505,6 +505,25 @@ const PayTrackerCalendarService = Object.freeze({
 
 
   getLeaveDurationHours: function(event) {
+    const duration = PayTrackerCalendarService.getShiftDurationHours(event);
+    return duration && duration <= 16 ? duration : null;
+  },
+
+
+  /**
+   * Returns the event duration in hours, or null when it can't be
+   * trusted as a worked-hours figure.
+   *
+   * An all-day Google Calendar event spans midnight to midnight, so
+   * its raw duration is 24 hours (or a multiple of it) regardless of
+   * what the title says the shift was -- e.g. an all-day "NIGHT
+   * 8pm- 12pm" event is a 4-hour shift, not 24. Callers fall back to
+   * their role's standard shift length when this returns null.
+   *
+   * @param {GoogleAppsScript.Calendar.CalendarEvent} event
+   * @return {number|null}
+   */
+  getShiftDurationHours: function(event) {
     try {
       if (typeof event.isAllDayEvent === 'function' && event.isAllDayEvent()) {
         return null;
@@ -512,8 +531,7 @@ const PayTrackerCalendarService = Object.freeze({
     } catch (error) {
       return null;
     }
-    const duration = PayTrackerCalendarService.getEventDurationHours(event);
-    return duration && duration <= 16 ? duration : null;
+    return PayTrackerCalendarService.getEventDurationHours(event);
   },
 
 
