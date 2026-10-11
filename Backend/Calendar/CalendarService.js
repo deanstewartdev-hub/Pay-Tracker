@@ -529,7 +529,7 @@ const PayTrackerCalendarService = Object.freeze({
    * - a duration over MAX_PLAUSIBLE_SHIFT_HOURS;
    * - an event whose all-day flag can't be read.
    *
-   * Never use getRawEventDurationHours() for hours.
+   * Never use getRawEventDurationHours_() for hours.
    *
    * Known limit: sync() credits an event to its start date only, so
    * an all-day work shift spanning several days would be recorded
@@ -548,7 +548,7 @@ const PayTrackerCalendarService = Object.freeze({
     } catch (error) {
       return null;
     }
-    const duration = PayTrackerCalendarService.getRawEventDurationHours(event);
+    const duration = PayTrackerCalendarService.getRawEventDurationHours_(event);
     return duration && duration <= PayTrackerCalendarService.MAX_PLAUSIBLE_SHIFT_HOURS
       ? duration : null;
   },
@@ -1300,7 +1300,7 @@ const PayTrackerCalendarService = Object.freeze({
    * @param {GoogleAppsScript.Calendar.CalendarEvent} event
    * @return {number|null}
    */
-  getRawEventDurationHours: function (
+  getRawEventDurationHours_: function (
     event
   ) {
     if (
