@@ -226,15 +226,57 @@ function runUnifiedSyncTests() {
     check('a genuinely successful run reports Updated, not a fake status',
       firstRun.tasks[0].status === PayTrackerSyncConfig.TASK_STATUSES.UPDATED
     );
+    const lastSuccessAfterRealRun = new Date(PayTrackerSyncStateRepository.getByTaskId('STAFFLINE_GMAIL').lastSuccess).getTime();
     const secondRun = PayTrackerSyncService.run({ triggerSource: 'MANUAL', taskIds: ['STAFFLINE_GMAIL'], force: false, now: new Date() });
     check('without force, a task synced moments ago is skipped as already-current',
       secondRun.tasks[0].status === PayTrackerSyncConfig.TASK_STATUSES.ALREADY_CURRENT
+    );
+    check('a task skipped as still-fresh does NOT renew its freshness clock (lastSuccess is unchanged by the skip)',
+      new Date(PayTrackerSyncStateRepository.getByTaskId('STAFFLINE_GMAIL').lastSuccess).getTime() === lastSuccessAfterRealRun
     );
     const thirdRun = PayTrackerSyncService.run({ triggerSource: 'MANUAL', taskIds: ['STAFFLINE_GMAIL'], force: true, now: new Date() });
     check('with force:true, a task synced moments ago still runs',
       thirdRun.tasks[0].status !== PayTrackerSyncConfig.TASK_STATUSES.ALREADY_CURRENT
     );
   });
+
+  // --- a skip must never renew the freshness clock ---
+  // Real bug (found 2026-10-11): run() recorded a fresh-skip as an
+  // Already-current success, and recordResult stamped lastSuccess = now
+  // for it -- so every skip restarted the TTL, and opening the app more
+  // often than the TTL (15 min for Calendar, 6 h for the Gmail imports)
+  // starved the real sync indefinitely. Synthetic TEST_ task ID only.
+  PayTrackerSyncStateRepository.recordResult({
+    taskId: 'TEST_FRESHNESS_TASK', taskName: 'Test Freshness Task',
+    status: PayTrackerSyncConfig.TASK_STATUSES.UPDATED,
+    runId: 'TEST-FRESH-REAL', triggerSource: 'MANUAL'
+  });
+  const realSyncTime = new Date(PayTrackerSyncStateRepository.getByTaskId('TEST_FRESHNESS_TASK').lastSuccess).getTime();
+
+  Utilities.sleep(1100);
+  PayTrackerSyncStateRepository.recordResult({
+    taskId: 'TEST_FRESHNESS_TASK', taskName: 'Test Freshness Task',
+    status: PayTrackerSyncConfig.TASK_STATUSES.ALREADY_CURRENT, skippedAsFresh: true,
+    message: 'Already current (skipped).', runId: 'TEST-FRESH-SKIP', triggerSource: 'MANUAL'
+  });
+  const afterSkip = PayTrackerSyncStateRepository.getByTaskId('TEST_FRESHNESS_TASK');
+  check('a result recorded as skippedAsFresh leaves lastSuccess exactly where the last real sync put it',
+    new Date(afterSkip.lastSuccess).getTime() === realSyncTime
+  );
+  check('a skippedAsFresh result still updates the visible status, message and run ID',
+    afterSkip.status === PayTrackerSyncConfig.TASK_STATUSES.ALREADY_CURRENT &&
+    afterSkip.runId === 'TEST-FRESH-SKIP' && afterSkip.message === 'Already current (skipped).'
+  );
+
+  Utilities.sleep(1100);
+  PayTrackerSyncStateRepository.recordResult({
+    taskId: 'TEST_FRESHNESS_TASK', taskName: 'Test Freshness Task',
+    status: PayTrackerSyncConfig.TASK_STATUSES.ALREADY_CURRENT,
+    message: 'Checked the source, nothing new.', runId: 'TEST-FRESH-CHECKED', triggerSource: 'MANUAL'
+  });
+  check('an Already-current result from a real source check (not a skip) still refreshes lastSuccess',
+    new Date(PayTrackerSyncStateRepository.getByTaskId('TEST_FRESHNESS_TASK').lastSuccess).getTime() > realSyncTime
+  );
 
   const fakeFailure = function() {
     return { status: PayTrackerSyncConfig.TASK_STATUSES.FAILED, error: 'Injected test failure.' };

@@ -94,6 +94,11 @@ const PayTrackerSyncService = Object.freeze({
           status: PayTrackerSyncConfig.TASK_STATUSES.ALREADY_CURRENT,
           message: 'Already current (' + freshness.ageMinutes + 'm old, TTL ' + task.freshnessTtlMinutes + 'm).'
         }, 0, runId, triggerSource);
+        // Nothing was synced -- recordResult must not treat this as a
+        // fresh success, or every skip would restart the freshness
+        // clock and opening the app more often than the TTL would
+        // starve the real sync indefinitely.
+        result.skippedAsFresh = true;
         attempted[task.id] = 'success';
       } else {
         const taskStart = Date.now();
