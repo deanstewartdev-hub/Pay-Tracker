@@ -79,5 +79,42 @@ function runCalendarReconciliationTests() {
   check('a Logging Cash shift resolves a real Job ID, not blank',
     PayTrackerCalendarService.classifyEvent(realLoggingShift, new Date(2026, 7, 15)).jobId === 'JOB-LOGGING-CASH');
 
+  // Real bug: the live calendar's night shifts are ALL-DAY events titled
+  // "NIGHT 8pm- 12pm" (confirmed across every such event in the sync
+  // window). Google Calendar reports an all-day event's duration as
+  // midnight-to-midnight, i.e. 24 hours, and the ordinary-shift
+  // classifiers trusted it (`durationHours || 4` only falls back to 4
+  // when the duration is missing, not when it's wrong) -- so every night
+  // shift was written to PaySheet as 24 hours instead of 4. Annual-leave
+  // events already guarded against this; ordinary shifts did not.
+  const allDayNightWeekday = event('NIGHT 8pm- 12pm', new Date(2026, 6, 8, 0, 0, 0), new Date(2026, 6, 9, 0, 0, 0), '', true);
+  const allDayNightSaturday = event('NIGHT 8pm- 12pm', new Date(2026, 4, 9, 0, 0, 0), new Date(2026, 4, 10, 0, 0, 0), '', true);
+  const weekdayMatch = PayTrackerCalendarService.classifyEvent(allDayNightWeekday, new Date(2026, 6, 8));
+  const saturdayMatch = PayTrackerCalendarService.classifyEvent(allDayNightSaturday, new Date(2026, 4, 9));
+
+  check('raw all-day duration really is 24h (the premise of the bug)',
+    PayTrackerCalendarService.getEventDurationHours(allDayNightWeekday) === 24);
+  check('an all-day NIGHT 8pm- 12pm weekday shift is 4 hours, not 24',
+    weekdayMatch.jobId === 'JOB-NIGHT-SECURITY' && weekdayMatch.hours === 4 &&
+    weekdayMatch.shiftType === 'Enhanced 1.33');
+  check('an all-day NIGHT 8pm- 12pm Saturday shift is 4 hours at the weekend rate, not 24',
+    saturdayMatch.hours === 4 && saturdayMatch.shiftType === 'Enhanced 1.50');
+  check('all-day events have no trustworthy shift duration',
+    PayTrackerCalendarService.getShiftDurationHours(allDayNightWeekday) === null);
+  check('a timed event still uses its real duration (the fix only distrusts all-day events)',
+    PayTrackerCalendarService.getShiftDurationHours(
+      event('Night Security 8pm-12am', new Date(2026, 6, 8, 20, 0, 0), new Date(2026, 6, 8, 23, 0, 0), '', false)
+    ) === 3);
+  check('an all-day Caravan site shift falls back to its standard 10 hours, not 24',
+    PayTrackerCalendarService.classifyEvent(
+      event('Caravan site 9am - 8pm', new Date(2026, 7, 13, 0, 0, 0), new Date(2026, 7, 14, 0, 0, 0), '', true),
+      new Date(2026, 7, 13)
+    ).hours === 10);
+  check('an all-day Logging Cash event falls back to its standard 8 hours, not 24',
+    PayTrackerCalendarService.classifyEvent(
+      event('Logging cash job', new Date(2026, 7, 15, 0, 0, 0), new Date(2026, 7, 16, 0, 0, 0), '', true),
+      new Date(2026, 7, 15)
+    ).hours === 8);
+
   return { success: true, passed: results.length, results: results };
 }
