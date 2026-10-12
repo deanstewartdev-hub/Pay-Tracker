@@ -60,9 +60,15 @@ const PayTrackerConfig = Object.freeze({
   }),
 
   CALENDAR: Object.freeze({
+    // Only calendars the script's own account (dean99992011) is
+    // subscribed to can be read; CalendarApp.getCalendarById returns
+    // null for anything else. An unreadable ID doesn't just skip that
+    // calendar -- it marks every sync incomplete, which skips the
+    // removed-event cleanup (see PayTrackerCalendarService.sync), so a
+    // typo'd or unshared ID here silently stops deleted/moved events
+    // being removed from PaySheet.
     IDS: Object.freeze([
-      'dean99992011@gmail.com',
-      'dean99992022@gmail.com'
+      'dean99992011@gmail.com'
     ]),
 
     OVERWRITE_EXISTING_SHIFTS: false,
