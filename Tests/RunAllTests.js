@@ -26,6 +26,7 @@ function runAllPayTrackerTests() {
     { name: 'Annual Leave Engine', run: runAnnualLeaveEngineTests },
     { name: 'Pay Adjustments', run: runPayAdjustmentsTests },
     { name: 'Money Movements', run: runMoneyMovementsTests },
+    { name: 'Cash Flow Preview', run: runCashFlowPreviewTests },
     { name: 'Transaction Rules', run: runTransactionRulesTests },
     { name: 'Analytics', run: runAnalyticsTests },
     { name: 'Staffline Reconciliation', run: runStafflineReconciliationTests },
