@@ -60,6 +60,8 @@
 
   <div data-finance-content hidden>
     <section class="finance-panel is-active" data-finance-panel="overview">
+      <section data-upcoming-payments="overview" aria-label="Upcoming payments"></section>
+
       <div
         class="finance-alert-grid"
         data-finance-alerts
@@ -316,6 +318,7 @@
 </section>
 
     <section class="finance-panel" data-finance-panel="bills">
+      <section data-upcoming-payments="Bill" aria-label="Upcoming bills"></section>
       <div class="finance-section-heading"><div><p class="finance-card__eyebrow">Regular commitments</p><h3>Bills</h3></div></div>
       <div class="finance-table-wrap"><table class="finance-table"><thead><tr><th>Bill</th><th>Category</th><th>Frequency</th><th>Next due</th><th>Amount</th><th>Monthly</th></tr></thead><tbody data-finance-bills></tbody></table></div>
     </section>
@@ -326,6 +329,7 @@
     </section>
 
     <section class="finance-panel" data-finance-panel="subscriptions">
+      <section data-upcoming-payments="Subscription" aria-label="Upcoming subscriptions"></section>
       <div class="finance-section-heading">
         <div><p class="finance-card__eyebrow">Monthly and annual costs</p><h3>Subscription centre</h3></div>
         <span class="finance-status" data-finance-review-count>0 need review</span>

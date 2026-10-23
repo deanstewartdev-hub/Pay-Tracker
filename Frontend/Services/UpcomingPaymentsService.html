@@ -1,0 +1,272 @@
+(function(windowObject, documentObject) {
+  /*
+   * Upcoming Payments (Step 2B). One card renderer for every
+   * [data-upcoming-payments] mount:
+   *   "overview"     - next five Bills + Subscriptions (Dashboard, Finance Overview)
+   *   "Bill"         - Bills only, full timeline + history
+   *   "Subscription" - Subscriptions only, full timeline + history
+   *
+   * Loads cached data first (no sheet reads, no sync), then a live
+   * rebuild in the background. Never waits for the startup sync.
+   * No bare comparison operators in this file (HtmlService escaping).
+   */
+  const STATUS_CLASSES = {
+    'Due today': 'due-today',
+    'Awaiting confirmation': 'awaiting',
+    'Overdue': 'overdue',
+    'Needs review': 'review',
+    'Paid': 'paid'
+  };
+  const ICON_COLOURS = ['#2563eb', '#7c3aed', '#0891b2', '#059669', '#d97706', '#db2777', '#4f46e5', '#0d9488'];
+  const UNHEALTHY_BANK = ['Manual', 'Failed', 'Needs attention', 'Unavailable', 'Unknown'];
+
+  const service = {
+    data: null,
+    requestNumber: 0,
+
+    init: function() {
+      if (service.mounts().length === 0) return;
+      service.mounts().forEach(function(mount) { service.renderMessage(mount, 'Loading upcoming payments...'); });
+
+      documentObject.addEventListener('paytracker:syncfinished', function() { service.load(true); });
+      documentObject.addEventListener('paytracker:financeloaded', function() { service.load(true); });
+      documentObject.addEventListener('click', service.handleClick);
+
+      service.load(false).then(function() { return service.load(true); });
+    },
+
+    mounts: function() {
+      return Array.prototype.slice.call(documentObject.querySelectorAll('[data-upcoming-payments]'));
+    },
+
+    load: function(refresh) {
+      const controller = windowObject.PayTrackerAppController;
+      if (!controller || typeof controller.runServerFunction !== 'function') return Promise.resolve();
+      const request = ++service.requestNumber;
+      return controller.runServerFunction('getPayTrackerUpcomingPayments', { refresh: refresh === true })
+        .then(function(data) {
+          // A slower, older response must never overwrite a newer one.
+          if (request !== service.requestNumber || !data || data.success !== true) return;
+          service.data = data;
+          service.mounts().forEach(service.render);
+        })
+        .catch(function(error) {
+          if (service.data) return;
+          service.mounts().forEach(function(mount) {
+            service.renderMessage(mount, 'Upcoming payments could not be loaded. ' +
+              (controller.getErrorMessage ? controller.getErrorMessage(error) : ''));
+          });
+        });
+    },
+
+    refreshFromMonzo: function(button) {
+      const controller = windowObject.PayTrackerAppController;
+      if (!controller) return;
+      button.disabled = true;
+      button.textContent = 'Checking Monzo...';
+      controller.runServerFunction('runPayTrackerSync', {
+        triggerSource: 'MANUAL', taskIds: ['MONZO_TRANSACTIONS'], force: true
+      })
+        .catch(function(error) {
+          controller.showToast(controller.getErrorMessage(error), 'error');
+        })
+        .then(function() { return service.load(true); })
+        .then(function() {
+          button.disabled = false;
+          button.textContent = 'Check Monzo now';
+        });
+    },
+
+    handleClick: function(event) {
+      const target = event.target && event.target.closest ? event.target : null;
+      if (!target) return;
+      const refresh = target.closest('[data-upcoming-refresh]');
+      if (refresh) { service.refreshFromMonzo(refresh); return; }
+      const card = target.closest('[data-upcoming-open]');
+      if (!card) return;
+      const tab = card.getAttribute('data-upcoming-open');
+      const controller = windowObject.PayTrackerAppController;
+      if (controller && typeof controller.navigate === 'function') controller.navigate('finance');
+      const tabButton = documentObject.querySelector('[data-finance-tab="' + tab + '"]');
+      if (tabButton) tabButton.click();
+    },
+
+    render: function(mount) {
+      const data = service.data;
+      const mode = mount.getAttribute('data-upcoming-payments');
+      const kind = mode === 'Bill' || mode === 'Subscription' ? mode : '';
+      const upcoming = (data.upcoming || []).filter(function(item) { return !kind || item.kind === kind; });
+      const shown = kind ? upcoming : upcoming.slice(0, 5);
+      const totals = kind ? (data.totalsByKind || {})[kind] || {} : data.totals || {};
+
+      mount.textContent = '';
+      mount.classList.add('upcoming-payments');
+
+      const header = service.el('div', 'upcoming-payments__header');
+      const titleWrap = service.el('div');
+      titleWrap.append(
+        service.el('p', 'upcoming-payments__eyebrow', kind ? 'Payment timeline' : 'Next payments'),
+        service.el('h3', 'upcoming-payments__title',
+          kind === 'Bill' ? 'Upcoming bills' : kind === 'Subscription' ? 'Upcoming subscriptions' : 'Upcoming payments')
+      );
+      const totalsWrap = service.el('div', 'upcoming-payments__totals');
+      totalsWrap.append(service.total('Next 7 days', totals.next7Days), service.total('Next 30 days', totals.next30Days));
+      header.append(titleWrap, totalsWrap);
+      mount.appendChild(header);
+      mount.appendChild(service.freshness(data));
+
+      if (shown.length === 0) {
+        mount.appendChild(service.el('p', 'upcoming-payments__empty',
+          kind === 'Subscription' ? 'No confirmed subscriptions are due.' :
+            kind === 'Bill' ? 'No active bills are due.' : 'Nothing is due. Add bills or confirm subscriptions in Finance.'));
+      } else {
+        const list = service.el('ul', 'upcoming-payments__list');
+        shown.forEach(function(item) {
+          const li = service.el('li');
+          li.appendChild(service.card(item, kind ? '' : (item.kind === 'Bill' ? 'bills' : 'subscriptions')));
+          list.appendChild(li);
+        });
+        mount.appendChild(list);
+      }
+
+      const notes = (data.notes || []).filter(function(note) { return kind !== 'Bill' || note.indexOf('subscription') === -1; });
+      if (kind && notes.length) {
+        const noteList = service.el('ul', 'upcoming-payments__notes');
+        notes.forEach(function(note) { noteList.appendChild(service.el('li', '', note)); });
+        mount.appendChild(noteList);
+      }
+      if (kind) mount.appendChild(service.history((data.history || []).filter(function(item) { return item.kind === kind; })));
+    },
+
+    card: function(item, openTab) {
+      const statusClass = STATUS_CLASSES[item.status];
+      const card = service.el(openTab ? 'button' : 'article', 'payment-card' + (statusClass ? ' payment-card--' + statusClass : ''));
+      if (openTab) {
+        card.type = 'button';
+        card.setAttribute('data-upcoming-open', openTab);
+      }
+      const amountText = item.amount === null || item.amount === undefined ? 'Amount varies' : service.money(item.amount);
+      card.setAttribute('aria-label', item.name + ', ' + amountText + ', due ' + service.longDate(item.dueDate) +
+        ' (' + item.countdown + '), ' + item.status + (openTab ? '. Open ' + openTab : ''));
+
+      const icon = service.el('span', 'payment-card__icon', service.initials(item.name));
+      icon.style.background = service.colour(item.name);
+      icon.setAttribute('aria-hidden', 'true');
+
+      const name = service.el('p', 'payment-card__name', item.name);
+      const meta = service.el('p', 'payment-card__meta',
+        [item.kind, item.frequency, item.projected ? 'expected' : ''].filter(Boolean).join(' · '));
+
+      const top = service.el('div', 'payment-card__row');
+      top.append(service.el('span', 'payment-card__amount', amountText), service.el('span', 'payment-card__status', item.status));
+      const bottom = service.el('div', 'payment-card__row');
+      bottom.append(service.el('span', 'payment-card__countdown', item.countdown), service.el('span', 'payment-card__date', service.longDate(item.dueDate)));
+
+      const nameWrap = service.el('div');
+      nameWrap.append(name, meta);
+      card.append(icon, nameWrap, top, bottom);
+      if (item.evidence) card.appendChild(service.el('p', 'payment-card__note', item.evidence));
+      if (Math.sign(Number(item.priceChange) || 0) !== 0) {
+        card.appendChild(service.el('p', 'payment-card__note',
+          'Price ' + (Math.sign(item.priceChange) === 1 ? 'up ' : 'down ') + service.money(Math.abs(item.priceChange))));
+      }
+      return card;
+    },
+
+    history: function(items) {
+      const details = service.el('details', 'payment-history');
+      details.appendChild(service.el('summary', '', 'Payment history (' + items.length + ')'));
+      if (items.length === 0) {
+        details.appendChild(service.el('p', 'upcoming-payments__empty', 'No confirmed payments yet.'));
+        return details;
+      }
+      const list = service.el('ul', 'payment-history__list');
+      items.forEach(function(item) {
+        const li = service.el('li', 'payment-history__item');
+        li.append(
+          service.el('span', '', service.longDate(item.paidDate || item.dueDate) + ' · ' + item.name),
+          service.el('strong', '', item.amount === null ? '—' : service.money(item.amount)),
+          service.el('small', '', item.source || '')
+        );
+        list.appendChild(li);
+      });
+      details.appendChild(list);
+      return details;
+    },
+
+    freshness: function(data) {
+      const bank = data.bank || {};
+      const unhealthy = UNHEALTHY_BANK.indexOf(bank.status) !== -1;
+      const line = service.el('p', 'upcoming-payments__freshness' + (unhealthy ? ' upcoming-payments__freshness--warning' : ''));
+      const parts = [];
+      if (data.source === 'cache' && data.builtAt) parts.push('Saved data from ' + service.time(data.builtAt) + ' (refreshing)');
+      parts.push(bank.lastSuccess ? 'Monzo last updated ' + service.time(bank.lastSuccess) : 'Monzo has not synced yet');
+      if (unhealthy) parts.push((bank.message || 'Monzo is not syncing') + ' - payments cannot be confirmed automatically');
+      line.appendChild(service.el('span', '', parts.join('. ') + '.'));
+      const button = service.el('button', 'button button--ghost', 'Check Monzo now');
+      button.type = 'button';
+      button.setAttribute('data-upcoming-refresh', 'true');
+      line.appendChild(button);
+      return line;
+    },
+
+    total: function(label, total) {
+      const value = total || {};
+      const box = service.el('div', 'upcoming-payments__total');
+      box.append(service.el('span', '', label), service.el('strong', '', service.money(value.amount || 0)));
+      const extra = [];
+      if (value.outstandingCount) extra.push(value.outstandingCount + ' outstanding');
+      if (value.unknownAmountCount) extra.push(value.unknownAmountCount + ' amount unknown');
+      if (extra.length) box.appendChild(service.el('small', '', extra.join(', ')));
+      return box;
+    },
+
+    renderMessage: function(mount, text) {
+      mount.textContent = '';
+      mount.classList.add('upcoming-payments');
+      mount.appendChild(service.el('p', 'upcoming-payments__empty', text));
+    },
+
+    el: function(tag, className, text) {
+      const element = documentObject.createElement(tag);
+      if (className) element.className = className;
+      if (text !== undefined) element.textContent = text;
+      return element;
+    },
+
+    initials: function(name) {
+      const words = String(name || '?').replace(/[^A-Za-z0-9 ]/g, ' ').trim().split(/\s+/).filter(Boolean);
+      return ((words[0] || '?').charAt(0) + (words[1] ? words[1].charAt(0) : '')).toUpperCase();
+    },
+
+    colour: function(name) {
+      let hash = 0;
+      String(name || '').split('').forEach(function(character) { hash = (hash * 31 + character.charCodeAt(0)) % 9973; });
+      return ICON_COLOURS[hash % ICON_COLOURS.length];
+    },
+
+    money: function(value) {
+      return '£' + (Number(value) || 0).toFixed(2);
+    },
+
+    longDate: function(key) {
+      const parts = String(key || '').split('-').map(Number);
+      if (parts.length !== 3) return '—';
+      return new Date(parts[0], parts[1] - 1, parts[2])
+        .toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
+    },
+
+    time: function(iso) {
+      const date = new Date(iso);
+      if (Number.isNaN(date.getTime())) return 'unknown';
+      return date.toLocaleString('en-GB', { timeZone: 'Europe/London', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+    }
+  };
+
+  windowObject.PayTrackerUpcomingPaymentsService = service;
+  if (documentObject.readyState === 'loading') {
+    documentObject.addEventListener('DOMContentLoaded', service.init);
+  } else {
+    service.init();
+  }
+})(window, document);

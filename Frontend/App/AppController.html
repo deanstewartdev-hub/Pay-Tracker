@@ -114,7 +114,9 @@ const PayTrackerAppController = Object.freeze({
       PayTrackerAppController.state.startupSyncPromise =
         PayTrackerAppController.runSyncPass(
           'STARTUP',
-          { manageOverlay: false }
+          // A full pass can take minutes (Calendar, Gmail, Monzo...).
+          // Show the app with saved data after 4s; sync carries on.
+          { manageOverlay: false, autoContinueAfterMs: 4000 }
         );
 
       await PayTrackerAppController.state.startupSyncPromise;
@@ -1107,7 +1109,7 @@ const PayTrackerAppController = Object.freeze({
     options
   ) {
     const config = Object.assign(
-      { manageOverlay: true, continueAfterMs: 7000, force: false },
+      { manageOverlay: true, continueAfterMs: 7000, autoContinueAfterMs: 0, force: false },
       options || {}
     );
 
@@ -1160,6 +1162,14 @@ const PayTrackerAppController = Object.freeze({
         } else if (result) {
           PayTrackerAppController.renderSyncResults(
             result
+          );
+
+          // Pages that rendered before (or while) this pass ran can
+          // reload their now-fresher data.
+          document.dispatchEvent(
+            new CustomEvent('paytracker:syncfinished', {
+              detail: { triggerSource: triggerSource }
+            })
           );
         }
 
@@ -1255,6 +1265,19 @@ const PayTrackerAppController = Object.freeze({
           )
         : null;
 
+    // Startup only: open the app with the latest saved data after a
+    // short wait instead of waiting for every source to sync. The
+    // pass keeps running; pages reload on 'paytracker:syncfinished'.
+    const autoContinueTimeoutId =
+      Math.sign(config.autoContinueAfterMs) === 1
+        ? window.setTimeout(
+            function() {
+              continueResolve({ backgrounded: true });
+            },
+            config.autoContinueAfterMs
+          )
+        : null;
+
     const settledSyncPromise = syncPromise
       .then(function(result) {
         return { result: result, backgrounded: false };
@@ -1291,6 +1314,10 @@ const PayTrackerAppController = Object.freeze({
     ]).then(function(outcome) {
       if (slowTimeoutId) {
         window.clearTimeout(slowTimeoutId);
+      }
+
+      if (autoContinueTimeoutId) {
+        window.clearTimeout(autoContinueTimeoutId);
       }
 
       PayTrackerAppController.hideSyncContinueButton();

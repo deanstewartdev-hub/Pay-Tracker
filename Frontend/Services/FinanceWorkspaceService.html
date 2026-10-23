@@ -347,6 +347,10 @@ function bind(root) {
     renderTransactions(data.transactions || []);
     renderBank(data.bank || {});
     renderBankMatches(data.bankMatches || []);
+
+    // Loading the workspace re-syncs the payment queue (and every
+    // payment action reloads it), so Upcoming Payments rebuild too.
+    document.dispatchEvent(new CustomEvent('paytracker:financeloaded'));
   }
 
   function renderTransactions(records) {

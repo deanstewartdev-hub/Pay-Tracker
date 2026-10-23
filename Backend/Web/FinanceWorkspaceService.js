@@ -744,6 +744,10 @@ getPaymentStatus: function(
   });
 
   function makePayTrackerFinanceResponseBrowserSafe(data) {
+  // Every Finance workspace call has just read or changed payment state
+  // (loading it re-syncs the payment queue), so cached Upcoming Payments
+  // are rebuilt on their next read. Runs after the action, never before.
+  PayTrackerUpcomingPaymentsService.invalidate();
   return JSON.parse(
     JSON.stringify(
       data,

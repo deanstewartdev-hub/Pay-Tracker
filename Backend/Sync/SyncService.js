@@ -439,6 +439,8 @@ const PayTrackerSyncService = Object.freeze({
       const result = PayTrackerUtils.withDocumentLock(function() {
         return PayTrackerMonzoService.sync();
       });
+      // New transactions and matches can confirm upcoming payments.
+      PayTrackerUpcomingPaymentsService.invalidate();
       return PayTrackerSyncService.mapMonzoTransactionsResult_(result);
     },
 

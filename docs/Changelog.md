@@ -6,6 +6,22 @@ The project follows Semantic Versioning where practical.
 
 ---
 
+# Unreleased — Step 2B: Dynamic upcoming payments (issue #46)
+
+Not deployed. Builds on Step 2A. Full design, findings and verification steps: `docs/v3.3-upcoming-payments.md`.
+
+- **Upcoming Payments cards** on the Dashboard and Finance Overview (next five Bills and Subscriptions, 7/30-day totals), and full timelines with payment history on Finance → Bills and Finance → Subscriptions. All use one card component (`Frontend/Services/UpcomingPaymentsService.html`).
+- **`PayTrackerPaymentTimeline`** (new, pure): statuses Upcoming / Due today / Awaiting confirmation / Overdue / Needs review / Paid. Paid needs bank evidence (an existing Confirmed match, the Paid? tick, or a confirmed subscription link), never just the date. Recurrences are projected 30 days ahead, with end-of-month clamping and calendar days that are safe across the clock changes. A subscription that is also a bill is shown once; one bank transaction confirms one payment.
+- **`getPayTrackerUpcomingPayments`**: read-only, cached (no sheet reads on a cache hit; 7 single reads on a rebuild), statuses recomputed for today, shows when Monzo last synced. The cache is cleared after Finance actions and Monzo syncs. *Check Monzo now* runs only the Monzo transactions task.
+- **Startup no longer waits for every sync**: after 4s the app opens with saved data and the pass continues in the background. `paytracker:syncfinished` reloads the Dashboard and Upcoming Payments when it ends.
+- **Fix: monthly bills due on the 29th–31st skipped a month.** `advanceDateByFrequency` used `setMonth(+1)` (31 Jan → 3 Mar). It now clamps (31 Jan → 28 Feb).
+- **Fix: pending Monzo transactions never settled in the sheet.** Already-imported IDs were skipped, so a pending row kept *Pending* and no settled date for ever. It is now updated when Monzo reports it settled; match and category columns are untouched.
+- **Faster Monzo import**: new transactions are written in one batched `setValues`, not one `appendRow` each.
+- Monzo webhooks were investigated and **not implemented**: the web app is `access: MYSELF`, and opening it anonymously would expose the whole app. A safe design is documented.
+- **Tests**: `runPaymentTimelineTests()` (35 pure checks), `UpcomingPayments_Scenarios.cjs` (12), `MonzoImport_Scenarios.cjs` (6). Mutation-checked: 16 deliberate breaks are each caught. Cards were checked at desktop and 375px mobile widths in a local harness (not in the deployed app).
+
+---
+
 # Unreleased — Step 2A: Actual cash flow (read-only preview)
 
 Not deployed. Builds on the Calendar diagnostics branch below. **Writes nothing**: no ledger rows, no Bank Transactions columns, no sheets.

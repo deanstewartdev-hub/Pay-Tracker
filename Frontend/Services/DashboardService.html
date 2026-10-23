@@ -41,7 +41,9 @@ const PayTrackerDashboardService = Object.freeze({
     // startup (every other page waits for its own route to become
     // active -- see PR #26's route-scoped loading). Waiting for the
     // Unified Sync Engine's startup pass here means Dashboard reads
-    // post-sync, not pre-sync, data on first paint.
+    // post-sync data on first paint when the pass is quick. A slow
+    // pass is backgrounded after a few seconds (Step 2B): Dashboard
+    // then shows the saved data and reloads on 'paytracker:syncfinished'.
     if (
       window.PayTrackerAppController &&
       typeof window
@@ -97,6 +99,23 @@ const PayTrackerDashboardService = Object.freeze({
         ) {
           PayTrackerDashboardService.load();
         }
+      }
+    );
+
+    document.addEventListener(
+      'paytracker:syncfinished',
+      function reloadAfterSync() {
+        if (!PayTrackerDashboardService.state.loaded) {
+          return;
+        }
+
+        // A load already in flight may have read pre-sync data.
+        if (PayTrackerDashboardService.state.loading) {
+          window.setTimeout(reloadAfterSync, 2000);
+          return;
+        }
+
+        PayTrackerDashboardService.load({ force: true });
       }
     );
   },
