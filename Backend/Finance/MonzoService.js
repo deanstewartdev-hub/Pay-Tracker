@@ -555,29 +555,41 @@ const PayTrackerMonzoService =
         );
       }
 
+      const columns =
+        PayTrackerFinanceIntegrationConfig
+          .SHEETS
+          .BANK_TRANSACTIONS
+          .COLUMNS;
+
+      // id -> { row, pending } for every stored transaction, from one read.
       const known = {};
 
-      if (sheet.getLastRow() > 1) {
+      const lastRow =
+        sheet.getLastRow();
+
+      if (lastRow > 1) {
         sheet
           .getRange(
             2,
             1,
-            sheet.getLastRow() - 1,
-            1
+            lastRow - 1,
+            columns.PENDING
           )
-          .getDisplayValues()
-          .forEach(function(row) {
-            known[row[0]] = true;
+          .getValues()
+          .forEach(function(row, index) {
+            known[String(row[columns.ID - 1])] = {
+              row: index + 2,
+              pending:
+                row[columns.PENDING - 1] === true ||
+                String(row[columns.PENDING - 1]).toUpperCase() === 'TRUE'
+            };
           });
       }
 
-      let imported = 0;
+      const newRows = [];
 
       transactions.forEach(function(item) {
-        if (
-          !item.id ||
-          known[item.id]
-        ) {
+        if (!item.id) {
           return;
         }
 
@@ -588,7 +600,37 @@ const PayTrackerMonzoService =
           Number(item.amount || 0) /
           100;
 
-        sheet.appendRow([
+        const stored =
+          known[item.id];
+
+        if (stored) {
+          // A transaction imported while pending is updated once it
+          // settles (date, final amount, pending flag). Its match and
+          // category columns are never touched.
+          // (row 0 = queued earlier in this same response; it is written below.)
+          if (stored.row && stored.pending && item.settled) {
+            sheet
+              .getRange(stored.row, columns.SETTLED_AT)
+              .setValue(PayTrackerMonzoService.toDate(item.settled));
+            sheet
+              .getRange(stored.row, columns.AMOUNT, 1, columns.DECLINED - columns.AMOUNT + 1)
+              .setValues([[
+                Math.abs(amount),
+                item.currency || 'GBP',
+                amount < 0 ? 'Debit' : 'Credit',
+                false,
+                item.decline_reason ? true : false
+              ]]);
+            sheet
+              .getRange(stored.row, columns.UPDATED_AT)
+              .setValue(new Date());
+            stored.pending = false;
+          }
+
+          return;
+        }
+
+        newRows.push([
           item.id,
           'MONZO-PERSONAL',
           account.id,
@@ -622,11 +664,36 @@ const PayTrackerMonzoService =
           new Date()
         ]);
 
-        known[item.id] = true;
-        imported += 1;
+        known[item.id] = { row: 0, pending: !item.settled };
       });
 
-      return imported;
+      // One write for every new transaction (appendRow per row cost
+      // one Sheets round-trip each).
+      if (newRows.length) {
+        const firstNewRow =
+          sheet.getLastRow() + 1;
+
+        const missingRows =
+          firstNewRow + newRows.length - 1 - sheet.getMaxRows();
+
+        if (missingRows > 0) {
+          sheet.insertRowsAfter(
+            sheet.getMaxRows(),
+            missingRows
+          );
+        }
+
+        sheet
+          .getRange(
+            firstNewRow,
+            1,
+            newRows.length,
+            newRows[0].length
+          )
+          .setValues(newRows);
+      }
+
+      return newRows.length;
     },
 
     readStoredTransactions: function() {

@@ -1439,23 +1439,19 @@ const PayTrackerPaymentService = Object.freeze({
         );
         break;
 
+      // Month steps clamp to short months: 31 Jan -> 28 Feb, not
+      // setMonth()'s 3 Mar (which skipped February's payment).
       case 'Monthly':
-        result.setMonth(
-          result.getMonth() + 1
-        );
-        break;
+        return PayTrackerPaymentTimeline
+          .addMonthsClamped(result, 1);
 
       case 'Quarterly':
-        result.setMonth(
-          result.getMonth() + 3
-        );
-        break;
+        return PayTrackerPaymentTimeline
+          .addMonthsClamped(result, 3);
 
       case 'Annual':
-        result.setFullYear(
-          result.getFullYear() + 1
-        );
-        break;
+        return PayTrackerPaymentTimeline
+          .addMonthsClamped(result, 12);
 
       default:
         throw new Error(
