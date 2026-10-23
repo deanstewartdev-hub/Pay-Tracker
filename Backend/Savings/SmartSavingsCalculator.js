@@ -41,17 +41,26 @@ const PayTrackerSmartSavingsCalculator = Object.freeze({
     const warnings = [];
 
     const actual = this.actuals(input.cashFlow || [], period);
-    const committed = this.commitments(input, period, actual.transactionIds, warnings);
+    const committed = this.commitments(input, period, actual, warnings);
     const pots = this.readPots(input.pots || [], actual.depositsByMonzoPot, input.history || [], period);
+    // Net bank movement into pots this month (a withdrawal makes it smaller, or negative).
     const savedThisMonth = actual.savedThisMonth;
 
     const disposable = this.round(
       actual.income - actual.spending + actual.refunds - actual.billsPaid
       - actual.uncertainOut - actual.pendingOut
+      - actual.ownTransfersOut + actual.ownTransfersIn
       - committed.total - savedThisMonth
     );
 
-    const suggestion = this.suggest(input.settings || {}, disposable, savedThisMonth, warnings);
+    // Towards the monthly target and cap: money put into pots this month. A
+    // withdrawal is not "negative saving" that raises the cap, and contributions
+    // recorded for pots Monzo cannot see (e.g. an ISA elsewhere) still count.
+    const recordedElsewhere = pots.filter(function(pot) { return !pot.monzoPotId; })
+      .reduce(function(sum, pot) { return sum + Math.max(pot.savedThisMonth, 0); }, 0);
+    const savedTowardsTarget = this.round(Math.max(savedThisMonth, 0) + recordedElsewhere);
+
+    const suggestion = this.suggest(input.settings || {}, disposable, savedTowardsTarget, warnings);
     const distribution = this.distribute(suggestion.amount, pots, warnings);
     const planned = this.planned(pots);
 
@@ -60,8 +69,8 @@ const PayTrackerSmartSavingsCalculator = Object.freeze({
         'Your planned savings (' + this.money(planned.total) + '/month) are unchanged.');
     }
     if (actual.ownTransfersOut > 0) {
-      warnings.push(this.money(actual.ownTransfersOut) + ' moved to your own other accounts is not counted as spending. ' +
-        'If bills are paid from there, the amount available here may be lower.');
+      warnings.push(this.money(actual.ownTransfersOut) + ' moved to your own other accounts is not spending, ' +
+        'but it is no longer in Monzo, so it is not counted as available.');
     }
     if (actual.uncertainIn > 0) {
       warnings.push(this.money(actual.uncertainIn) + ' of incoming money needs confirming in Money Movements before it can count.');
@@ -79,6 +88,7 @@ const PayTrackerSmartSavingsCalculator = Object.freeze({
       actual: actual.summary,
       committed: committed,
       savedThisMonth: savedThisMonth,
+      savedTowardsTarget: savedTowardsTarget,
       disposable: disposable,
       suggestion: suggestion,
       distribution: distribution.pots,
@@ -98,10 +108,12 @@ const PayTrackerSmartSavingsCalculator = Object.freeze({
     const S = PayTrackerCashFlowClassifier.STATUSES;
     const T = PayTrackerPaymentTimeline;
     const sum = { income: 0, spending: 0, refunds: 0, billsPaid: 0, debtPaid: 0, subscriptionsPaid: 0,
-      uncertainOut: 0, uncertainIn: 0, pendingOut: 0, savedThisMonth: 0, ownTransfersOut: 0 };
+      uncertainOut: 0, uncertainIn: 0, pendingOut: 0, savedThisMonth: 0, ownTransfersOut: 0, ownTransfersIn: 0 };
     const transactionIds = {};
     const depositsByMonzoPot = {};
     const potDeposits = [];
+    // Settled outgoing payments, used to spot a past-due bill or subscription already paid.
+    const debits = [];
 
     proposals.forEach(function(p) {
       const day = T.dayKey(p.date);
@@ -111,8 +123,12 @@ const PayTrackerSmartSavingsCalculator = Object.freeze({
       if (p.transactionId) transactionIds[p.transactionId] = true;
       const out = p.direction !== 'Credit';
       if (p.status === S.PENDING) {
-        if (out && !p.internalTransfer) sum.pendingOut += p.amount;
+        // Pending money out has already left the spendable balance (pot moves included).
+        if (out) sum.pendingOut += p.amount;
         return;
+      }
+      if (out && !p.internalTransfer) {
+        debits.push({ transactionId: p.transactionId, amount: p.amount, date: day, text: String(p.description || '') });
       }
       if (p.category === C.SAVINGS) {
         const potId = (/pot_[0-9a-z]+/i.exec(p.description || '') || [''])[0];
@@ -128,7 +144,11 @@ const PayTrackerSmartSavingsCalculator = Object.freeze({
         if (p.confidence === K.NEEDS_CONFIRMATION) {
           if (out) sum.uncertainOut += p.amount; else sum.uncertainIn += p.amount;
         } else if (out) {
+          // Not spending, but no longer in Monzo to save from.
           sum.ownTransfersOut += p.amount;
+        } else {
+          // Not income, but now in Monzo.
+          sum.ownTransfersIn += p.amount;
         }
         return;
       }
@@ -156,43 +176,54 @@ const PayTrackerSmartSavingsCalculator = Object.freeze({
         incomeReceived: sum.income, spending: sum.spending, refunds: sum.refunds,
         billsPaid: sum.billsPaid, debtRepaymentsPaid: sum.debtPaid, subscriptionsPaid: sum.subscriptionsPaid,
         pendingOutgoing: sum.pendingOut, unconfirmedOutgoing: sum.uncertainOut, unconfirmedIncoming: sum.uncertainIn,
-        movedToOwnAccounts: sum.ownTransfersOut
+        movedToOwnAccounts: sum.ownTransfersOut, receivedFromOwnAccounts: sum.ownTransfersIn
       },
       transactionIds: transactionIds,
+      debits: debits,
       depositsByMonzoPot: depositsByMonzoPot,
       potDeposits: potDeposits
     });
   },
 
   /* Still to pay before month end: Step 2B bills/subscriptions plus unpaid debt repayments. */
-  commitments: function(input, period, countedTransactions, warnings) {
+  commitments: function(input, period, actual, warnings) {
     const self = this;
     const T = PayTrackerPaymentTimeline;
+    const countedTransactions = actual.transactionIds;
     const items = [];
+    const likelyPaid = [];
+    const usedDebits = {};
     let outstanding = 0;
     (input.upcoming || []).forEach(function(item) {
       if (item.dueDate > period.to) return;
       // Its bank transaction is already in this month's actuals: don't subtract it twice.
       if (item.evidenceTransactionId && countedTransactions[item.evidenceTransactionId]) return;
+      if (item.daysRemaining <= 0) {
+        // Past due with no linked evidence, but a payment that looks like it left
+        // the account this month: it is already in the actuals, so don't subtract
+        // it again. It is NOT marked paid anywhere; the owner still confirms it.
+        const paid = self.findLikelyPayment(item, actual.debits, usedDebits);
+        if (paid) {
+          usedDebits[paid.transactionId] = true;
+          likelyPaid.push({ name: item.name, dueDate: item.dueDate, amount: item.amount, paidDate: paid.date, transactionId: paid.transactionId });
+          return;
+        }
+      }
       if (item.daysRemaining < 0) outstanding++;
       items.push({ kind: item.kind, name: item.name, dueDate: item.dueDate, amount: item.amount, status: item.status });
     });
-    const matched = input.matchedPaymentIds || {};
-    (input.payments || []).forEach(function(row) {
-      const type = String(row.paymentType || '');
-      if (!/debt/i.test(type) || T.isTrue(row.paid)) return;
-      const due = T.dayKey(row.dueDate);
-      if (!due || due > period.to) return;
-      // A bank transaction already matched to this repayment is counted in the actuals.
-      if (matched[String(row.paymentId || '')]) return;
-      if (due < period.today) outstanding++;
-      const amount = Number(row.amountDue);
-      items.push({ kind: 'Debt', name: String(row.billOrDebtName || ''), dueDate: due, amount: amount > 0 ? amount : null, status: due < period.today ? 'Overdue' : 'Upcoming' });
+    this.debtCommitments(input, period).forEach(function(item) {
+      if (item.dueDate < period.today) outstanding++;
+      items.push(item);
     });
     items.sort(function(a, b) { return a.dueDate === b.dueDate ? 0 : (a.dueDate < b.dueDate ? -1 : 1); });
     const unknown = items.filter(function(item) { return item.amount === null; }).length;
     if (unknown) warnings.push(unknown + ' payment(s) due this month have no known amount and are not deducted - check them before saving.');
     if (outstanding) warnings.push(outstanding + ' past-due payment(s) have no bank confirmation yet, so they are still treated as money to pay.');
+    likelyPaid.forEach(function(item) {
+      warnings.push(item.name + ' (due ' + item.dueDate + ') looks paid on ' + item.paidDate +
+        ', so it is not deducted twice. Confirm the match in Finance so it moves to history.');
+    });
     const totalOf = function(kind) {
       return self.round(items.filter(function(i) { return i.kind === kind && i.amount !== null; })
         .reduce(function(s, i) { return s + i.amount; }, 0));
@@ -200,7 +231,76 @@ const PayTrackerSmartSavingsCalculator = Object.freeze({
     const bills = totalOf('Bill');
     const subscriptions = totalOf('Subscription');
     const debts = totalOf('Debt');
-    return { bills: bills, subscriptions: subscriptions, debts: debts, total: this.round(bills + subscriptions + debts), items: items };
+    return { bills: bills, subscriptions: subscriptions, debts: debts, total: this.round(bills + subscriptions + debts),
+      items: items, likelyPaid: likelyPaid };
+  },
+
+  /*
+   * A settled debit this month that is plausibly this payment: same
+   * amount (within 1p or 1%), dated 5 days before to 10 days after the
+   * due date, and the payee's name contains the payment's name (or the
+   * reverse). Each debit can only be used once.
+   */
+  findLikelyPayment: function(item, debits, used) {
+    const T = PayTrackerPaymentTimeline;
+    if (item.amount === null || item.amount === undefined) return null;
+    const name = PayTrackerPaymentTimeline.normaliseName(item.name);
+    if (name.length < 3) return null;
+    return (debits || []).filter(function(debit) {
+      if (used[debit.transactionId]) return false;
+      const payee = PayTrackerPaymentTimeline.normaliseName(debit.text);
+      const offset = T.daysBetween(item.dueDate, debit.date);
+      return Math.abs(debit.amount - item.amount) <= Math.max(0.01, 0.01 * item.amount) &&
+        offset >= -5 && offset <= 10 && payee.length >= 3 &&
+        (payee.indexOf(name) !== -1 || name.indexOf(payee) !== -1);
+    })[0] || null;
+  },
+
+  /*
+   * Debt repayments still to pay before month end. The Finance Payments
+   * queue holds only the next repayment per debt, so later repayments of
+   * weekly/fortnightly debts are projected from the Debts sheet.
+   */
+  debtCommitments: function(input, period) {
+    const T = PayTrackerPaymentTimeline;
+    const matched = input.matchedPaymentIds || {};
+    const items = [];
+    const anchors = {};
+    (input.payments || []).forEach(function(row) {
+      const type = String(row.paymentType || '');
+      const due = T.dayKey(row.dueDate);
+      if (!/debt/i.test(type) || !due) return;
+      // Anchor even a ticked row, so its repayment is not re-added from the Debts sheet.
+      if (type === 'Debt Repayment') {
+        const itemId = String(row.itemId || '');
+        if (!anchors[itemId] || due < anchors[itemId]) anchors[itemId] = due;
+      }
+      if (T.isTrue(row.paid) || due > period.to) return;
+      // A bank transaction already matched to this repayment is counted in the actuals.
+      if (matched[String(row.paymentId || '')]) return;
+      const amount = Number(row.amountDue);
+      items.push({ kind: 'Debt', name: String(row.billOrDebtName || ''), dueDate: due, amount: amount > 0 ? amount : null,
+        status: due < period.today ? 'Overdue' : 'Upcoming' });
+    });
+    (input.debts || []).forEach(function(debt) {
+      const id = String(debt.debtId || '').trim();
+      if (!id || String(debt.active || '').trim() !== 'Yes') return;
+      const frequency = String(debt.frequency || '');
+      const amount = Number(debt.repaymentAmount);
+      // Without a queued row, the Debts sheet's next date is the first one.
+      const anchor = anchors[id] || T.dayKey(debt.nextPaymentDate);
+      if (!anchor) return;
+      if (!anchors[id] && anchor >= period.today && anchor <= period.to) {
+        items.push({ kind: 'Debt', name: String(debt.debtName || id), dueDate: anchor, amount: amount > 0 ? amount : null, status: 'Upcoming' });
+      }
+      for (let step = 1; step <= 10; step++) {
+        const due = T.stepKey(anchor, frequency, step);
+        if (!due || due > period.to) break;
+        if (due < period.today) continue;
+        items.push({ kind: 'Debt', name: String(debt.debtName || id), dueDate: due, amount: amount > 0 ? amount : null, status: 'Upcoming' });
+      }
+    });
+    return items;
   },
 
   readPots: function(rows, depositsByMonzoPot, history, period) {
@@ -275,7 +375,8 @@ const PayTrackerSmartSavingsCalculator = Object.freeze({
       if (!pot.active) { entry.note = 'Inactive'; return; }
       if (pot.complete) { entry.note = 'Goal reached'; return; }
       if (pot.method !== 'Fixed Amount') return;
-      const need = Math.max(pot.plannedMonthly - pot.savedThisMonth, 0);
+      // A withdrawal this month is not a reason to suggest more than the plan.
+      const need = Math.max(pot.plannedMonthly - Math.max(pot.savedThisMonth, 0), 0);
       entry.suggested = self.floorPennies(Math.min(need, remaining));
       remaining = self.round(remaining - entry.suggested);
       if (need === 0) entry.note = 'Already saved its fixed amount this month';

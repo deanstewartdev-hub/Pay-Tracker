@@ -62,10 +62,73 @@ function runSmartSavingsTests() {
   ] });
   check('unconfirmed income is not counted', careful.actual.incomeReceived === 1000 && careful.actual.unconfirmedIncoming === 500);
   check('unconfirmed and pending outgoings are subtracted', careful.actual.unconfirmedOutgoing === 100 && careful.actual.pendingOutgoing === 25);
-  check('pending income is not counted', careful.disposable === 1000 - 100 - 25);
-  check('a confirmed transfer to your own account is neither spending nor subtracted, but is flagged',
+  check('pending income is not counted', careful.disposable === 1000 - 100 - 25 - 300);
+  check('a confirmed transfer to your own other account is not spending, but is no longer available in Monzo',
     careful.actual.movedToOwnAccounts === 300 && careful.actual.spending === 0 &&
-    careful.warnings.some(function(w) { return w.indexOf('own other accounts') !== -1; }));
+    careful.warnings.some(function(w) { return w.indexOf('no longer in Monzo') !== -1; }));
+  check('a confirmed transfer IN from your own account is not income, but is available', (function() {
+    const r = run({ cashFlow: [credit(C.SALARY, 1000), credit(C.TRANSFER, 200, { confidence: 'Confirmed' })] });
+    return r.actual.incomeReceived === 1000 && r.actual.receivedFromOwnAccounts === 200 && r.disposable === 1200;
+  })());
+  check('a pending move into a pot has already left the spendable balance', run({
+    cashFlow: [credit(C.SALARY, 1000), p(C.SAVINGS, 100, { description: 'pot_X', status: 'Pending' })]
+  }).disposable === 900);
+
+  // Audit: a past-due payment already paid without a link is not deducted twice.
+  check('a past-due subscription paid this month (no link) is not also "still to pay"', (function() {
+    const r = run({
+      cashFlow: [credit(C.SALARY, 1000), p(C.SPENDING, 10.99, { transactionId: 'nf', description: 'NETFLIX.COM', date: d(12) })],
+      upcoming: [{ kind: 'Subscription', name: 'Netflix', dueDate: '2026-10-11', amount: 10.99, daysRemaining: -4, status: 'Overdue' }]
+    });
+    return r.committed.total === 0 && r.committed.likelyPaid.length === 1 && r.committed.likelyPaid[0].transactionId === 'nf' &&
+      r.disposable === Math.round((1000 - 10.99) * 100) / 100 && r.warnings.some(function(w) { return w.indexOf('looks paid') !== -1; });
+  })());
+  check('one payment never covers two past-due occurrences', (function() {
+    const r = run({
+      cashFlow: [p(C.SPENDING, 5, { transactionId: 'x', description: 'TIMES DIGITAL', date: d(10) })],
+      upcoming: [{ kind: 'Subscription', name: 'Times Digital', dueDate: '2026-10-09', amount: 5, daysRemaining: -6, status: 'Overdue' },
+        { kind: 'Subscription', name: 'Times Digital', dueDate: '2026-10-14', amount: 5, daysRemaining: -1, status: 'Awaiting confirmation' }]
+    });
+    return r.committed.likelyPaid.length === 1 && r.committed.subscriptions === 5;
+  })());
+  check('a different payee or amount is not taken as the payment', run({
+    cashFlow: [p(C.SPENDING, 10.99, { description: 'SPOTIFY', date: d(12) }), p(C.SPENDING, 25, { description: 'NETFLIX', date: d(12) })],
+    upcoming: [{ kind: 'Subscription', name: 'Netflix', dueDate: '2026-10-11', amount: 10.99, daysRemaining: -4, status: 'Overdue' }]
+  }).committed.subscriptions === 10.99);
+  check('a future payment is never assumed paid early', run({
+    // Inside the matching window (4 days early), so only the "not due yet" rule keeps it.
+    cashFlow: [p(C.SPENDING, 10.99, { description: 'NETFLIX', date: d(16) })],
+    upcoming: [{ kind: 'Subscription', name: 'Netflix', dueDate: '2026-10-20', amount: 10.99, daysRemaining: 5, status: 'Upcoming' }]
+  }).committed.subscriptions === 10.99);
+
+  // Audit: weekly debts, withdrawals and recorded-elsewhere contributions.
+  check('a weekly debt contributes every remaining repayment this month, not just the queued one', (function() {
+    const r = run({
+      payments: [{ paymentId: 'W1', paymentType: 'Debt Repayment', itemId: 'D1', billOrDebtName: 'Phone loan', amountDue: 20, dueDate: d(16), paid: false }],
+      debts: [{ debtId: 'D1', debtName: 'Phone loan', repaymentAmount: 20, frequency: 'Weekly', nextPaymentDate: d(16), active: 'Yes' }]
+    });
+    return r.committed.debts === 60 && r.committed.items.map(function(i) { return i.dueDate; }).join() === '2026-10-16,2026-10-23,2026-10-30';
+  })());
+  check('a ticked (paid) queued repayment is not re-added from the Debts sheet', run({
+    payments: [{ paymentId: 'M1', paymentType: 'Debt Repayment', itemId: 'D2', amountDue: 99, dueDate: d(20), paid: true }],
+    debts: [{ debtId: 'D2', debtName: 'Card', repaymentAmount: 99, frequency: 'Monthly', nextPaymentDate: d(20), active: 'Yes' }]
+  }).committed.debts === 0);
+  check('a debt with no queued row uses its next payment date; inactive debts are ignored', run({
+    debts: [{ debtId: 'D3', debtName: 'Loan', repaymentAmount: 40, frequency: 'Monthly', nextPaymentDate: d(28), active: 'Yes' },
+      { debtId: 'D4', debtName: 'Old', repaymentAmount: 70, frequency: 'Weekly', nextPaymentDate: d(18), active: 'No' }]
+  }).committed.debts === 40);
+  check('a pot withdrawal does not raise the cap or the fixed amount still to save', (function() {
+    const capped = run({ settings: { mode: 'Percentage of Disposable Income', percentage: 1, maximumAmount: 300 },
+      cashFlow: [credit(C.SALARY, 2000), credit(C.SAVINGS, 500, { description: 'pot_X' })] });
+    const fixed = run({ settings: { mode: 'Fixed Monthly Amount', fixedAmount: 200 },
+      cashFlow: [credit(C.SALARY, 2000), credit(C.SAVINGS, 500, { description: 'pot_X' })] });
+    return capped.savedThisMonth === -500 && capped.suggestion.amount === 300 && fixed.suggestion.amount === 200;
+  })());
+  check('contributions recorded for pots Monzo cannot see count towards the monthly cap', run({
+    settings: { mode: 'Percentage of Disposable Income', percentage: 1, maximumAmount: 300 },
+    cashFlow: [credit(C.SALARY, 2000)], pots: [pot('ISA')],
+    history: [{ potId: 'ISA', amountDeposited: 250, depositedDate: d(3) }]
+  }).suggestion.amount === 50);
   check('declined/excluded and other months are ignored', run({ cashFlow: [
     credit(C.SALARY, 1000), credit(C.SALARY, 999, { status: 'Excluded' }), credit(C.SALARY, 777, { date: d(30, 9) }), p(C.SPENDING, 5, { date: d(1, 11) })
   ] }).actual.incomeReceived === 1000);

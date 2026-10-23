@@ -164,6 +164,31 @@ test('confirm refuses a Monzo-linked pot until Monzo shows the deposit; a manual
   assert.deepEqual(sb.json('__marked'), ['CON-2']);
 });
 
+test('on the 1st, a repeat payment due on the 31st is still counted (horizon reaches month end)', () => {
+  const { sb } = fixture();
+  const subs = sb.json('PayTrackerFinanceIntegrationConfig.SHEETS.SUBSCRIPTIONS.HEADERS');
+  seed(sb, sb.run('PayTrackerFinanceIntegrationConfig.SHEETS.SUBSCRIPTIONS.NAME'), subs, [
+    { 'Subscription ID': 'SUB-PAPER', 'Subscription Name': 'Paper', 'Frequency': 'Weekly', 'Latest Amount': 4, 'Next Expected Date': sb.date(2026, 9, 3),
+      'Review Status': 'Confirmed', 'Subscription Status': 'Active' }
+  ]);
+  at(sb, 2026, 10, 1);
+  const paper = preview(sb).committed.items.filter(i => i.name === 'Paper').map(i => i.dueDate);
+  assert.deepEqual(paper, ['2026-10-03', '2026-10-10', '2026-10-17', '2026-10-24', '2026-10-31']);
+  // The cards keep their 30-day window (31 Oct is day 31 from 1 Oct).
+  const cards = sb.json('getPayTrackerUpcomingPayments({})').upcoming.filter(i => i.name === 'Paper').map(i => i.dueDate);
+  assert.equal(cards.indexOf('2026-10-31'), -1);
+});
+
+test('a weekly debt from the Debts sheet adds each remaining repayment this month', () => {
+  const { sb } = fixture();
+  const headers = sb.json('PayTrackerFinanceConfig.DEBTS.HEADERS');
+  seed(sb, sb.run('PayTrackerFinanceConfig.SHEETS.DEBTS'), headers, [
+    { 'Debt ID': 'DEBT-1', 'Debt Name': 'Car loan', 'Repayment Amount': 150, 'Frequency': 'Weekly', 'Next Payment Date': sb.date(2026, 9, 25), 'Active': 'Yes' }
+  ]);
+  const debts = preview(sb).committed.items.filter(i => i.kind === 'Debt').map(i => i.dueDate);
+  assert.deepEqual(debts, ['2026-10-25'], 'queued 25 Oct; the next (1 Nov) is next month');
+});
+
 test('nothing in Smart Savings can move money: no Monzo or UrlFetch call is reachable from the preview', () => {
   const fs = require('node:fs');
   const path = require('node:path');

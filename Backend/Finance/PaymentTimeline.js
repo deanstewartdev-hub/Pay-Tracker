@@ -276,13 +276,15 @@ const PayTrackerPaymentTimeline = Object.freeze({
   /**
    * @param {Object} model buildSeries() output (possibly from cache).
    * @param {Date|string} today
-   * @param {Object=} options {kind: 'Bill'|'Subscription', limit}
+   * @param {Object=} options {kind: 'Bill'|'Subscription', limit, horizonDays}
+   *   horizonDays: how far ahead to project (default 30; Smart Savings
+   *   asks for more so a month that ends 30+ days away is covered).
    */
   present: function(model, today, options) {
     const self = this;
     const opts = options || {};
     const todayKey = this.dayKey(today);
-    const horizonKey = this.addDaysKey(todayKey, this.HORIZON_DAYS);
+    const horizonKey = this.addDaysKey(todayKey, Number(opts.horizonDays) || this.HORIZON_DAYS);
     const upcoming = [];
     const confirmedNow = [];
 

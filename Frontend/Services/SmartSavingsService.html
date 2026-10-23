@@ -112,7 +112,9 @@
         ['Refunds', actual.refunds, 1],
         ['Bills, subscriptions and debts paid', actual.billsPaid, -1],
         ['Unconfirmed outgoing (counted to be safe)', actual.unconfirmedOutgoing, -1],
-        ['Pending card payments', actual.pendingOutgoing, -1],
+        ['Pending payments', actual.pendingOutgoing, -1],
+        ['Moved to your own other accounts', actual.movedToOwnAccounts, -1],
+        ['Received from your own accounts', actual.receivedFromOwnAccounts, 1],
         ['Still to pay before month end', committed.total, -1],
         ['Already saved this month', data.savedThisMonth, -1]
       ].forEach(function(line) {

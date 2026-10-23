@@ -32,14 +32,16 @@ const PayTrackerSmartSavingsService = Object.freeze({
     });
 
     const payments = read(finance.PAYMENTS).map(function(row) { row.paid = row['paid?']; return row; });
-    // Same (cached) timeline the Upcoming Payments cards show.
-    const timeline = PayTrackerUpcomingPaymentsService.get({});
+    // Same (cached) timeline the Upcoming Payments cards show, projected far
+    // enough to reach the end of any month from any day in it.
+    const timeline = PayTrackerUpcomingPaymentsService.get({ horizonDays: 32 });
 
     const result = PayTrackerSmartSavingsCalculator.calculate({
       today: now,
       cashFlow: cashFlow,
       upcoming: timeline.upcoming,
       payments: payments,
+      debts: read(finance.DEBTS),
       matchedPaymentIds: matchedPaymentIds,
       // "Allocation %" keys as "allocation %"; give it a plain name.
       pots: read(savings.POTS).map(function(row) { row.allocation = row['allocation %']; return row; }),
