@@ -247,4 +247,68 @@ test('pay calculations are unchanged: every NHS shift type keeps its fixed amoun
   }
 });
 
+test('Relief Warden, Night Security and Logging shifts import with the right type, hours and pay', () => {
+  const { sb, days, shift } = fixture();
+  sb.setCalendars({ [OWNER_CALENDAR]: [
+    shift('Caravan site 9-8', days.mon, 9, 19),
+    shift('Relief warden 8-12', days.tue, 20, 23),
+    shift('Caravan 9-8', days.sat, 9, 19),
+    shift('Night security', days.wed, 20, 23),
+    // All-day events report 24h; the role's standard 4h must be used instead (PR #42).
+    shift('NIGHT 8pm- 12pm', days.thu, 0, 0, { allDay: true }),
+    shift('Night security', days.sun, 20, 24),
+    shift('Logging', days.fri, 9, 15)
+  ] });
+  const result = sb.sync();
+  assert.equal(result.imported, 7);
+  assert.equal(result.uncertain, 0);
+  assert.deepEqual(sb.shiftOn('Relief Assistant Warden', days.mon), ['Basic', 10, 136.9]);
+  assert.deepEqual(sb.shiftOn('Relief Assistant Warden', days.tue), ['Enhanced 1.33', 3, 54.63]);
+  assert.deepEqual(sb.shiftOn('Relief Assistant Warden', days.sat), ['Enhanced 1.50', 10, 205.4]);
+  assert.deepEqual(sb.shiftOn('Night Security Warden', days.wed), ['Enhanced 1.33', 3, 53.73]);
+  assert.deepEqual(sb.shiftOn('Night Security Warden', days.thu), ['Enhanced 1.33', 4, 71.64]);
+  assert.deepEqual(sb.shiftOn('Night Security Warden', days.sun), ['Enhanced 1.50', 4, 80.84]);
+  assert.deepEqual(sb.shiftOn('Logging Cash', days.fri), ['Logging Cash £10/hr', 6, 60]);
+  assert.deepEqual(sb.shiftOn('NHS', days.mon), ['', '', ''], 'non-NHS shifts must not land in the NHS table');
+});
+
+test('a hand-edited Relief Warden row is never overwritten by a later sync', () => {
+  const { sb, days, shift } = fixture();
+  sb.setCalendars({ [OWNER_CALENDAR]: [shift('Caravan site 9-8', days.mon, 9, 19)] });
+  sb.sync();
+  sb.setShift('Relief Assistant Warden', days.mon, 'Basic', 11, 150.59);
+  const again = sb.sync();
+  assert.equal(again.imported, 0);
+  assert.equal(again.manualChangesPreserved, 1);
+  assert.deepEqual(sb.shiftOn('Relief Assistant Warden', days.mon), ['Basic', 11, 150.59]);
+  assert.equal(sb.syncRecords()[0].Status, 'Manual Override');
+  assert.equal(sb.actionItems().filter(i => i['Action Type'] === 'Calendar Shift Changed Manually').length, 1);
+  // Later syncs leave the row alone and raise nothing new.
+  const snapshot = sb.snapshotPaySheet();
+  sb.sync(); sb.sync();
+  assert.equal(sb.snapshotPaySheet(), snapshot);
+  assert.equal(sb.actionItems().length, 1);
+});
+
+test('a calendar-owned row the owner CLEARED by hand is not re-filled by the next sync', () => {
+  const { sb, days, shift } = fixture();
+  sb.setCalendars({ [OWNER_CALENDAR]: [shift('NHS Coleraine 6-2', days.mon, 6, 14)] });
+  sb.sync();
+  sb.setShift('NHS', days.mon, '', '', '');
+  const again = sb.sync();
+  assert.equal(again.manualChangesPreserved, 1);
+  assert.deepEqual(sb.shiftOn('NHS', days.mon), ['', '', '']);
+});
+
+test('an untouched calendar-owned row still follows a changed event (no false manual-edit flags)', () => {
+  const { sb, days, shift } = fixture();
+  sb.setCalendars({ [OWNER_CALENDAR]: [shift('Caravan site 9-8', days.mon, 9, 19)] });
+  sb.sync();
+  sb.setCalendars({ [OWNER_CALENDAR]: [shift('Caravan site 9-8', days.mon, 9, 17)] });
+  const result = sb.sync();
+  assert.equal(result.manualChangesPreserved, 0);
+  assert.deepEqual(sb.shiftOn('Relief Assistant Warden', days.mon), ['Basic', 8, 109.52]);
+  assert.equal(sb.actionItems().length, 0);
+});
+
 console.log(`Calendar sync scenarios: ${passed}/${passed} passed.`);

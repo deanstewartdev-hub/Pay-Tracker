@@ -1044,6 +1044,21 @@ const PayTrackerCalendarService = Object.freeze({
       const ownedByThisEvent = Boolean(
         owner && owner.eventKey === ownership.eventKey
       );
+
+      // The row no longer holds what this sync last wrote: the owner
+      // corrected (or cleared) it by hand. Keep their values and flag it,
+      // exactly as reconcileRemovedEvents does for a removed event.
+      if (
+        ownedByThisEvent &&
+        !PayTrackerConfig.CALENDAR.OVERWRITE_EXISTING_SHIFTS &&
+        !PayTrackerCalendarService.rowMatchesRecord(
+          [existingShift, existingHours, existingPay], owner)
+      ) {
+        PayTrackerCalendarService.preserveManualChange(
+          owner, firstDataRow + rowOffset);
+        return { status: 'manualChangesPreserved', rowNumber: firstDataRow + rowOffset };
+      }
+
       const exactLegacyMatch = !owner && existingShift === shiftType &&
         PayTrackerCalendarService.valuesEqual(existingHours, normalisedHours) &&
         PayTrackerCalendarService.valuesEqual(existingPay, pay);
@@ -1172,29 +1187,51 @@ const PayTrackerCalendarService = Object.freeze({
         return;
       }
       const current = sheet.getRange(row, table.startColumn + 2, 1, 3).getValues()[0];
-      const unchanged = String(current[0] || '').trim() === String(record.shiftType || '').trim() &&
-        PayTrackerCalendarService.valuesEqual(current[1], record.hours) &&
-        PayTrackerCalendarService.valuesEqual(current[2], record.pay);
-      if (unchanged) {
+      if (PayTrackerCalendarService.rowMatchesRecord(current, record)) {
         sheet.getRange(row, table.startColumn + 2, 1, 3).clearContent();
         PayTrackerCalendarSyncRepository.setStatus(record, 'Removed');
         result.removed++;
       } else {
-        PayTrackerCalendarSyncRepository.setStatus(record, 'Manual Override');
+        PayTrackerCalendarService.preserveManualChange(record, row, true);
         result.manualChangesPreserved++;
-        PayTrackerActionCentreRepository.create({
-          actionType: 'Calendar Shift Changed Manually',
-          title: 'Review a removed Calendar shift with manual PaySheet changes',
-          description: 'The Calendar event no longer exists, but its PaySheet row was changed manually and was preserved.',
-          priority: 'Normal',
-          jobId: record.jobId || '',
-          sourceType: 'Google Calendar',
-          sourceId: record.eventKey,
-          sourceSheet: PayTrackerConfig.SHEET.NAME,
-          sourceRow: row,
-          confidence: 'Manual review required'
-        });
       }
+    });
+  },
+
+
+  /**
+   * True when [shiftType, hours, pay] still equal what the sync last
+   * wrote for this Calendar Sync Record, i.e. nobody edited the row.
+   */
+  rowMatchesRecord: function(values, record) {
+    return String(values[0] || '').trim() === String(record.shiftType || '').trim() &&
+      PayTrackerCalendarService.valuesEqual(values[1], record.hours) &&
+      PayTrackerCalendarService.valuesEqual(values[2], record.pay);
+  },
+
+
+  /**
+   * Hands a Calendar-owned row back to the owner after a manual edit:
+   * the record leaves Active (so later syncs and removal cleanup leave
+   * the row alone) and one Action Centre item is raised.
+   */
+  preserveManualChange: function(record, row, eventRemoved) {
+    PayTrackerCalendarSyncRepository.setStatus(record, 'Manual Override');
+    PayTrackerActionCentreRepository.create({
+      actionType: 'Calendar Shift Changed Manually',
+      title: eventRemoved
+        ? 'Review a removed Calendar shift with manual PaySheet changes'
+        : 'Calendar shift kept with your manual PaySheet changes',
+      description: eventRemoved
+        ? 'The Calendar event no longer exists, but its PaySheet row was changed manually and was preserved.'
+        : 'This PaySheet row was changed after Calendar sync wrote it. Your values were kept; Calendar will not update this row again.',
+      priority: 'Normal',
+      jobId: record.jobId || '',
+      sourceType: 'Google Calendar',
+      sourceId: record.eventKey,
+      sourceSheet: PayTrackerConfig.SHEET.NAME,
+      sourceRow: row,
+      confidence: 'Manual review required'
     });
   },
 
