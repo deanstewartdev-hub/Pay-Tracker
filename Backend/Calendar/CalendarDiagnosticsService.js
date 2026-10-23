@@ -400,3 +400,43 @@ function reviewUnrecognisedCalendarEvents() {
   });
   return report;
 }
+
+/**
+ * Run from the Apps Script editor BEFORE the first sync on v3.3. Read-only.
+ *
+ * From v3.3, a Calendar-owned PaySheet row whose values no longer match what
+ * the sync last wrote is treated as a manual correction: the next sync keeps
+ * it, marks its Calendar Sync Record "Manual Override" (Calendar stops
+ * managing that row) and raises one Action Centre item. This lists exactly
+ * which rows that first sync would treat that way, so they can be checked
+ * first (e.g. rows changed during the old 24-hour night-shift problem).
+ * Reads only; changes nothing.
+ */
+function previewCalendarManualOverrides(paySheet) {
+  const sheet = paySheet || SpreadsheetApp.getActiveSpreadsheet().getSheetByName(PayTrackerConfig.SHEET.NAME);
+  const report = { checked: 0, wouldBePreserved: [], detached: 0 };
+  if (!sheet) return report;
+  PayTrackerCalendarSyncRepository.getActive().forEach(function(record) {
+    const table = getConfiguredPayTableByName_(record.tableName);
+    const row = Number(record.sheetRow);
+    if (!table || !Number.isInteger(row) || row < 1) { report.detached++; return; }
+    report.checked++;
+    const current = sheet.getRange(row, table.startColumn + 2, 1, 3).getValues()[0];
+    if (!PayTrackerCalendarService.rowMatchesRecord(current, record)) {
+      report.wouldBePreserved.push({
+        table: record.tableName,
+        date: PayTrackerPaymentTimeline.dayKey(record.sheetDate),
+        eventTitle: record.eventTitle,
+        calendarWrote: [record.shiftType, record.hours, record.pay],
+        rowNow: current
+      });
+    }
+  });
+  Logger.log(report.wouldBePreserved.length + ' of ' + report.checked +
+    ' Calendar-owned row(s) differ from what the sync last wrote and would be kept as manual corrections.');
+  report.wouldBePreserved.slice(0, 100).forEach(function(item) {
+    Logger.log(item.date + '  ' + item.table + '  "' + item.eventTitle + '"  calendar wrote ' +
+      JSON.stringify(item.calendarWrote) + ', row now ' + JSON.stringify(item.rowNow));
+  });
+  return report;
+}

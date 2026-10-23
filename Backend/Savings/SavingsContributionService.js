@@ -1210,23 +1210,39 @@ const PayTrackerSavingsContributionService = Object.freeze({
       );
     }
 
-    const newBalance =
-      PayTrackerUtils.roundCurrency(
-        previousBalance +
-        contribution.amount
+    /*
+     * A Monzo-linked pot's balance is only ever set from Monzo
+     * (applyMonzoPotBalances). Recording a contribution there says
+     * the owner moved money; it is not evidence that Monzo holds it,
+     * so the balance is left alone and catches up on the next sync.
+     * Manually managed pots are unchanged: the amount is added.
+     */
+    const monzoLinked =
+      PayTrackerSavingsContributionService.isMonzoLinkedPotRow(
+        values
       );
 
-    potsSheet
-      .getRange(
-        potRow,
-        columns.CURRENT_BALANCE
-      )
-      .setValue(
-        newBalance
-      )
-      .setNumberFormat(
-        PayTrackerSavingsConfig.FORMATS.CURRENCY
-      );
+    const newBalance =
+      monzoLinked
+        ? previousBalance
+        : PayTrackerUtils.roundCurrency(
+            previousBalance +
+            contribution.amount
+          );
+
+    if (!monzoLinked) {
+      potsSheet
+        .getRange(
+          potRow,
+          columns.CURRENT_BALANCE
+        )
+        .setValue(
+          newBalance
+        )
+        .setNumberFormat(
+          PayTrackerSavingsConfig.FORMATS.CURRENCY
+        );
+    }
 
     let nextDepositDate =
       null;
@@ -1304,7 +1320,12 @@ const PayTrackerSavingsContributionService = Object.freeze({
           .AVAILABLE,
 
       notes:
-        contribution.notes,
+        monzoLinked
+          ? [
+              contribution.notes,
+              PayTrackerSavingsContributionService.MONZO_LINKED_NOTE
+            ].filter(Boolean).join(' ')
+          : contribution.notes,
 
       method:
         contribution.method,
@@ -1315,6 +1336,31 @@ const PayTrackerSavingsContributionService = Object.freeze({
       nextDepositDate:
         nextDepositDate
     };
+  },
+
+
+  /**
+   * Marks Savings History rows whose pot balance comes from Monzo,
+   * so it is clear the record is the owner's, not the bank's.
+   */
+  MONZO_LINKED_NOTE:
+    '[Monzo-linked pot: balance left to Monzo sync]',
+
+
+  /**
+   * True when a Savings Pots row is linked to a Monzo pot.
+   *
+   * @param {Array<*>} potRowValues
+   * @return {boolean}
+   */
+  isMonzoLinkedPotRow: function (
+    potRowValues
+  ) {
+    return String(
+      (potRowValues || [])[
+        PayTrackerSavingsConfig.POTS.COLUMNS.MONZO_POT_ID - 1
+      ] || ''
+    ).trim() !== '';
   },
 
 
@@ -1514,6 +1560,11 @@ const PayTrackerSavingsContributionService = Object.freeze({
           ]
         ) || 0,
 
+      balanceAfter:
+        values[
+          config.COLUMNS.BALANCE_AFTER - 1
+        ],
+
       notes:
         String(
           values[
@@ -1559,17 +1610,60 @@ const PayTrackerSavingsContributionService = Object.freeze({
     const potColumns =
       PayTrackerSavingsConfig.POTS.COLUMNS;
 
-    potsSheet
-      .getRange(
-        potRow,
-        potColumns.CURRENT_BALANCE
-      )
-      .setValue(
+    PayTrackerFinanceService.ensureSheetColumns(
+      potsSheet,
+      PayTrackerSavingsConfig.POTS.HEADERS.length
+    );
+
+    const potValues =
+      potsSheet
+        .getRange(
+          potRow,
+          1,
+          1,
+          PayTrackerSavingsConfig.POTS.HEADERS.length
+        )
+        .getValues()[0];
+
+    /*
+     * Restore the balance only when the contribution changed it and
+     * the pot is not Monzo-linked now. A linked pot's balance belongs
+     * to Monzo: writing the old snapshot back would overwrite a newer
+     * real balance. (Records made before the Monzo-linked fix did
+     * change the balance; Monzo sync has since replaced it anyway.)
+     */
+    const recordedBalanceAfter =
+      record.balanceAfter === '' ||
+      record.balanceAfter === null ||
+      record.balanceAfter === undefined
+        ? null
+        : Number(record.balanceAfter);
+
+    const contributionChangedBalance =
+      recordedBalanceAfter === null ||
+      Math.abs(
+        recordedBalanceAfter -
         record.previousBalance
+      ) >= 0.005;
+
+    if (
+      contributionChangedBalance &&
+      !PayTrackerSavingsContributionService.isMonzoLinkedPotRow(
+        potValues
       )
-      .setNumberFormat(
-        PayTrackerSavingsConfig.FORMATS.CURRENCY
-      );
+    ) {
+      potsSheet
+        .getRange(
+          potRow,
+          potColumns.CURRENT_BALANCE
+        )
+        .setValue(
+          record.previousBalance
+        )
+        .setNumberFormat(
+          PayTrackerSavingsConfig.FORMATS.CURRENCY
+        );
+    }
 
     potsSheet
       .getRange(

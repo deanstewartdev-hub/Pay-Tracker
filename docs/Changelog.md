@@ -6,6 +6,34 @@ The project follows Semantic Versioning where practical.
 
 ---
 
+# Unreleased — v3.3.0 release candidate (`release/v3.3.0-rc1`): safety, audit and integration
+
+Not deployed. Owner checklist: `docs/v3.3-staging-acceptance.md`.
+
+- **Monzo-linked pot balances:** Monzo is now the only source. Recording a contribution no longer adds to a linked pot's balance, and Undo no longer writes an old snapshot over the real Monzo balance. Manually managed pots are unchanged. Smart Savings records a linked pot's contribution only once Monzo shows the deposit, and lists records not yet seen in Monzo (never counted as saved).
+- **Calculation audit fixes (Smart Savings):** own-account transfers no longer counted as available; a past-due payment made without a link is no longer deducted twice; weekly and fortnightly debt repayments projected to month end; month-end horizon; pot withdrawals no longer raise the cap; a salary also logged by hand is no longer dropped; pending pot moves subtracted. Details in `docs/v3.3-smart-savings.md`.
+- **Background sync outcomes are visible:** a backgrounded startup sync that fails, or has failing sources, now shows an error or warning toast instead of only a console message.
+- **`previewCalendarManualOverrides()`** (new, read-only): lists the calendar-owned rows the first v3.3 sync will keep as manual corrections, to check before deploying.
+- Cash-flow duplicate check indexes ledger rows by amount (equivalent; local CPU for 6,000 transactions vs 800 ledger rows: 16.6 → 4.5 ms).
+- **New tests:** `Integration_Scenarios.cjs` (all modules on one spreadsheet), `SavingsBalance_Scenarios.cjs` (real process/undo/Monzo-sync paths), `Performance_Scenarios.cjs` (Monzo-only refresh, zero-read cache hits, non-blocking UI, visible failures, no reload on revisit), and 13 more pure Smart Savings checks.
+
+---
+
+# Unreleased — Step 3: Smart Savings
+
+Not deployed. Builds on Steps 2A and 2B. Full rules and verification steps: `docs/v3.3-smart-savings.md`. **Never moves money.**
+
+- **Smart Savings panel** at the top of the Savings page: what can genuinely be saved for the rest of this month from *actual* bank activity, shown next to the existing *planned* figure (unchanged).
+- **`PayTrackerSmartSavingsCalculator`** (new, pure): income received, spending, refunds, bills/subscriptions/debts already paid, unconfirmed and pending outgoings, what is still due before month end, and what was already saved. Conservative: unconfirmed or pending income is never added. Each bank transaction is counted once, and a payment already in the actuals is never also counted as still due.
+- **Suggestion** from the existing Savings Settings (percentage or fixed mode, Maximum Monthly Savings cap counting what was already saved). It is split across the existing pots: fixed-amount pots first, then by Allocation % (scaled down to 100% if over); inactive pots and pots that have reached their goal get nothing. Goal progress before and after, including the mortgage deposit.
+- **Confirmation workflow**: this month's queued contributions, with matching Monzo pot deposits as evidence. "I moved it - record" needs an explicit confirmation and a server re-check (still due, not already deposited, same amount), then uses the **existing** mark-deposited path.
+- `getPayTrackerSmartSavingsPreview()` (read-only) and `confirmPayTrackerSmartSavingsContribution(id, amount)`.
+- Step 2B timeline occurrences now carry `evidenceTransactionId`.
+- Test sandbox: the `const`→`var` rewrite now also matches `const X =` followed by a line break.
+- **Tests**: `runSmartSavingsTests()` (35 pure checks) and `SmartSavings_Scenarios.cjs` (7). Mutation-checked: 17 deliberate breaks are each caught. The UI was checked at desktop and 375px widths in a local harness.
+
+---
+
 # Unreleased — Step 2B: Dynamic upcoming payments (issue #46)
 
 Not deployed. Builds on Step 2A. Full design, findings and verification steps: `docs/v3.3-upcoming-payments.md`.

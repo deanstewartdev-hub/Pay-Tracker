@@ -19,7 +19,7 @@ const PayTrackerUpcomingPaymentsService = Object.freeze({
   CACHE_SECONDS: 6 * 60 * 60,
 
   /**
-   * @param {Object=} options {kind, limit, refresh}
+   * @param {Object=} options {kind, limit, refresh, horizonDays}
    */
   get: function(options) {
     const opts = options || {};
@@ -31,7 +31,7 @@ const PayTrackerUpcomingPaymentsService = Object.freeze({
       source = 'live';
     }
     const view = PayTrackerPaymentTimeline.present(model, new Date(), {
-      kind: opts.kind || '', limit: Number(opts.limit) || 0
+      kind: opts.kind || '', limit: Number(opts.limit) || 0, horizonDays: Number(opts.horizonDays) || 0
     });
     return Object.assign(view, {
       source: source,

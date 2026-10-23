@@ -1194,13 +1194,23 @@ const PayTrackerAppController = Object.freeze({
       syncPromise
         .then(function(result) {
           if (result && !result.alreadyRunning) {
+            // Startup now backgrounds slow passes, so a source that failed
+            // must be visible here, not only in the loading screen.
+            const failed =
+              Number(
+                (result.summary || {}).failed
+              ) || 0;
+
             PayTrackerAppController.showToast(
               'Background sync finished: ' +
               PayTrackerAppController.summarizeSyncResult(
                 result.summary
-              ),
-              'info',
-              6000
+              ) +
+              (failed
+                ? '. Use Refresh (top bar) to see which source needs attention.'
+                : ''),
+              failed ? 'warning' : 'info',
+              failed ? 10000 : 6000
             );
           }
         })
@@ -1208,6 +1218,14 @@ const PayTrackerAppController = Object.freeze({
           console.error(
             'Pay Tracker background sync failed.',
             error
+          );
+
+          PayTrackerAppController.showToast(
+            'Background sync did not finish: ' +
+            PayTrackerAppController.getErrorMessage(error) +
+            ' You are seeing the last saved data.',
+            'error',
+            10000
           );
         });
     }

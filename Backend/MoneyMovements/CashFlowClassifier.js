@@ -85,10 +85,16 @@ const PayTrackerCashFlowClassifier = Object.freeze({
   buildContext: function(context) {
     const byTransaction = {};
     const manual = [];
+    // Manual entries indexed by amount in pennies: sameMoney() needs equal
+    // amounts anyway, so only these need comparing (6k x 800 rows took ~1s).
+    const manualByPennies = {};
+    const self = this;
     (context.movements || []).forEach(function(movement) {
       const related = String(movement.relatedTransactionId || '').trim();
-      if (related) byTransaction[related] = movement;
-      else manual.push(movement);
+      if (related) { byTransaction[related] = movement; return; }
+      manual.push(movement);
+      const key = self.pennies(movement.amount);
+      (manualByPennies[key] = manualByPennies[key] || []).push(movement);
     });
     const links = {};
     (context.subscriptionLinks || []).forEach(function(link) {
@@ -102,6 +108,7 @@ const PayTrackerCashFlowClassifier = Object.freeze({
     return {
       ledgerByTransaction: byTransaction,
       manualMovements: manual,
+      manualByPennies: manualByPennies,
       subscriptionLinks: links,
       linkedPots: pots,
       employerKeywords: (context.employerKeywords || [])
@@ -231,7 +238,7 @@ const PayTrackerCashFlowClassifier = Object.freeze({
       return proposal;
     }
     const self = this;
-    const possible = ctx.manualMovements.filter(function(movement) {
+    const possible = (ctx.manualByPennies[this.pennies(proposal.amount)] || []).filter(function(movement) {
       return self.sameMoney(proposal, movement);
     });
     if (possible.length) {
@@ -297,11 +304,18 @@ const PayTrackerCashFlowClassifier = Object.freeze({
       movementType: this.movementTypeFor(category, direction),
       internalTransfer: internal,
       confidence: confidence,
+      // How sure the CATEGORY is, kept even when a ledger duplicate later
+      // lowers `confidence` (that doubt is about the ledger, not the money).
+      categoryConfidence: confidence,
       reason: reason,
       status: status,
       existingMovementId: '',
       possibleDuplicateOf: []
     };
+  },
+
+  pennies: function(value) {
+    return Math.round(Math.abs(Number(value) || 0) * 100);
   },
 
   isTrue: function(value) {

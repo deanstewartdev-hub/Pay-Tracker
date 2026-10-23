@@ -1,0 +1,298 @@
+(function(windowObject, documentObject) {
+  /*
+   * Smart Savings (Step 3): read-only preview of what can genuinely
+   * be saved this month, from actual bank activity, split across the
+   * existing pots. Pay Tracker never moves money: the only action
+   * here records a contribution the owner has already moved, through
+   * the existing Savings workflow, after an explicit confirmation.
+   * No bare comparison operators in this file (HtmlService escaping).
+   */
+  const service = {
+    loading: false,
+    loaded: false,
+
+    init: function() {
+      const root = service.root();
+      if (!root) return;
+      documentObject.addEventListener('paytracker:routechange', function(event) {
+        if (event.detail && event.detail.route === 'savings' && !service.loaded) service.load();
+      });
+      documentObject.addEventListener('paytracker:syncfinished', function() {
+        if (service.loaded) service.load();
+      });
+      root.addEventListener('click', function(event) {
+        const target = event.target && event.target.closest ? event.target : null;
+        if (!target) return;
+        if (target.closest('[data-smart-savings-refresh]')) { service.load(); return; }
+        const confirmButton = target.closest('[data-smart-savings-confirm]');
+        if (confirmButton) service.confirm(confirmButton);
+      });
+
+      const routes = windowObject.PayTrackerAppRoutes;
+      if (routes && typeof routes.resolveFromLocation === 'function' && routes.resolveFromLocation() === 'savings') {
+        service.load();
+      }
+    },
+
+    root: function() {
+      return documentObject.querySelector('[data-smart-savings]');
+    },
+
+    load: function() {
+      const controller = windowObject.PayTrackerAppController;
+      const root = service.root();
+      if (!controller || !root || service.loading) return Promise.resolve();
+      service.loading = true;
+      if (!service.loaded) service.message('Working out what you can genuinely save this month...');
+      return controller.runServerFunction('getPayTrackerSmartSavingsPreview')
+        .then(function(data) {
+          service.loaded = true;
+          service.render(data || {});
+        })
+        .catch(function(error) {
+          service.message('Smart Savings could not be calculated. ' + controller.getErrorMessage(error));
+        })
+        .then(function() { service.loading = false; });
+    },
+
+    confirm: function(button) {
+      const controller = windowObject.PayTrackerAppController;
+      const id = button.getAttribute('data-smart-savings-confirm');
+      const amount = Number(button.getAttribute('data-amount')) || 0;
+      const pot = button.getAttribute('data-pot') || 'this pot';
+      const ok = windowObject.confirm(
+        'Record that YOU have moved ' + service.money(amount) + ' into ' + pot + '?\n\n' +
+        'Pay Tracker does not move money. This only marks the planned contribution as deposited.');
+      if (!ok) return;
+      button.disabled = true;
+      controller.runServerFunction('confirmPayTrackerSmartSavingsContribution', id, amount)
+        .then(function(data) {
+          controller.showToast('Contribution recorded.', 'success');
+          service.render(data || {});
+        })
+        .catch(function(error) {
+          button.disabled = false;
+          controller.showToast(controller.getErrorMessage(error), 'error');
+        });
+    },
+
+    render: function(data) {
+      const root = service.root();
+      root.textContent = '';
+      root.classList.add('smart-savings');
+      const actual = data.actual || {};
+      const committed = data.committed || {};
+      const suggestion = data.suggestion || {};
+
+      const header = service.el('div', 'smart-savings__header');
+      const titles = service.el('div');
+      titles.append(
+        service.el('p', 'smart-savings__eyebrow', 'Smart savings · ' + service.monthLabel(data.period)),
+        service.el('h3', 'smart-savings__title', 'What you can genuinely save this month'),
+        service.el('p', 'smart-savings__muted', 'A preview from your actual bank activity. Pay Tracker never moves money.')
+      );
+      const refresh = service.el('button', 'button button--secondary', 'Recalculate');
+      refresh.type = 'button';
+      refresh.setAttribute('data-smart-savings-refresh', 'true');
+      header.append(titles, refresh);
+      root.appendChild(header);
+
+      if ((data.warnings || []).length) {
+        const list = service.el('ul', 'smart-savings__warnings');
+        data.warnings.forEach(function(w) { list.appendChild(service.el('li', '', w)); });
+        root.appendChild(list);
+      }
+
+      const grid = service.el('div', 'smart-savings__grid');
+      const workings = service.card('Actual this month');
+      const lines = service.el('ul', 'smart-savings__lines');
+      [
+        ['Income received', actual.incomeReceived, 1],
+        ['Spending', actual.spending, -1],
+        ['Refunds', actual.refunds, 1],
+        ['Bills, subscriptions and debts paid', actual.billsPaid, -1],
+        ['Unconfirmed outgoing (counted to be safe)', actual.unconfirmedOutgoing, -1],
+        ['Pending payments', actual.pendingOutgoing, -1],
+        ['Moved to your own other accounts', actual.movedToOwnAccounts, -1],
+        ['Received from your own accounts', actual.receivedFromOwnAccounts, 1],
+        ['Still to pay before month end', committed.total, -1],
+        ['Already saved this month', data.savedThisMonth, -1]
+      ].forEach(function(line) {
+        if (!Number(line[1]) && line[0] !== 'Income received') return;
+        lines.appendChild(service.line(line[0], (Math.sign(line[2]) === -1 ? '- ' : '+ ') + service.money(line[1])));
+      });
+      const total = service.line('Genuinely available', service.money(data.disposable));
+      total.classList.add('smart-savings__line--total');
+      lines.appendChild(total);
+      workings.appendChild(lines);
+
+      const suggest = service.card('Suggested to save now');
+      suggest.append(
+        service.el('div', 'smart-savings__amount', service.money(suggestion.amount)),
+        service.el('p', 'smart-savings__muted', suggestion.basis || ''),
+        service.el('p', 'smart-savings__muted', suggestion.cappedBy ? 'Capped by your ' + suggestion.cappedBy + '.' : ''),
+        service.el('p', 'smart-savings__muted', 'Planned (existing settings): ' + service.money((data.planned || {}).total) + '/month.')
+      );
+      grid.append(workings, suggest);
+      root.appendChild(grid);
+
+      root.appendChild(service.potTable(data.distribution || [], data.unallocated));
+      if ((data.goals || []).length) root.appendChild(service.goalsCard(data.goals));
+      if ((committed.items || []).length) root.appendChild(service.commitmentsCard(committed.items));
+      root.appendChild(service.confirmationsCard(data.confirmations || []));
+      if ((data.unverifiedRecords || []).length) root.appendChild(service.unverifiedCard(data.unverifiedRecords));
+    },
+
+    potTable: function(pots, unallocated) {
+      const card = service.card('Split across your pots');
+      const wrap = service.el('div', 'smart-savings__table-wrap');
+      const table = service.el('table', 'smart-savings__table');
+      const head = service.el('tr');
+      [['Pot', ''], ['Planned / month', 'num'], ['Saved this month', 'num'], ['Suggested now', 'num'], ['Goal progress after', 'num']]
+        .forEach(function(h) { head.appendChild(service.el('th', h[1] ? 'smart-savings__num' : '', h[0])); });
+      const thead = service.el('thead');
+      thead.appendChild(head);
+      const body = service.el('tbody');
+      pots.forEach(function(pot) {
+        const row = service.el('tr');
+        [
+          ['Pot', '', pot.name + (pot.note ? ' (' + pot.note + ')' : '')],
+          ['Planned / month', 'smart-savings__num', service.money(pot.plannedMonthly)],
+          ['Saved this month', 'smart-savings__num', service.money(pot.savedThisMonth)],
+          ['Suggested now', 'smart-savings__num smart-savings__key', service.money(pot.suggested)],
+          ['Goal progress after', 'smart-savings__num', pot.progressAfter === null ? '—' : Math.round(pot.progressAfter * 100) + '%']
+        ].forEach(function(cell) {
+          const td = service.el('td', cell[1], cell[2]);
+          // Shown as a label when the table stacks on narrow screens.
+          td.setAttribute('data-label', cell[0]);
+          row.appendChild(td);
+        });
+        body.appendChild(row);
+      });
+      table.append(thead, body);
+      wrap.appendChild(table);
+      card.appendChild(wrap);
+      if (Number(unallocated)) card.appendChild(service.el('p', 'smart-savings__muted', service.money(unallocated) + ' not allocated to any pot.'));
+      return card;
+    },
+
+    goalsCard: function(goals) {
+      const card = service.card('Goals');
+      const lines = service.el('ul', 'smart-savings__lines');
+      goals.forEach(function(goal) {
+        const pct = function(v) { return v === null ? '—' : Math.round(v * 100) + '%'; };
+        lines.appendChild(service.line(goal.name + ' (' + service.money(goal.target) + ')',
+          pct(goal.progress) + ' now, ' + pct(goal.progressAfter) + ' after this month'));
+      });
+      card.appendChild(lines);
+      return card;
+    },
+
+    commitmentsCard: function(items) {
+      const card = service.card('Still to pay this month');
+      const lines = service.el('ul', 'smart-savings__lines');
+      items.forEach(function(item) {
+        lines.appendChild(service.line(item.name + ' · ' + item.kind + ' · ' + service.day(item.dueDate) + ' (' + item.status + ')',
+          item.amount === null ? 'Amount unknown' : service.money(item.amount)));
+      });
+      card.appendChild(lines);
+      return card;
+    },
+
+    confirmationsCard: function(items) {
+      const card = service.card('Planned contributions this month');
+      if (items.length === 0) {
+        card.appendChild(service.el('p', 'smart-savings__muted', 'No planned contributions are waiting to be recorded.'));
+        return card;
+      }
+      card.appendChild(service.el('p', 'smart-savings__muted',
+        'Move the money yourself in Monzo, then record it here. Nothing is recorded or moved automatically.'));
+      items.forEach(function(item) {
+        const row = service.el('div', 'smart-savings__confirm');
+        const text = service.el('div');
+        text.appendChild(service.el('div', '', item.potName + ' · ' + service.money(item.amount) + ' · due ' + service.day(item.dueDate)));
+        if (item.bankEvidence) {
+          text.appendChild(service.el('div', 'smart-savings__evidence',
+            'Monzo shows ' + service.money(item.bankEvidence.amount) + ' moved to this pot on ' + service.day(item.bankEvidence.date)));
+        }
+        if (item.monzoLinked && !item.bankEvidence) {
+          // Monzo is the source of truth for linked pots: nothing to record until it shows the deposit.
+          row.append(text, service.el('span', 'smart-savings__muted', 'Waiting to see this in Monzo'));
+          card.appendChild(row);
+          return;
+        }
+        const button = service.el('button', 'button button--confirm', 'I moved it - record');
+        button.type = 'button';
+        button.setAttribute('data-smart-savings-confirm', item.contributionId);
+        button.setAttribute('data-amount', String(item.amount));
+        button.setAttribute('data-pot', item.potName);
+        row.append(text, button);
+        card.appendChild(row);
+      });
+      return card;
+    },
+
+    unverifiedCard: function(items) {
+      const card = service.card('Recorded, not yet seen in Monzo');
+      card.appendChild(service.el('p', 'smart-savings__muted',
+        'These were marked as deposited but no matching Monzo pot deposit has arrived. They are not counted as saved.'));
+      const lines = service.el('ul', 'smart-savings__lines');
+      items.forEach(function(item) {
+        lines.appendChild(service.line(item.potName + ' · recorded ' + service.day(item.recordedDate) +
+          (Math.sign(item.daysSinceRecorded) === 1 ? ' (' + item.daysSinceRecorded + ' days ago)' : ''), service.money(item.amount)));
+      });
+      card.appendChild(lines);
+      return card;
+    },
+
+    card: function(title) {
+      const card = service.el('section', 'smart-savings__card');
+      card.appendChild(service.el('h4', '', title));
+      return card;
+    },
+
+    line: function(label, value) {
+      const li = service.el('li', 'smart-savings__line');
+      li.append(service.el('span', '', label), service.el('span', '', value));
+      return li;
+    },
+
+    message: function(text) {
+      const root = service.root();
+      root.textContent = '';
+      root.classList.add('smart-savings');
+      root.appendChild(service.el('p', 'smart-savings__muted', text));
+    },
+
+    el: function(tag, className, text) {
+      const element = documentObject.createElement(tag);
+      if (className) element.className = className;
+      if (text !== undefined) element.textContent = text;
+      return element;
+    },
+
+    money: function(value) {
+      const number = Number(value) || 0;
+      return (Math.sign(number) === -1 ? '-£' : '£') + Math.abs(number).toFixed(2);
+    },
+
+    day: function(key) {
+      const parts = String(key || '').split('-').map(Number);
+      if (parts.length !== 3) return '—';
+      return new Date(parts[0], parts[1] - 1, parts[2]).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
+    },
+
+    monthLabel: function(period) {
+      const parts = String((period || {}).from || '').split('-').map(Number);
+      if (parts.length !== 3) return 'this month';
+      return new Date(parts[0], parts[1] - 1, 1).toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
+    }
+  };
+
+  windowObject.PayTrackerSmartSavingsService = service;
+  if (documentObject.readyState === 'loading') {
+    documentObject.addEventListener('DOMContentLoaded', service.init);
+  } else {
+    service.init();
+  }
+})(window, document);
