@@ -297,6 +297,9 @@ const PayTrackerCashFlowClassifier = Object.freeze({
       movementType: this.movementTypeFor(category, direction),
       internalTransfer: internal,
       confidence: confidence,
+      // How sure the CATEGORY is, kept even when a ledger duplicate later
+      // lowers `confidence` (that doubt is about the ledger, not the money).
+      categoryConfidence: confidence,
       reason: reason,
       status: status,
       existingMovementId: '',

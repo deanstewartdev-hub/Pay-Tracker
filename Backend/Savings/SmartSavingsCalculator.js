@@ -122,6 +122,9 @@ const PayTrackerSmartSavingsCalculator = Object.freeze({
       // duplicated by) the ledger is still money that moved, counted once.
       if (p.transactionId) transactionIds[p.transactionId] = true;
       const out = p.direction !== 'Credit';
+      // A "Possible duplicate" of a manual ledger entry is still real bank money:
+      // judge it by how sure its category is, not by the ledger doubt.
+      const unsure = (p.categoryConfidence || p.confidence) === K.NEEDS_CONFIRMATION;
       if (p.status === S.PENDING) {
         // Pending money out has already left the spendable balance (pot moves included).
         if (out) sum.pendingOut += p.amount;
@@ -141,7 +144,7 @@ const PayTrackerSmartSavingsCalculator = Object.freeze({
         return;
       }
       if (p.category === C.TRANSFER) {
-        if (p.confidence === K.NEEDS_CONFIRMATION) {
+        if (unsure) {
           if (out) sum.uncertainOut += p.amount; else sum.uncertainIn += p.amount;
         } else if (out) {
           // Not spending, but no longer in Monzo to save from.
@@ -152,7 +155,7 @@ const PayTrackerSmartSavingsCalculator = Object.freeze({
         }
         return;
       }
-      if (p.confidence === K.NEEDS_CONFIRMATION) {
+      if (unsure) {
         if (out) sum.uncertainOut += p.amount; else sum.uncertainIn += p.amount;
         return;
       }

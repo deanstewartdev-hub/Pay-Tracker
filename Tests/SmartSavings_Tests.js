@@ -62,6 +62,13 @@ function runSmartSavingsTests() {
   ] });
   check('unconfirmed income is not counted', careful.actual.incomeReceived === 1000 && careful.actual.unconfirmedIncoming === 500);
   check('unconfirmed and pending outgoings are subtracted', careful.actual.unconfirmedOutgoing === 100 && careful.actual.pendingOutgoing === 25);
+  check('income that is a "Possible duplicate" of a manual ledger entry still counts (once): the doubt is about the ledger', (function() {
+    const r = run({ cashFlow: [credit(C.SALARY, 2100, { status: 'Possible duplicate', confidence: 'Needs confirmation', categoryConfidence: 'Likely' })] });
+    return r.actual.incomeReceived === 2100 && r.actual.unconfirmedIncoming === 0;
+  })());
+  check('a possible duplicate whose category is itself unsure stays unconfirmed', run({
+    cashFlow: [credit(C.OTHER_INCOME, 50, { status: 'Possible duplicate', confidence: 'Needs confirmation', categoryConfidence: 'Needs confirmation' })]
+  }).actual.unconfirmedIncoming === 50);
   check('pending income is not counted', careful.disposable === 1000 - 100 - 25 - 300);
   check('a confirmed transfer to your own other account is not spending, but is no longer available in Monzo',
     careful.actual.movedToOwnAccounts === 300 && careful.actual.spending === 0 &&
