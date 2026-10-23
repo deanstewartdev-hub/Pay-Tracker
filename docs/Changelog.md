@@ -6,6 +6,20 @@ The project follows Semantic Versioning where practical.
 
 ---
 
+# Unreleased — Step 2A: Actual cash flow (read-only preview)
+
+Not deployed. Builds on the Calendar diagnostics branch below. **Writes nothing**: no ledger rows, no Bank Transactions columns, no sheets.
+
+- **`PayTrackerCashFlowClassifier`** (new, pure; `Backend/MoneyMovements/CashFlowClassifier.js`): classifies each imported Monzo transaction as Salary Income, Other Income, Everyday Spending, Bill Payment, Debt Payment, Subscription Payment, Refund, Savings Transfer, Internal Transfer, Interest or Unrecognised, with a confidence (Confirmed / Likely / Needs confirmation) and a plain-English reason. Evidence order: declined/repeated IDs excluded, Monzo pot transfers (`pot_...`), the existing bill/debt match (Confirmed/Automatic = confirmed, Suggested = needs confirmation, Rejected ignored), Subscription Transactions links, the owner's or a rule's Pay Tracker Category, then Monzo's merchant/category and the Jobs sheet's employer names.
+- **No double counting**: one transaction is one proposal (a bill that is also a subscription is counted once, as the bill); a transaction already linked from Money Movements (`Related Transaction ID`) is "Already recorded"; a manual ledger entry with the same amount and side within 3 days is a "Possible duplicate"; pending and declined transactions are shown but not counted. Pot moves and own-account transfers are never income or spending. Uncertain items are totalled separately from confirmed ones.
+- **`PayTrackerCashFlowPreviewService.getPreview({from, to})`**, browser API **`getPayTrackerCashFlowPreview`**, editor helper **`previewPayTrackerCashFlow('2026-10-01', '2026-10-31')`**: read-only; one `getValues()` per sheet; a missing sheet is treated as empty (never set up). Date ranges are inclusive Europe/London days.
+- **Finance > Movements** gains an on-demand "From your bank transactions" preview (totals and per-transaction category, status and reason). It only runs when Preview is pressed, so it never slows the Finance page.
+- Money Movements gains two ledger types, `Everyday Spending` and `Subscription Payment` (spending, never internal). Existing rows are unaffected.
+- **Tests**: `runCashFlowPreviewTests()` (30 pure checks, safe on the live sheet) and `Tests/node/CashFlowPreview_Scenarios.cjs` (8 end-to-end scenarios incl. exact totals, London date boundaries, and a byte-for-byte "nothing changed, no sheet created" check). Mutation-checked: 11 deliberate breaks of the safeguards are each caught.
+- **Not yet done (needs owner review)**: writing approved proposals into Money Movements.
+
+---
+
 # Unreleased — Calendar diagnostics and unrecognised-shift detection
 
 Not deployed. Source changes only, on top of PRs #41-#45. The production version is unverified from this account (`clasp deployments` returns "The caller does not have permission"); session notes record PRs #41-#45 promoted as @143 on 12 Oct 2026, while `docs/VERSION.md` last records v3.2.0 @140. Check the live deployment before promoting.

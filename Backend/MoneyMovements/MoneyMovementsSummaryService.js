@@ -6,7 +6,7 @@
 
 const PayTrackerMoneyMovementsSummaryService = Object.freeze({
   INCOME_TYPES: Object.freeze(['Salary Income', 'Other Income', 'Refund', 'Interest']),
-  SPENDING_TYPES: Object.freeze(['Bill Payment', 'Debt Payment']),
+  SPENDING_TYPES: Object.freeze(['Bill Payment', 'Debt Payment', 'Everyday Spending', 'Subscription Payment']),
 
   getSummary: function() {
     const all = PayTrackerMoneyMovementsRepository.getAll();

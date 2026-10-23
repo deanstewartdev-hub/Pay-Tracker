@@ -28,7 +28,9 @@ const PayTrackerMoneyMovementsConfig = Object.freeze({
   MOVEMENT_TYPES: Object.freeze([
     'Salary Income', 'Other Income', 'Savings Allocation', 'Pot Deposit',
     'Pot Withdrawal', 'Bill Payment', 'Debt Payment', 'Refund', 'Transfer',
-    'Interest', 'Manual Adjustment'
+    'Interest', 'Manual Adjustment',
+    // Step 2A: bank-linked everyday and subscription spending.
+    'Everyday Spending', 'Subscription Payment'
   ]),
 
   // Movement types that represent money moving between the user's own

@@ -15,6 +15,103 @@
         event.preventDefault();
         service.createMovement(new FormData(form));
       });
+
+      // On demand only: the preview reads every bank transaction, so it
+      // never runs as part of loading the Finance page.
+      const previewForm = root.querySelector('[data-cash-flow-preview-form]');
+      if (previewForm) previewForm.addEventListener('submit', function(event) {
+        event.preventDefault();
+        service.loadPreview(new FormData(previewForm));
+      });
+    },
+
+    loadPreview: function(formData) {
+      const status = documentObject.querySelector('[data-cash-flow-preview-status]');
+      if (status) status.textContent = 'Reading bank transactions...';
+      PayTrackerAppController.runServerFunction('getPayTrackerCashFlowPreview', {
+        from: String(formData.get('from') || ''),
+        to: String(formData.get('to') || '')
+      })
+        .then(function(data) {
+          const summary = data.summary || {};
+          if (status) {
+            status.textContent = (summary.transactionCount || 0) + ' transactions. ' +
+              (summary.needsConfirmationCount || 0) + ' need your confirmation and are not in the confirmed totals. Nothing has been recorded.';
+          }
+          service.renderPreviewSummary(summary);
+          service.renderPreviewList(data.proposals || []);
+        })
+        .catch(function(error) {
+          if (status) status.textContent = 'Preview failed.';
+          PayTrackerAppController.showToast(PayTrackerAppController.getErrorMessage(error), 'error');
+        });
+    },
+
+    renderPreviewSummary: function(summary) {
+      const container = documentObject.querySelector('[data-cash-flow-preview-summary]');
+      if (!container) return;
+      container.textContent = '';
+      const confirmed = (summary.totals || {}).confirmed || {};
+      const uncertain = (summary.totals || {}).needsConfirmation || {};
+      const netIsNegative = Math.sign(Number(confirmed.netCashFlow) || 0) === -1;
+      [
+        { label: 'Income received', value: confirmed.income, tone: 'success' },
+        { label: 'Spending (after refunds)', value: confirmed.netSpending, tone: 'danger' },
+        { label: 'Transfers & savings (not spending)', value: confirmed.internalTransfers, tone: 'info' },
+        { label: 'Net cash flow', value: confirmed.netCashFlow, tone: netIsNegative ? 'danger' : 'success' },
+        {
+          label: 'Awaiting your confirmation',
+          value: (Number(uncertain.income) || 0) + (Number(uncertain.spending) || 0) +
+            (Number(uncertain.internalTransfers) || 0) + (Number(uncertain.unrecognisedIn) || 0) +
+            (Number(uncertain.unrecognisedOut) || 0),
+          tone: 'warning'
+        }
+      ].forEach(function(cardData) {
+        const card = documentObject.createElement('article');
+        card.className = 'finance-alert-card finance-alert-card--' + cardData.tone;
+        const indicator = documentObject.createElement('span');
+        indicator.className = 'finance-alert-card__indicator';
+        const textWrap = documentObject.createElement('div');
+        const label = documentObject.createElement('small');
+        label.textContent = cardData.label;
+        const value = documentObject.createElement('strong');
+        value.textContent = service.formatMoney(cardData.value);
+        textWrap.append(label, value);
+        card.append(indicator, textWrap);
+        container.appendChild(card);
+      });
+    },
+
+    renderPreviewList: function(proposals) {
+      const body = documentObject.querySelector('[data-cash-flow-preview-list]');
+      if (!body) return;
+      body.textContent = '';
+      if (proposals.length === 0) {
+        const row = documentObject.createElement('tr');
+        const cell = documentObject.createElement('td');
+        cell.setAttribute('colspan', '6');
+        cell.textContent = 'No imported bank transactions in this period.';
+        row.appendChild(cell);
+        body.appendChild(row);
+        return;
+      }
+      proposals.forEach(function(proposal) {
+        const row = documentObject.createElement('tr');
+        const status = proposal.status === 'New' ? proposal.confidence : proposal.status;
+        [
+          service.formatDate(proposal.date),
+          proposal.description || '—',
+          proposal.category,
+          (proposal.direction === 'Credit' ? '+' : '-') + service.formatMoney(proposal.amount),
+          status,
+          proposal.reason
+        ].forEach(function(text) {
+          const cell = documentObject.createElement('td');
+          cell.textContent = text;
+          row.appendChild(cell);
+        });
+        body.appendChild(row);
+      });
     },
 
     load: function(force) {

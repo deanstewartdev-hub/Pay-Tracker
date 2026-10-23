@@ -366,6 +366,8 @@
             <option value="Refund">Refund</option>
             <option value="Transfer">Transfer</option>
             <option value="Interest">Interest</option>
+            <option value="Everyday Spending">Everyday Spending</option>
+            <option value="Subscription Payment">Subscription Payment</option>
             <option value="Manual Adjustment">Manual Adjustment</option>
           </select>
         </label>
@@ -398,6 +400,30 @@
             <tr><th>Date</th><th>Type</th><th>Amount</th><th>From</th><th>To</th><th>Internal</th></tr>
           </thead>
           <tbody data-money-movements-list></tbody>
+        </table>
+      </div>
+
+      <div class="finance-section-heading" data-cash-flow-preview>
+        <div>
+          <p class="finance-card__eyebrow">Read-only preview - nothing is recorded</p>
+          <h4>From your bank transactions</h4>
+        </div>
+        <form data-cash-flow-preview-form>
+          <label>From <input type="date" name="from"></label>
+          <label>To <input type="date" name="to"></label>
+          <button class="button button--secondary" type="submit">Preview</button>
+        </form>
+      </div>
+      <p class="finance-status" data-cash-flow-preview-status>
+        Shows what imported Monzo transactions would add to Money Movements. Transfers between your own accounts and pots are never counted as income or spending; anything already recorded or uncertain is shown but not counted.
+      </p>
+      <div class="finance-alert-grid" data-cash-flow-preview-summary></div>
+      <div class="finance-table-wrap">
+        <table class="finance-table">
+          <thead>
+            <tr><th>Date</th><th>Description</th><th>Category</th><th>Amount</th><th>Status</th><th>Why</th></tr>
+          </thead>
+          <tbody data-cash-flow-preview-list></tbody>
         </table>
       </div>
     </section>
