@@ -269,7 +269,13 @@ const PayTrackerSyncService = Object.freeze({
       updated: result.updated + result.adopted,
       skipped: result.skipped,
       message: result.totalEvents + ' events checked, ' + result.imported + ' new, ' +
-        result.reviewItems + ' review item(s), ' + result.ignored + ' not recognised.'
+        result.reviewItems + ' review item(s), ' + result.ignored + ' not recognised.' +
+        (result.uncertain > 0
+          ? ' ' + result.uncertain + ' of those look like shifts and need checking (see Action Centre).'
+          : '') +
+        (result.removalReconciliationSkipped
+          ? ' A calendar could not be read, so removed events were not cleaned up (run diagnoseCalendarAccess).'
+          : '')
     };
   },
 

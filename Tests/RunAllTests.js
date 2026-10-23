@@ -22,6 +22,7 @@ function runAllPayTrackerTests() {
   const suites = [
     { name: 'Reconciliation Foundation', run: runReconciliationFoundationTests },
     { name: 'Calendar Reconciliation', run: runCalendarReconciliationTests },
+    { name: 'Calendar Diagnostics', run: runCalendarDiagnosticsTests },
     { name: 'Annual Leave Engine', run: runAnnualLeaveEngineTests },
     { name: 'Pay Adjustments', run: runPayAdjustmentsTests },
     { name: 'Money Movements', run: runMoneyMovementsTests },

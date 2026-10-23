@@ -72,8 +72,12 @@ const PayTrackerCalendarService = Object.freeze({
       skipped: 0,
       ignored: 0,
       duplicates: 0,
+      uncertain: 0,
       totalEvents: events.length
     };
+
+    // Events the classifier rejected that may still be shifts. Reported, never written to PaySheet.
+    const uncertainEvents = [];
 
     const processedEventKeys =
       new Set();
@@ -158,6 +162,20 @@ const PayTrackerCalendarService = Object.freeze({
 
           if (!shiftMatch) {
             result.ignored++;
+            try {
+              const concern = PayTrackerCalendarDiagnosticsService
+                .assessUnclassifiedEvent(event);
+              if (concern) {
+                uncertainEvents.push({
+                  event: event,
+                  eventKey: eventKey,
+                  eventDate: eventDate,
+                  concern: concern
+                });
+              }
+            } catch (ignored) {
+              // Diagnostics must never be able to stop a sync.
+            }
             return;
           }
 
@@ -183,6 +201,13 @@ const PayTrackerCalendarService = Object.freeze({
           else result.skipped++;
         }
       );
+
+    try {
+      PayTrackerCalendarDiagnosticsService
+        .recordUncertainEvents(uncertainEvents, result);
+    } catch (ignored) {
+      // Diagnostics must never be able to stop a sync.
+    }
 
     PayTrackerSummaryService
       .buildRunningTotals(
