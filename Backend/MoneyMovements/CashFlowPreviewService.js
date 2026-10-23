@@ -97,7 +97,7 @@ const PayTrackerCashFlowPreviewService = Object.freeze({
       .filter(Boolean);
     const employerKeywords = [];
     this.readSheet(PayTrackerReconciliationConfig.SHEETS.JOBS.NAME).forEach(function(job) {
-      if (job.active === false) return;
+      if (job.active === false || String(job.active).toUpperCase() === 'FALSE') return;
       [job.employer, job.employerKey].forEach(function(value) {
         if (value) employerKeywords.push(String(value));
       });

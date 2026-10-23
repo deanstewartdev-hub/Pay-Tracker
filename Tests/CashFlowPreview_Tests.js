@@ -29,6 +29,9 @@ function runCashFlowPreviewTests() {
   // Every category the roadmap asks for.
   check('salary from a known employer', one(tx('t1', { debitOrCredit: 'Credit', description: 'STAFFLINE RECRUITMENT', category: 'income' }),
     { employerKeywords: ['Staffline'] }).category === C.SALARY);
+  check('employer names match whole words only ("nhs" is not "JOHNSON")',
+    one(tx('t1b', { debitOrCredit: 'Credit', description: 'JOHNSON M', category: 'transfers' }),
+      { employerKeywords: ['NHS'] }).category !== C.SALARY);
   check('income Monzo flags but no employer matches needs confirmation', (function() {
     const p = one(tx('t2', { debitOrCredit: 'Credit', description: 'HMRC', category: 'income' }));
     return p.category === C.OTHER_INCOME && p.confidence === K.NEEDS_CONFIRMATION;

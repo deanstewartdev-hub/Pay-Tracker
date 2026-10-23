@@ -213,8 +213,12 @@ const PayTrackerCashFlowClassifier = Object.freeze({
     return [isCredit ? this.CATEGORIES.OTHER_INCOME : this.CATEGORIES.SPENDING, confidence, reason];
   },
 
+  // Whole words only: "nhs" must not match "JOHNSON".
   matchesEmployer: function(text, keywords) {
-    return (keywords || []).some(function(word) { return text.indexOf(word) !== -1; });
+    return (keywords || []).some(function(word) {
+      const escaped = word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      return new RegExp('(^|[^a-z0-9])' + escaped + '($|[^a-z0-9])').test(text);
+    });
   },
 
   reconcileWithLedger: function(proposal, ctx) {
