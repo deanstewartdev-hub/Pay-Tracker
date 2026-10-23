@@ -272,6 +272,25 @@ test('Relief Warden, Night Security and Logging shifts import with the right typ
   assert.deepEqual(sb.shiftOn('NHS', days.mon), ['', '', ''], 'non-NHS shifts must not land in the NHS table');
 });
 
+test('previewCalendarManualOverrides lists exactly the rows the next sync would keep as manual, and changes nothing', () => {
+  const { sb, days, shift } = fixture();
+  sb.setCalendars({ [OWNER_CALENDAR]: [shift('NIGHT 8pm- 12pm', days.mon, 0, 0, { allDay: true }), shift('Caravan site 9-8', days.tue, 9, 19)] });
+  sb.sync();
+  // As in the old 24-hour episode: the sync record and the row disagree.
+  sb.setShift('Night Security Warden', days.mon, 'Enhanced 1.33', 24, 429.84);
+  const before = sb.snapshotPaySheet();
+  const records = JSON.stringify(sb.syncRecords());
+  sb.context.__paySheet = sb.paySheet;
+  const report = sb.json('previewCalendarManualOverrides(__paySheet)');
+  assert.equal(report.checked, 2);
+  assert.equal(report.wouldBePreserved.length, 1);
+  assert.equal(report.wouldBePreserved[0].table, 'Night Security Warden');
+  assert.deepEqual(report.wouldBePreserved[0].rowNow, ['Enhanced 1.33', 24, 429.84]);
+  assert.equal(sb.snapshotPaySheet(), before, 'PaySheet unchanged');
+  assert.equal(JSON.stringify(sb.syncRecords()), records, 'sync records unchanged');
+  assert.equal(sb.actionItems().length, 0, 'no Action Centre items raised');
+});
+
 test('a hand-edited Relief Warden row is never overwritten by a later sync', () => {
   const { sb, days, shift } = fixture();
   sb.setCalendars({ [OWNER_CALENDAR]: [shift('Caravan site 9-8', days.mon, 9, 19)] });
