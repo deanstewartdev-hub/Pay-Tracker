@@ -179,6 +179,29 @@ function runSmartSavingsTests() {
     cashFlow: [p(C.SAVINGS, 45, { description: 'pot_H', date: d(10) })], pots: [pot('H', { linkedMonzoPotId: 'pot_H' })],
     contributions: [{ contributionId: 'C1', potId: 'H', dueDate: d(10), contributionAmount: 50 }]
   }).confirmations[0].bankEvidence === null);
+  check('confirmations say whether the pot is Monzo-linked', confirm.confirmations[0].monzoLinked === true &&
+    run({ pots: [pot('M')], contributions: [{ contributionId: 'X', potId: 'M', dueDate: d(10), contributionAmount: 5 }] }).confirmations[0].monzoLinked === false);
+  check('recorded contributions for linked pots with no Monzo deposit are listed, and never counted as saved', (function() {
+    const r = run({
+      pots: [pot('H', { linkedMonzoPotId: 'pot_H' }), pot('M')],
+      history: [{ contributionId: 'C9', potId: 'H', amountDeposited: 75, depositedDate: d(8), originalDueDate: d(8) },
+        { contributionId: 'C8', potId: 'M', amountDeposited: 40, depositedDate: d(8) }]
+    });
+    return r.unverifiedRecords.length === 1 && r.unverifiedRecords[0].contributionId === 'C9' &&
+      r.unverifiedRecords[0].daysSinceRecorded === 7 && r.savedThisMonth === 0 && r.distribution[0].savedThisMonth === 0 &&
+      r.warnings.some(function(w) { return w.indexOf('not in Monzo yet') !== -1; });
+  })());
+  check('a recorded contribution that Monzo does show is not listed', run({
+    cashFlow: [p(C.SAVINGS, 75, { description: 'pot_H', date: d(9) })],
+    pots: [pot('H', { linkedMonzoPotId: 'pot_H' })],
+    history: [{ contributionId: 'C9', potId: 'H', amountDeposited: 75, depositedDate: d(8) }]
+  }).unverifiedRecords.length === 0);
+  check('one Monzo deposit cannot both support a queued contribution and verify a recorded one', run({
+    cashFlow: [p(C.SAVINGS, 75, { transactionId: 'tx1', description: 'pot_H', date: d(9) })],
+    pots: [pot('H', { linkedMonzoPotId: 'pot_H' })],
+    contributions: [{ contributionId: 'Q', potId: 'H', dueDate: d(9), contributionAmount: 75 }],
+    history: [{ contributionId: 'C9', potId: 'H', amountDeposited: 75, depositedDate: d(8) }]
+  }).unverifiedRecords.length === 1);
   check('the period is the London calendar month', base.period.from === '2026-10-01' && base.period.to === '2026-10-31' && base.period.daysLeft === 17);
 
   return { success: true, passed: results.length, results: results };

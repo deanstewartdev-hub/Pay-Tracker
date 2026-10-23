@@ -138,6 +138,7 @@
       if ((data.goals || []).length) root.appendChild(service.goalsCard(data.goals));
       if ((committed.items || []).length) root.appendChild(service.commitmentsCard(committed.items));
       root.appendChild(service.confirmationsCard(data.confirmations || []));
+      if ((data.unverifiedRecords || []).length) root.appendChild(service.unverifiedCard(data.unverifiedRecords));
     },
 
     potTable: function(pots, unallocated) {
@@ -212,6 +213,12 @@
           text.appendChild(service.el('div', 'smart-savings__evidence',
             'Monzo shows ' + service.money(item.bankEvidence.amount) + ' moved to this pot on ' + service.day(item.bankEvidence.date)));
         }
+        if (item.monzoLinked && !item.bankEvidence) {
+          // Monzo is the source of truth for linked pots: nothing to record until it shows the deposit.
+          row.append(text, service.el('span', 'smart-savings__muted', 'Waiting to see this in Monzo'));
+          card.appendChild(row);
+          return;
+        }
         const button = service.el('button', 'button button--confirm', 'I moved it - record');
         button.type = 'button';
         button.setAttribute('data-smart-savings-confirm', item.contributionId);
@@ -220,6 +227,19 @@
         row.append(text, button);
         card.appendChild(row);
       });
+      return card;
+    },
+
+    unverifiedCard: function(items) {
+      const card = service.card('Recorded, not yet seen in Monzo');
+      card.appendChild(service.el('p', 'smart-savings__muted',
+        'These were marked as deposited but no matching Monzo pot deposit has arrived. They are not counted as saved.'));
+      const lines = service.el('ul', 'smart-savings__lines');
+      items.forEach(function(item) {
+        lines.appendChild(service.line(item.potName + ' · recorded ' + service.day(item.recordedDate) +
+          (Math.sign(item.daysSinceRecorded) === 1 ? ' (' + item.daysSinceRecorded + ' days ago)' : ''), service.money(item.amount)));
+      });
+      card.appendChild(lines);
       return card;
     },
 

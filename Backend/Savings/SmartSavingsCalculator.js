@@ -67,6 +67,13 @@ const PayTrackerSmartSavingsCalculator = Object.freeze({
       warnings.push(this.money(actual.uncertainIn) + ' of incoming money needs confirming in Money Movements before it can count.');
     }
 
+    const confirmations = this.confirmations(input.contributions || [], pots, actual.potDeposits, period);
+    const unverified = this.unverifiedRecords(input.history || [], pots, actual.potDeposits, confirmations, period);
+    if (unverified.length) {
+      warnings.push(unverified.length + ' contribution(s) recorded this month for Monzo-linked pots are not in Monzo yet. ' +
+        'They are not counted as saved; check Monzo if a sync has run since.');
+    }
+
     return {
       period: period,
       actual: actual.summary,
@@ -78,7 +85,8 @@ const PayTrackerSmartSavingsCalculator = Object.freeze({
       unallocated: distribution.unallocated,
       planned: planned,
       goals: this.goals(input.goals || [], pots, distribution.pots),
-      confirmations: this.confirmations(input.contributions || [], pots, actual.potDeposits, period),
+      confirmations: confirmations,
+      unverifiedRecords: unverified,
       warnings: warnings
     };
   },
@@ -345,9 +353,47 @@ const PayTrackerSmartSavingsCalculator = Object.freeze({
       return {
         contributionId: String(row.contributionId), potId: String(row.potId || ''), potName: String(row.potName || pot.name || ''),
         dueDate: due, amount: amount,
+        // A Monzo-linked pot can only be recorded once Monzo shows the deposit.
+        monzoLinked: Boolean(pot.monzoPotId),
         bankEvidence: match ? { transactionId: match.transactionId, date: match.date, amount: match.amount } : null
       };
     });
+  },
+
+  /*
+   * Contributions already recorded this month for Monzo-linked pots
+   * that no Monzo pot deposit supports yet: a delayed sync, or money
+   * that was never actually moved. Shown for review; nothing changes.
+   * Deposits already supporting a queued contribution are not reused.
+   */
+  unverifiedRecords: function(history, pots, potDeposits, confirmations, period) {
+    const T = PayTrackerPaymentTimeline;
+    const self = this;
+    const used = {};
+    confirmations.forEach(function(c) { if (c.bankEvidence) used[c.bankEvidence.transactionId] = true; });
+    const potById = {};
+    pots.forEach(function(p) { potById[p.potId] = p; });
+    return history.filter(function(h) {
+      const day = T.dayKey(h.depositedDate);
+      const pot = potById[h.potId];
+      return pot && pot.monzoPotId && day && day >= period.from && day <= period.to &&
+        String(h.undoStatus || '') !== 'Undone';
+    }).map(function(h) {
+      const pot = potById[h.potId];
+      const amount = self.round(Number(h.amountDeposited) || 0);
+      const recorded = T.dayKey(h.depositedDate);
+      const due = T.dayKey(h.originalDueDate) || recorded;
+      const match = potDeposits.filter(function(d) {
+        return !used[d.transactionId] && d.monzoPotId === pot.monzoPotId && Math.abs(d.amount - amount) < 0.005 &&
+          (Math.abs(T.daysBetween(recorded, d.date)) <= self.MATCH_WINDOW_DAYS ||
+            Math.abs(T.daysBetween(due, d.date)) <= self.MATCH_WINDOW_DAYS);
+      })[0];
+      if (match) used[match.transactionId] = true;
+      return match ? null : {
+        contributionId: String(h.contributionId || ''), potName: pot.name, amount: amount, recordedDate: recorded,
+        daysSinceRecorded: T.daysBetween(recorded, period.today)
+      };
+    }).filter(Boolean);
   },
 
   round: function(value) { return Math.round((Number(value) || 0) * 100) / 100; },

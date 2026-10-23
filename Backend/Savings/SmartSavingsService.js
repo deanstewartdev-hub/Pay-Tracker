@@ -81,6 +81,12 @@ const PayTrackerSmartSavingsService = Object.freeze({
     if (Math.abs(amount - (Number(expectedAmount) || 0)) >= 0.005) {
       throw new Error('This contribution changed to £' + amount.toFixed(2) + ' since you loaded the page. Refresh and check it again.');
     }
+    // A Monzo-linked pot is recorded only when Monzo itself shows the deposit (re-checked here, not trusted from the page).
+    const listed = this.getPreview().confirmations.filter(function(item) { return item.contributionId === id; })[0];
+    if (listed && listed.monzoLinked && !listed.bankEvidence) {
+      throw new Error('Monzo does not show this ' + '£' + amount.toFixed(2) + ' deposit into ' + listed.potName +
+        ' yet. Move the money in Monzo, run "Check Monzo now", then try again.');
+    }
     return PayTrackerWebSavingsWorkspaceService.markContributionDeposited(id);
   }
 });

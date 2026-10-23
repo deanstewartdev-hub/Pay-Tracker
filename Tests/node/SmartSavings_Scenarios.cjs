@@ -152,6 +152,18 @@ test('confirm refuses a changed amount, an unknown id and an already-deposited c
   assert.deepEqual(sb.json('__marked'), [], 'nothing was recorded');
 });
 
+test('confirm refuses a Monzo-linked pot until Monzo shows the deposit; a manual pot needs no bank evidence', () => {
+  const { sb, H } = fixture();
+  sb.run(`var __marked = []; PayTrackerWebSavingsWorkspaceService = Object.assign({}, PayTrackerWebSavingsWorkspaceService,
+    { markContributionDeposited: function (id) { __marked.push(id); return {}; } });`);
+  // A second House contribution: the one Monzo deposit already supports CON-1.
+  sb.getSheet(H.contributions[0]).rows.push(H.contributions[1].map(h => ({ 'Contribution ID': 'CON-3', 'Due Date': sb.date(2026, 9, 12), 'Pot ID': 'POT-HOUSE',
+    'Pot Name': 'House deposit', 'Contribution Amount': 100, 'Deposited?': false, 'Status': 'Upcoming' })[h] ?? ''));
+  assert.throws(() => sb.run('confirmPayTrackerSmartSavingsContribution("CON-3", 100)'), /Monzo does not show/);
+  sb.json('confirmPayTrackerSmartSavingsContribution("CON-2", 180)'); // Emergency fund: not Monzo-linked
+  assert.deepEqual(sb.json('__marked'), ['CON-2']);
+});
+
 test('nothing in Smart Savings can move money: no Monzo or UrlFetch call is reachable from the preview', () => {
   const fs = require('node:fs');
   const path = require('node:path');

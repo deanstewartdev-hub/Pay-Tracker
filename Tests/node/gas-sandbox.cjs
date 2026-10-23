@@ -65,7 +65,9 @@ function makeSheet(name) {
       return local;
     }
   };
-  return sheet;
+  // Formatting-only Sheet methods (setTabColor, autoResizeColumns...) are no-ops, as for ranges.
+  const local = new Proxy(sheet, { get: (t, k) => (k in t ? t[k] : (k === 'then' ? undefined : () => local)) });
+  return local;
 }
 
 /**
