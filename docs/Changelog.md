@@ -6,6 +6,21 @@ The project follows Semantic Versioning where practical.
 
 ---
 
+# Unreleased — Calendar diagnostics and unrecognised-shift detection
+
+Not deployed. Source changes only, on top of PRs #41-#45. The production version is unverified from this account (`clasp deployments` returns "The caller does not have permission"); session notes record PRs #41-#45 promoted as @143 on 12 Oct 2026, while `docs/VERSION.md` last records v3.2.0 @140. Check the live deployment before promoting.
+
+- **`diagnoseCalendarAccess()`** (new, read-only; `Backend/Calendar/CalendarDiagnosticsService.js`): checks every ID in `PayTrackerConfig.CALENDAR.IDS` with `getCalendarById`/`getEvents` only. Reports accessible / not found or no access / lookup error / read error per calendar, the account the script runs as, configuration problems (empty list, duplicate, blank or malformed ID), whether a sync would be complete, and whether removed-event cleanup would run. This is the check that would have caught the unreachable ID PR #45 removed. Changes no event, PaySheet cell or sync record.
+- **Unrecognised shifts are no longer silently ignored.** The classification rules are unchanged (a wrong shift type means wrong pay). When the classifier rejects an event that still looks like work, the sync now records why - `NHS_MISSING_TIME` (e.g. "NHS Coleraine" with no 6-2 / 2-10), `NHS_UNSUPPORTED_TIME`, `UNRECOGNISED_HOSPITAL`, `AMBIGUOUS_ROLE`, `WORK_RELATED_UNCLASSIFIED` - counts it in `result.uncertain`, lists it in `result.uncertainEvents`, and raises one Action Centre item ("Calendar Event Needs Review") per event, de-duplicated by event key while open, most recent first, capped at 25 per sync. It never guesses a shift type and never writes PaySheet. A failure in this path cannot stop a sync.
+- **`reviewUnrecognisedCalendarEvents()`** (new, read-only): the same findings as a report over the sync window, without raising any Action Centre item.
+- The Unified Sync Calendar task message now says when events need checking and when a calendar could not be read (so removed events were not cleaned up).
+- **Tests**: `runCalendarDiagnosticsTests()` (39 checks, pure, registered in `runAllPayTrackerTests`). `Tests/node/` is new: an offline sandbox that runs the real source against in-memory sheets, with `CalendarSync_Scenarios.cjs` (17 end-to-end `sync()` scenarios: accessible, inaccessible and partial calendar reads, removed events, manually edited rows, repeat syncs, NHS title variations, unchanged pay amounts) and `run-all.cjs`. Run `node Tests/node/run-all.cjs`. CI runs it on every push.
+- **Fix: hand-corrected Calendar rows were reverted on the next sync.** Removed events already preserved manual edits, but while the event still existed `addShiftToSheet` rewrote its own row on every sync, undoing any hours/pay/shift correction (or clearing). It now compares the row with what the sync last wrote (`rowMatchesRecord`); if they differ the values are kept, the record becomes `Manual Override` (so later syncs and removal cleanup leave it alone) and one "Calendar Shift Changed Manually" Action Centre item is raised. Shared with the removal path via `preserveManualChange`. Pre-existing on `main`.
+- **Pay for every role pinned end to end**: new scenarios sync Relief Assistant Warden (weekday day, weekday evening, weekend), Night Security (timed, all-day "NIGHT 8pm- 12pm" = 4h not 24h, weekend) and Logging Cash and assert type, hours and pay; plus hand-edited, hand-cleared and untouched-but-changed-event rows (21 scenarios in total).
+- **Verified to catch their defects**: removing the "incomplete read skips cleanup" gate, the diagnostics hook, the manual-edit guard or the no-overwrite guard each fails the scenarios; seven mutations of the diagnostics service each fail its suite.
+
+---
+
 # v3.2.0 — Unified Sync Engine
 
 Replaces manual, per-page "sync now" clicking as the app's primary freshness mechanism with a central orchestrator. Post-roadmap initiative: changes how the existing v3 features stay fresh, not what they do. Full audit basis in `docs/v3.2-unified-sync-audit.md`; full release record in `docs/VERSION.md`.
