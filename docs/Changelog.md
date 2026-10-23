@@ -6,6 +6,21 @@ The project follows Semantic Versioning where practical.
 
 ---
 
+# Unreleased — Step 3: Smart Savings
+
+Not deployed. Builds on Steps 2A and 2B. Full rules and verification steps: `docs/v3.3-smart-savings.md`. **Never moves money.**
+
+- **Smart Savings panel** at the top of the Savings page: what can genuinely be saved for the rest of this month from *actual* bank activity, shown next to the existing *planned* figure (unchanged).
+- **`PayTrackerSmartSavingsCalculator`** (new, pure): income received, spending, refunds, bills/subscriptions/debts already paid, unconfirmed and pending outgoings, what is still due before month end, and what was already saved. Conservative: unconfirmed or pending income is never added. Each bank transaction is counted once, and a payment already in the actuals is never also counted as still due.
+- **Suggestion** from the existing Savings Settings (percentage or fixed mode, Maximum Monthly Savings cap counting what was already saved). It is split across the existing pots: fixed-amount pots first, then by Allocation % (scaled down to 100% if over); inactive pots and pots that have reached their goal get nothing. Goal progress before and after, including the mortgage deposit.
+- **Confirmation workflow**: this month's queued contributions, with matching Monzo pot deposits as evidence. "I moved it - record" needs an explicit confirmation and a server re-check (still due, not already deposited, same amount), then uses the **existing** mark-deposited path.
+- `getPayTrackerSmartSavingsPreview()` (read-only) and `confirmPayTrackerSmartSavingsContribution(id, amount)`.
+- Step 2B timeline occurrences now carry `evidenceTransactionId`.
+- Test sandbox: the `const`→`var` rewrite now also matches `const X =` followed by a line break.
+- **Tests**: `runSmartSavingsTests()` (35 pure checks) and `SmartSavings_Scenarios.cjs` (7). Mutation-checked: 17 deliberate breaks are each caught. The UI was checked at desktop and 375px widths in a local harness.
+
+---
+
 # Unreleased — Step 2B: Dynamic upcoming payments (issue #46)
 
 Not deployed. Builds on Step 2A. Full design, findings and verification steps: `docs/v3.3-upcoming-payments.md`.

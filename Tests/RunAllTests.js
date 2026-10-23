@@ -28,6 +28,7 @@ function runAllPayTrackerTests() {
     { name: 'Money Movements', run: runMoneyMovementsTests },
     { name: 'Cash Flow Preview', run: runCashFlowPreviewTests },
     { name: 'Payment Timeline', run: runPaymentTimelineTests },
+    { name: 'Smart Savings', run: runSmartSavingsTests },
     { name: 'Transaction Rules', run: runTransactionRulesTests },
     { name: 'Analytics', run: runAnalyticsTests },
     { name: 'Staffline Reconciliation', run: runStafflineReconciliationTests },

@@ -1,0 +1,39 @@
+/* =====================================================
+   SMART SAVINGS (Step 3). No child combinators here:
+   HtmlService can escape them.
+   ===================================================== */
+
+.smart-savings { display: grid; gap: 1rem; margin: 0 0 1.25rem; padding: 1rem; border: 1px solid var(--color-border, #e2e8f0); border-radius: 14px; background: var(--color-surface, #fff); }
+.smart-savings__header { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: .75rem; }
+.smart-savings__title { margin: 0; font-size: 1.05rem; color: var(--color-heading, #0f172a); }
+.smart-savings__eyebrow { margin: 0 0 .15rem; font-size: .75rem; text-transform: uppercase; letter-spacing: .04em; color: var(--color-text-muted, #64748b); }
+.smart-savings__muted { margin: 0; font-size: .82rem; color: var(--color-text-muted, #64748b); }
+.smart-savings__grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 1rem; }
+.smart-savings__card { min-width: 0; padding: .85rem; border-radius: 12px; background: var(--color-surface-soft, #f8fafc); }
+.smart-savings__card h4 { margin: 0 0 .5rem; font-size: .9rem; }
+.smart-savings__lines { display: grid; gap: .3rem; margin: 0; padding: 0; list-style: none; font-size: .86rem; }
+.smart-savings__line { display: flex; justify-content: space-between; gap: .75rem; }
+.smart-savings__line--total { margin-top: .3rem; padding-top: .45rem; border-top: 1px solid var(--color-border, #e2e8f0); font-weight: 700; }
+.smart-savings__amount { font-size: 1.6rem; font-weight: 800; color: var(--color-success, #15803d); }
+.smart-savings__table { width: 100%; border-collapse: collapse; font-size: .85rem; }
+.smart-savings__table th, .smart-savings__table td { padding: .45rem .4rem; text-align: left; border-bottom: 1px solid var(--color-border, #e2e8f0); }
+.smart-savings__table td.smart-savings__num, .smart-savings__table th.smart-savings__num { text-align: right; white-space: nowrap; }
+.smart-savings__table-wrap { overflow-x: auto; }
+.smart-savings__warnings { margin: 0; padding: .65rem .85rem .65rem 1.8rem; border-radius: 10px; background: var(--color-warning-soft, #fef3c7); color: var(--color-text, #0f172a); font-size: .84rem; }
+.smart-savings__confirm { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .5rem .75rem; padding: .55rem 0; border-bottom: 1px solid var(--color-border, #e2e8f0); font-size: .86rem; }
+.smart-savings__evidence { color: var(--color-success, #15803d); font-size: .8rem; }
+
+@media (max-width: 720px) {
+  .smart-savings__grid { grid-template-columns: 1fr; }
+}
+
+/* Phones: each pot becomes a labelled block instead of a wide row. */
+@media (max-width: 560px) {
+  .smart-savings__table thead { display: none; }
+  .smart-savings__table, .smart-savings__table tbody, .smart-savings__table tr, .smart-savings__table td { display: block; width: 100%; }
+  .smart-savings__table tr { padding: .5rem 0; border-bottom: 1px solid var(--color-border, #e2e8f0); }
+  .smart-savings__table td { display: flex; justify-content: space-between; gap: .75rem; padding: .15rem 0; border: 0; }
+  .smart-savings__table td.smart-savings__num { text-align: right; }
+  .smart-savings__table td::before { content: attr(data-label); color: var(--color-text-muted, #64748b); }
+  .smart-savings__table td.smart-savings__key { font-weight: 700; }
+}

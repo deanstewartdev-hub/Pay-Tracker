@@ -360,7 +360,8 @@ const PayTrackerPaymentTimeline = Object.freeze({
       amount: series.amount, priceChange: series.priceChange || 0,
       dueDate: dueKey, daysRemaining: days, countdown: this.countdownText(days),
       status: status, projected: index > 0,
-      evidence: evidence && evidence.state !== 'none' ? evidence.source : ''
+      evidence: evidence && evidence.state !== 'none' ? evidence.source : '',
+      evidenceTransactionId: (evidence && evidence.transactionId) || ''
     };
   },
 

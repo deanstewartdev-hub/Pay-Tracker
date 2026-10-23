@@ -151,7 +151,7 @@ function createSandbox(options = {}) {
     .concat(listSourceFiles('Backend').filter(f => f !== 'Backend/Core/Config.js' && f !== 'Backend/Core/Utilities.js').sort())
     .concat(listSourceFiles('Tests').sort());
   for (const file of files) {
-    const source = fs.readFileSync(path.join(ROOT, file), 'utf8').replace(/^const (PayTracker\w+) = /gm, 'var $1 = ');
+    const source = fs.readFileSync(path.join(ROOT, file), 'utf8').replace(/^const (PayTracker\w+) =(\s)/gm, 'var $1 =$2');
     vm.runInContext(source, context, { filename: file });
   }
 
