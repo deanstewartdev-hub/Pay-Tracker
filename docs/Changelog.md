@@ -6,6 +6,17 @@ The project follows Semantic Versioning where practical.
 
 ---
 
+# Unreleased — v3.3 payroll accuracy (NHS shifts, Night Security rate, placements)
+
+Not deployed. Full audit: `docs/v3.3-payroll-audit.md`.
+
+- **NHS: all four shifts at both hospitals.** 06:00–14:00, **08:00–16:00**, **10:00–18:00** and 14:00–22:00 are recognised at NHS Antrim and NHS Causeway Hospital, Coleraine. They're read from the title in any common format, or from a timed event's own start and end. 08–16 and 10–18 pay as 7.5h Basic (£95.33). Weekends, the 14–22 unsocial split (£105.75) and the 30-minute unpaid break are unchanged. Ambiguous, conflicting and all-day time-less events are still reported, not guessed. "Coleraine"/"Causeway" alone are not NHS (council jobs).
+- **Night Security ×1.33 = £17.92** (Enhanced and Overtime), as on the real August payslips (was £17.91). 4-hour fixed amounts now equal 4 × the paid rate (e.g. Night 1.50 £80.84). The reported £20.87 ×1.50 rate is **not** applied: it isn't verified, and it needs its effective date.
+- **Staffline reconciliation per NHS placement:** each timesheet is compared with its own hospital's shifts (was combined across both). NHS shifts now count 7.5 paid hours (was 0). No combined-placement overtime exists or was added; payslip totals still include both placements.
+- `Tests/node/NhsPayroll_Scenarios.cjs` (15 scenarios; 13 fail on the previous code).
+
+---
+
 # Unreleased — v3.3.0 release candidate (`release/v3.3.0-rc1`): safety, audit and integration
 
 Not deployed. Owner checklist: `docs/v3.3-staging-acceptance.md`.

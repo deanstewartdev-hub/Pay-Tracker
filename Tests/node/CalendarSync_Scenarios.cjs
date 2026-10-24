@@ -44,7 +44,7 @@ test('weekend NHS shifts pay the weekend fixed amounts', () => {
 
 test('repeat syncs create no duplicates and change nothing', () => {
   const { sb, days, shift } = fixture();
-  sb.setCalendars({ [OWNER_CALENDAR]: [shift('NHS Coleraine 6-2', days.mon, 6, 14), shift('NHS Coleraine', days.wed, 6, 14)] });
+  sb.setCalendars({ [OWNER_CALENDAR]: [shift('NHS Coleraine 6-2', days.mon, 6, 14), shift('NHS Coleraine', days.wed, 0, 0, { allDay: true })] });
   sb.sync();
   const before = { sheet: sb.snapshotPaySheet(), records: sb.syncRecords().length, items: sb.actionItems().length };
   for (let i = 0; i < 3; i++) {
@@ -135,7 +135,7 @@ test('a calendar whose events cannot be read counts as incomplete, not as "no ev
 
 test('the sync summary line tells the owner when events were unrecognised or cleanup was skipped', () => {
   const { sb, days, shift } = fixture();
-  sb.setCalendars({ [OWNER_CALENDAR]: [shift('NHS Coleraine', days.mon, 6, 14)] });
+  sb.setCalendars({ [OWNER_CALENDAR]: [shift('NHS Coleraine', days.mon, 0, 0, { allDay: true })] });
   const result = sb.sync();
   const text = sb.json('PayTrackerSyncService.mapCalendarResult_(' + JSON.stringify(result) + ').message');
   assert.match(text, /1 of those look like shifts and need checking/);
@@ -147,10 +147,10 @@ test('the sync summary line tells the owner when events were unrecognised or cle
 test('NHS title variations: recognised ones import, unrecognised ones are reported and NOT guessed', () => {
   const { sb, days, shift } = fixture();
   const events = [
-    shift('NHS Coleraine', days.mon, 6, 14),
+    shift('NHS Coleraine', days.mon, 0, 0, { allDay: true }),
     shift('NHS Coleraine 6-2', days.tue, 6, 14),
     shift('Coleraine NHS 2pm', days.wed, 14, 22),
-    shift('NHS Coleraine 8-4', days.thu, 8, 16),
+    shift('NHS Coleraine 7-3', days.thu, 7, 15),
     shift('Coleraine Hospital 6-2', days.fri, 6, 14),
     shift('NHS Coleraine security', days.sat, 6, 14),
     shift('Dentist 2pm', days.sun, 14, 15)
@@ -184,7 +184,7 @@ test('existing rule preserved: a title with NHS, another role word AND a 6-2 tim
 test('a diagnostics failure can never stop the sync or change what it imports', () => {
   const { sb, days, shift } = fixture();
   sb.run('PayTrackerActionCentreRepository = Object.assign({}, PayTrackerActionCentreRepository, { create: function () { throw new Error("Action Centre unavailable"); } })');
-  sb.setCalendars({ [OWNER_CALENDAR]: [shift('NHS Coleraine 6-2', days.mon, 6, 14), shift('NHS Coleraine', days.tue, 6, 14)] });
+  sb.setCalendars({ [OWNER_CALENDAR]: [shift('NHS Coleraine 6-2', days.mon, 6, 14), shift('NHS Coleraine', days.tue, 0, 0, { allDay: true })] });
   const result = sb.sync();
   assert.equal(result.imported, 1);
   assert.match(result.uncertainError, /Action Centre unavailable/);
@@ -208,7 +208,7 @@ test('review items are capped per sync and the most recent events come first', (
 
 test('read-only diagnostics change nothing and raise no Action Centre items', () => {
   const { sb, days, shift } = fixture();
-  sb.setCalendars({ [OWNER_CALENDAR]: [shift('NHS Coleraine', days.mon, 6, 14), shift('NHS Coleraine 6-2', days.tue, 6, 14)] });
+  sb.setCalendars({ [OWNER_CALENDAR]: [shift('NHS Coleraine', days.mon, 0, 0, { allDay: true }), shift('NHS Coleraine 6-2', days.tue, 6, 14)] });
   const before = { sheet: sb.snapshotPaySheet(), items: sb.actionItems().length, records: sb.syncRecords().length };
   const access = sb.json('diagnoseCalendarAccess()');
   const review = sb.json('reviewUnrecognisedCalendarEvents()');
@@ -265,8 +265,9 @@ test('Relief Warden, Night Security and Logging shifts import with the right typ
   assert.deepEqual(sb.shiftOn('Relief Assistant Warden', days.mon), ['Basic', 10, 136.9]);
   assert.deepEqual(sb.shiftOn('Relief Assistant Warden', days.tue), ['Enhanced 1.33', 3, 54.63]);
   assert.deepEqual(sb.shiftOn('Relief Assistant Warden', days.sat), ['Enhanced 1.50', 10, 205.4]);
-  assert.deepEqual(sb.shiftOn('Night Security Warden', days.wed), ['Enhanced 1.33', 3, 53.73]);
-  assert.deepEqual(sb.shiftOn('Night Security Warden', days.thu), ['Enhanced 1.33', 4, 71.64]);
+  // x1.33 = GBP 17.92, as on the real Aug 2026 payslip (N621105/N624148), not 17.91.
+  assert.deepEqual(sb.shiftOn('Night Security Warden', days.wed), ['Enhanced 1.33', 3, 53.76]);
+  assert.deepEqual(sb.shiftOn('Night Security Warden', days.thu), ['Enhanced 1.33', 4, 71.68]);
   assert.deepEqual(sb.shiftOn('Night Security Warden', days.sun), ['Enhanced 1.50', 4, 80.84]);
   assert.deepEqual(sb.shiftOn('Logging Cash', days.fri), ['Logging Cash £10/hr', 6, 60]);
   assert.deepEqual(sb.shiftOn('NHS', days.mon), ['', '', ''], 'non-NHS shifts must not land in the NHS table');

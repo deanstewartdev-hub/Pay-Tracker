@@ -101,7 +101,15 @@ const PayTrackerStafflineReconciliationService = Object.freeze({
         shift.eventStart, timesheet.timesheetStart, timesheet.timesheetEnd
       );
     });
-    const forJob = inWindow.filter(function(shift) { return shift.jobId === timesheet.jobId; });
+    // NHS Antrim and NHS Causeway are separate Staffline placements with
+    // separate timesheets under one Pay Tracker job: compare each timesheet
+    // only with its own hospital's shifts. (Shifts whose title names no
+    // hospital still count, so no hours are ever hidden.)
+    const site = PayTrackerStafflineReconciliationService.siteOfTimesheet_(timesheet);
+    const forJob = inWindow.filter(function(shift) {
+      return shift.jobId === timesheet.jobId &&
+        PayTrackerStafflineReconciliationService.sameSite_(site, PayTrackerStafflineReconciliationService.siteOf_(shift.eventTitle));
+    });
     const forOtherJob = inWindow.filter(function(shift) { return shift.jobId !== timesheet.jobId; });
     const calendarHours = PayTrackerStafflineReconciliationService.sumHours_(forJob);
 
@@ -163,8 +171,10 @@ const PayTrackerStafflineReconciliationService = Object.freeze({
     shifts.forEach(function(shift) {
       const weekEnding = PayTrackerStafflineReconciliationService.weekEndingOf_(shift.eventStart);
       if (!weekEnding) return;
-      const key = shift.jobId + '|' + weekEnding;
-      if (!weeks[key]) weeks[key] = { jobId: shift.jobId, weekEnding: weekEnding, shifts: [] };
+      // Grouped per hospital too: an Antrim timesheet does not cover Causeway shifts.
+      const site = PayTrackerStafflineReconciliationService.siteOf_(shift.eventTitle);
+      const key = shift.jobId + '|' + site + '|' + weekEnding;
+      if (!weeks[key]) weeks[key] = { jobId: shift.jobId, site: site, weekEnding: weekEnding, shifts: [] };
       weeks[key].shifts.push(shift);
     });
 
@@ -172,6 +182,9 @@ const PayTrackerStafflineReconciliationService = Object.freeze({
       const week = weeks[key];
       return !timesheets.some(function(timesheet) {
         return timesheet.jobId === week.jobId &&
+          PayTrackerStafflineReconciliationService.sameSite_(
+            PayTrackerStafflineReconciliationService.siteOfTimesheet_(timesheet), week.site
+          ) &&
           PayTrackerStafflineReconciliationService.dateWithin_(
             week.weekEnding, timesheet.timesheetStart, timesheet.timesheetEnd
           );
@@ -416,9 +429,42 @@ const PayTrackerStafflineReconciliationService = Object.freeze({
     return allPaymentLines.filter(function(line) { return line.normalizedTimesheetId === target; });
   },
 
+  /**
+   * The NHS hospital a text refers to: 'ANTRIM', 'CAUSEWAY' or ''.
+   * Only ever compared between a timesheet and shifts of the SAME job,
+   * so the council jobs' Coleraine address cannot be confused with it.
+   * @private
+   */
+  siteOf_: function(text) {
+    const value = String(text || '').toLowerCase();
+    if (/\bantrim\b/.test(value)) return 'ANTRIM';
+    if (/causeway hospital|\bcoleraine\b/.test(value)) return 'CAUSEWAY';
+    return '';
+  },
+
+  /** @private */
+  siteOfTimesheet_: function(timesheet) {
+    const t = timesheet || {};
+    return PayTrackerStafflineReconciliationService.siteOf_(
+      [t.workAddress, t.placementDescription, t.clientName].join(' ')
+    );
+  },
+
+  /** Same hospital, or either side does not say which. @private */
+  sameSite_: function(a, b) {
+    return !a || !b || a === b;
+  },
+
   sumHours_: function(shifts) {
     return PayTrackerStafflineReconciliationService.round_(
-      shifts.reduce(function(sum, shift) { return sum + (Number(shift.hours) || 0); }, 0)
+      shifts.reduce(function(sum, shift) {
+        // NHS rows are paid by shift type and store no hours; every NHS
+        // shift is 8h with a 30-minute unpaid break = 7.5 paid hours.
+        const hours = shift.hours === '' || shift.hours === null || shift.hours === undefined
+          ? (shift.tableName === 'NHS' ? PayTrackerCalendarService.NHS_PAID_HOURS_PER_SHIFT : 0)
+          : Number(shift.hours) || 0;
+        return sum + hours;
+      }, 0)
     );
   },
   sumUnits_: function(lines) {

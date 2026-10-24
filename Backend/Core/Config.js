@@ -285,17 +285,17 @@ const PayTrackerConfig = Object.freeze({
       }),
 
       'Enhanced 1.20': Object.freeze({
-        fixedAmount: 65.71,
+        fixedAmount: 65.72,
         hourlyRate: 16.43
       }),
 
       'Enhanced 1.33': Object.freeze({
-        fixedAmount: 72.83,
+        fixedAmount: 72.84,
         hourlyRate: 18.21
       }),
 
       'Enhanced 1.50': Object.freeze({
-        fixedAmount: 82.14,
+        fixedAmount: 82.16,
         hourlyRate: 20.54
       }),
 
@@ -310,17 +310,17 @@ const PayTrackerConfig = Object.freeze({
       }),
 
       'Overtime 1.20': Object.freeze({
-        fixedAmount: 65.71,
+        fixedAmount: 65.72,
         hourlyRate: 16.43
       }),
 
       'Overtime 1.33': Object.freeze({
-        fixedAmount: 72.83,
+        fixedAmount: 72.84,
         hourlyRate: 18.21
       }),
 
       'Overtime 1.50': Object.freeze({
-        fixedAmount: 82.14,
+        fixedAmount: 82.16,
         hourlyRate: 20.54
       }),
 
@@ -342,17 +342,17 @@ const PayTrackerConfig = Object.freeze({
       }),
 
       'Enhanced 1.20': Object.freeze({
-        fixedAmount: 64.66,
+        fixedAmount: 64.64,
         hourlyRate: 16.16
       }),
 
       'Enhanced 1.33': Object.freeze({
-        fixedAmount: 71.64,
-        hourlyRate: 17.91
+        fixedAmount: 71.68,
+        hourlyRate: 17.92
       }),
 
       'Enhanced 1.50': Object.freeze({
-        fixedAmount: 80.82,
+        fixedAmount: 80.84,
         hourlyRate: 20.21
       }),
 
@@ -367,17 +367,17 @@ const PayTrackerConfig = Object.freeze({
       }),
 
       'Overtime 1.20': Object.freeze({
-        fixedAmount: 64.66,
+        fixedAmount: 64.64,
         hourlyRate: 16.16
       }),
 
       'Overtime 1.33': Object.freeze({
-        fixedAmount: 71.64,
-        hourlyRate: 17.91
+        fixedAmount: 71.68,
+        hourlyRate: 17.92
       }),
 
       'Overtime 1.50': Object.freeze({
-        fixedAmount: 80.82,
+        fixedAmount: 80.84,
         hourlyRate: 20.21
       }),
 

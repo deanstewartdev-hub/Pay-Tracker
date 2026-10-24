@@ -397,7 +397,8 @@ const PayTrackerCalendarService = Object.freeze({
           cleanTitle,
           isSaturday,
           isSunday,
-          timePatterns
+          timePatterns,
+          event
         );
 
     if (nhsMatch) {
@@ -515,8 +516,7 @@ const PayTrackerCalendarService = Object.freeze({
       (value.includes('security') && !value.includes('nhs'))
     ) return 'security';
     if (
-      value.includes('nhs') || value.includes('hsc') ||
-      value.includes('antrim hospital')
+      PayTrackerCalendarService.isNhsTitle(value)
     ) return 'nhs';
     if (
       value.includes('caravan') || value.includes('relief assistant') ||
@@ -655,93 +655,278 @@ const PayTrackerCalendarService = Object.freeze({
 
 
   /**
-   * Classifies NHS events.
+   * The four NHS shift windows (both hospitals). Each is an 8-hour
+   * shift paid as 7.5 hours (the verified 30-minute unpaid break:
+   * NHS 6-2 = 7.5 x 12.71 = 95.33). Weekday pay by window:
+   * - 06:00-14:00 -> NHS 6am-2pm Basic   (7.5h basic)
+   * - 08:00-16:00 -> Basic               (7.5h basic)
+   * - 10:00-18:00 -> Basic               (7.5h basic)
+   * - 14:00-22:00 -> NHS 2pm-10pm Split  (5.5h basic + 2h unsocial
+   *                  20:00-22:00 = 69.91 + 35.84 = 105.75)
+   * Saturday and Sunday pay every window at the NHS Saturday /
+   * NHS Sunday rate, as before.
+   */
+  // Paid hours in every NHS shift (8h less the 30-minute unpaid break).
+  NHS_PAID_HOURS_PER_SHIFT: 7.5,
+
+  NHS_SHIFT_WINDOWS: Object.freeze([
+    Object.freeze({ start: 6, end: 14, weekday: 'NHS 6am-2pm Basic' }),
+    Object.freeze({ start: 8, end: 16, weekday: 'Basic' }),
+    Object.freeze({ start: 10, end: 18, weekday: 'Basic' }),
+    Object.freeze({ start: 14, end: 22, weekday: 'NHS 2pm-10pm Split' })
+  ]),
+
+
+  /**
+   * True for NHS shifts at either hospital: NHS / HSC, NHS Antrim
+   * (Antrim Area Hospital) and NHS Causeway Hospital, Coleraine.
+   * "Coleraine" or "Causeway" alone are NOT enough: the council
+   * warden jobs use those names too.
+   *
+   * @param {string} cleanTitle
+   * @return {boolean}
+   */
+  isNhsTitle: function (cleanTitle) {
+    const value = String(cleanTitle || '');
+    return value.includes('nhs') ||
+      value.includes('hsc') ||
+      value.includes('antrim hospital') ||
+      value.includes('antrim area hospital') ||
+      value.includes('causeway hospital');
+  },
+
+
+  /**
+   * Classifies NHS events at either hospital.
+   *
+   * The shift window comes from the title ("6-2", "06:00-14:00",
+   * "8-4", "10am-6pm", "14:00 - 22:00"...) or, when the title has no
+   * time, from the event's own start and end times. Only the four
+   * NHS windows are paid; anything else is left for review (the
+   * Calendar diagnostics report it) and never guessed.
    *
    * @param {string} cleanTitle
    * @param {boolean} isSaturday
    * @param {boolean} isSunday
    * @param {Object} timePatterns
+   * @param {GoogleAppsScript.Calendar.CalendarEvent=} event
    * @return {Object|null}
    */
   classifyNhsEvent: function (
     cleanTitle,
     isSaturday,
     isSunday,
-    timePatterns
+    timePatterns,
+    event
   ) {
-    const isNhsEvent =
-      cleanTitle.includes('nhs') ||
-      cleanTitle.includes('hsc') ||
-      cleanTitle.includes(
-        'antrim hospital'
-      );
-
-    if (!isNhsEvent) {
+    if (
+      !PayTrackerCalendarService.isNhsTitle(
+        cleanTitle
+      )
+    ) {
       return null;
     }
 
-    if (
-      timePatterns.hasSixToTwo
-    ) {
-      if (isSunday) {
-        return {
-          tableName: 'NHS',
-          jobId: 'JOB-NHS',
-          shiftType: 'NHS Sunday',
-          hours: ''
-        };
-      }
+    const window =
+      PayTrackerCalendarService.findNhsShiftWindow(
+        cleanTitle,
+        timePatterns,
+        event
+      );
 
-      if (isSaturday) {
-        return {
-          tableName: 'NHS',
-          jobId: 'JOB-NHS',
-          shiftType: 'NHS Saturday',
-          hours: ''
-        };
-      }
-
-      return {
-        tableName: 'NHS',
-        jobId: 'JOB-NHS',
-        shiftType:
-          'NHS 6am-2pm Basic',
-        hours: ''
-      };
+    if (!window) {
+      return null;
     }
 
-    if (
-      timePatterns.hasTwoToTen
-    ) {
-      if (isSunday) {
-        return {
-          tableName: 'NHS',
-          jobId: 'JOB-NHS',
-          shiftType: 'NHS Sunday',
-          hours: ''
-        };
-      }
+    let shiftType =
+      window.weekday;
 
-      if (isSaturday) {
-        return {
-          tableName: 'NHS',
-          jobId: 'JOB-NHS',
-          shiftType: 'NHS Saturday',
-          hours: ''
-        };
-      }
-
-      return {
-        tableName: 'NHS',
-        jobId: 'JOB-NHS',
-        shiftType:
-          'NHS 2pm-10pm Split',
-        hours: ''
-      };
+    if (isSaturday) {
+      shiftType = 'NHS Saturday';
     }
 
-    return null;
+    if (isSunday) {
+      shiftType = 'NHS Sunday';
+    }
+
+    return {
+      tableName: 'NHS',
+      jobId: 'JOB-NHS',
+      shiftType: shiftType,
+      hours: '',
+      nhsWindow: window.start + '-' + window.end
+    };
   },
+
+
+  /**
+   * The NHS shift window for an event, or null.
+   *
+   * Order: an explicit time range in the title; the single-time
+   * shorthands already in use ("6am", "2pm"); then the event's own
+   * start/end times (timed events only).
+   *
+   * @param {string} cleanTitle
+   * @param {Object} timePatterns
+   * @param {GoogleAppsScript.Calendar.CalendarEvent=} event
+   * @return {Object|null}
+   */
+  findNhsShiftWindow: function (
+    cleanTitle,
+    timePatterns,
+    event
+  ) {
+    const service =
+      PayTrackerCalendarService;
+
+    // Every range in the title is tried, so a date such as "07-10"
+    // next to "6-2" cannot hide the shift.
+    const ranges =
+      service.parseNhsTimeRanges(
+        cleanTitle
+      );
+
+    for (let i = 0; i < ranges.length; i++) {
+      const window =
+        service.matchNhsWindow(
+          ranges[i].start,
+          ranges[i].end
+        );
+
+      if (window) {
+        return window;
+      }
+    }
+
+    const patterns =
+      timePatterns || {};
+
+    if (patterns.hasSixToTwo) {
+      return service.matchNhsWindow(6, 14);
+    }
+
+    if (patterns.hasTwoToTen) {
+      return service.matchNhsWindow(14, 22);
+    }
+
+    if (/\b8\s*am\b/.test(cleanTitle)) {
+      return service.matchNhsWindow(8, 16);
+    }
+
+    if (/\b10\s*am\b/.test(cleanTitle)) {
+      return service.matchNhsWindow(10, 18);
+    }
+
+    // Event times are only trusted when the title names no other role
+    // ("NHS Coleraine security" stays ambiguous) and states no time of
+    // its own ("NHS 9am" or "NHS 7-3" on a 06:00 event is a conflict).
+    if (
+      ranges.length ||
+      /\b(?:security|warden|relief|logging|cash|caravan)\b|\bnight\b/.test(cleanTitle) ||
+      /\b\d{1,2}(?::\d{2})?\s*(?:am|pm)\b/.test(cleanTitle)
+    ) {
+      return null;
+    }
+
+    return service.nhsWindowFromEventTimes(
+      event
+    );
+  },
+
+
+  /**
+   * Every "start-end" range in an NHS title, as 24-hour hours.
+   * 12-hour shorthand is read the way NHS shifts run: a start before
+   * 06:00 is afternoon ("2-10" = 14-22) and an end not after the
+   * start is afternoon/evening ("6-2" = 6-14, "8-4" = 8-16,
+   * "10-6" = 10-18). am/pm and 24-hour times ("14:00-22:00",
+   * "0600-1400") are taken as written.
+   *
+   * @param {string} cleanTitle
+   * @return {Array<{start: number, end: number}>}
+   */
+  parseNhsTimeRanges: function (cleanTitle) {
+    const pattern =
+      /(?:^|[^\d:])(\d{1,2})(?::?(\d{2}))?\s*(am|pm)?\s*(?:-|–|—|to)\s*(\d{1,2})(?::?(\d{2}))?\s*(am|pm)?(?![\d:])/g;
+
+    const toHour = function (hourText, minuteText, meridiem) {
+      let hour = Number(hourText);
+      const minute = Number(minuteText || 0);
+      if (minute !== 0 || hour > 24) return null;
+      if (meridiem === 'pm' && hour < 12) hour += 12;
+      if (meridiem === 'am' && hour === 12) hour = 0;
+      return hour;
+    };
+
+    const ranges = [];
+    const text = String(cleanTitle || '');
+    let match;
+
+    while ((match = pattern.exec(text)) !== null) {
+      let start = toHour(match[1], match[2], match[3]);
+      let end = toHour(match[4], match[5], match[6]);
+      if (start === null || end === null) continue;
+      if (!match[3] && start < 6) start += 12;
+      if (!match[6] && end <= start && end < 12) end += 12;
+      ranges.push({ start: start, end: end });
+    }
+
+    return ranges;
+  },
+
+
+  /**
+   * Start/end hours of a timed, same-day event, or null (all-day,
+   * multi-day, or not on the hour).
+   *
+   * @param {GoogleAppsScript.Calendar.CalendarEvent=} event
+   * @return {Object|null}
+   */
+  nhsWindowFromEventTimes: function (event) {
+    try {
+      if (
+        !event ||
+        (
+          typeof event.isAllDayEvent === 'function' &&
+          event.isAllDayEvent()
+        )
+      ) {
+        return null;
+      }
+
+      const start = event.getStartTime();
+      const end = event.getEndTime();
+
+      if (
+        !(start instanceof Date) ||
+        !(end instanceof Date) ||
+        start.getMinutes() !== 0 ||
+        end.getMinutes() !== 0 ||
+        PayTrackerUtils.stripTime(start).getTime() !==
+          PayTrackerUtils.stripTime(end).getTime()
+      ) {
+        return null;
+      }
+
+      return PayTrackerCalendarService.matchNhsWindow(
+        start.getHours(),
+        end.getHours()
+      );
+    } catch (error) {
+      return null;
+    }
+  },
+
+
+  matchNhsWindow: function (start, end) {
+    return PayTrackerCalendarService.NHS_SHIFT_WINDOWS
+      .filter(function (window) {
+        return window.start === start &&
+          window.end === end;
+      })[0] || null;
+  },
+
+
 
 
   /**
