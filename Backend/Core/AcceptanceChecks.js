@@ -158,3 +158,48 @@ const PayTrackerAcceptanceChecks = Object.freeze({
 function runPayTrackerAcceptanceChecks() {
   return PayTrackerAcceptanceChecks.run();
 }
+
+/**
+ * Read-only detail behind two acceptance results: the Smart Savings
+ * figures (what is subtracted, and why) and every Staffline timesheet
+ * whose calendar hours differ (with the calendar shifts in its window).
+ */
+function logPayTrackerAcceptanceDetail() {
+  const preview = PayTrackerSmartSavingsService.getPreview();
+  Logger.log('SMART SAVINGS ' + preview.period.from + '..' + preview.period.to + ' disposable=' + preview.disposable +
+    ' saved=' + preview.savedThisMonth + ' suggested=' + preview.suggestion.amount);
+  Logger.log('ACTUAL ' + JSON.stringify(preview.actual));
+  Logger.log('COMMITTED bills=' + preview.committed.bills + ' subscriptions=' + preview.committed.subscriptions +
+    ' debts=' + preview.committed.debts + ' total=' + preview.committed.total);
+  preview.committed.items.forEach(function(item) {
+    Logger.log('  due ' + item.dueDate + ' ' + item.kind + ' "' + item.name + '" ' + item.amount + ' ' + item.status);
+  });
+  preview.warnings.forEach(function(w) { Logger.log('WARNING ' + w); });
+
+  // The largest unconfirmed outgoing transactions this month.
+  const C = PayTrackerCashFlowClassifier;
+  const context = PayTrackerCashFlowPreviewService.readContext();
+  const from = preview.period.from;
+  C.classifyAll(context.transactions, context).filter(function(p) {
+    const day = PayTrackerPaymentTimeline.dayKey(p.date);
+    return day >= from && p.direction !== 'Credit' && (p.categoryConfidence || p.confidence) === C.CONFIDENCE.NEEDS_CONFIRMATION;
+  }).sort(function(a, b) { return b.amount - a.amount; }).slice(0, 15).forEach(function(p) {
+    Logger.log('  unconfirmed out ' + PayTrackerPaymentTimeline.dayKey(p.date) + ' ' + p.amount + ' ' + p.category + ' "' + p.description + '"');
+  });
+
+  const S = PayTrackerStafflineReconciliationService;
+  const shifts = PayTrackerCalendarSyncRepository.getActive();
+  const timesheets = PayTrackerStafflineTimesheetRepository.getAll();
+  (S.getReconciliation({}).rows || []).filter(function(row) { return row.calendarStatus === 'Hours Differ'; }).forEach(function(row) {
+    const ts = timesheets.filter(function(t) { return t.timesheetId === row.timesheetId; })[0] || {};
+    Logger.log('STAFFLINE ' + row.timesheetId + ' w/e ' + PayTrackerPaymentTimeline.dayKey(row.weekEnding) + ' job ' + row.jobId +
+      ' calendar ' + row.calendarExpectedHours + 'h vs staffline ' + row.stafflineSubmittedHours + 'h; site=' + S.siteOfTimesheet_(ts) +
+      ' placement="' + ts.placementDescription + '" address="' + ts.workAddress + '"');
+    shifts.filter(function(shift) {
+      return shift.jobId === row.jobId && S.dateWithin_(shift.eventStart, ts.timesheetStart, ts.timesheetEnd);
+    }).forEach(function(shift) {
+      Logger.log('  shift ' + PayTrackerPaymentTimeline.dayKey(shift.eventStart) + ' "' + shift.eventTitle + '" site=' +
+        S.siteOf_(shift.eventTitle) + ' hours=' + shift.hours + ' counted=' + S.sameSite_(S.siteOfTimesheet_(ts), S.siteOf_(shift.eventTitle)));
+    });
+  });
+}
