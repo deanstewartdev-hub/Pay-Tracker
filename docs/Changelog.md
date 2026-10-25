@@ -6,6 +6,30 @@ The project follows Semantic Versioning where practical.
 
 ---
 
+# Unreleased — v3.3 effective-dated rates, October reconciliation, staging tooling
+
+Not deployed. Details: `docs/v3.3-payroll-audit.md`, `docs/v3.3-staging-acceptance.md`.
+
+- **Effective-dated pay rates** (`PayTrackerConfig.PAY_RULE_HISTORY`, `getConfiguredPayRule_`). Night Security Enhanced ×1.50 is **£20.87 for shifts from Mon 5 Oct 2026** (w/e 11/10 and 18/10 payslips: 8.00 × 20.87 = 166.96) and **£20.21 before** (w/e 04/10: 4.50 × 20.21 = 90.95). It's marked `contractConfirmed: false` until Staffline confirms the start date. No other rate is changed. Every pay path (Calendar sync, hand edits, weekly and all-pay recalculation) prices a row at its own date; without a date the historical rate is used.
+- **October reproduced with the engine:** w/e 11/10 £563.84 + £95.33 + £5.28 = £664.45 vs payslip £664.43; w/e 18/10 £819.69 vs £819.67. The −2p is per-shift versus per-line rounding of NHS half-pennies (four 7.5h shifts = 2p), not a calculation error. Actual gross, deductions and net come from the payslip; no tax/NI/pension is invented.
+- **Staging tooling:** `tools/staging-push.cjs` (pushes to a staging Script ID from a temp copy, refuses the production ID, never edits `.clasp.json`), and `runPayTrackerAcceptanceChecks()` (read-only staging self-check). The isolation audit and the user checklist are rewritten in `docs/v3.3-staging-acceptance.md`.
+- **Tests:** `OctoberPayroll_Scenarios.cjs` (10) and `Acceptance_Scenarios.cjs` (4). The read-only test caught that Staffline reconciliation sets up its sheets (and seeds Job references) when they're missing, so the self-check now skips it in that case.
+- **Smart Savings (found on staging):** unpaid payments due **before the current month** are no longer deducted from it. They were (road tax from July, fuel, UC loan…), which would push every later month negative. They're now listed in a separate "Unconfirmed from earlier months (not deducted)" card with a warning. Past-due payments within the month are still deducted until a bank match confirms them.
+- **`logPayTrackerAcceptanceDetail()`** (read-only): logs the Smart Savings workings, commitments, unconfirmed outgoings, every credit this month with its confidence, employer keywords, payroll groups and each Staffline "Hours Differ" row.
+
+---
+
+# Unreleased — v3.3 payroll accuracy (NHS shifts, Night Security rate, placements)
+
+Not deployed. Full audit: `docs/v3.3-payroll-audit.md`.
+
+- **NHS: all four shifts at both hospitals.** 06:00–14:00, **08:00–16:00**, **10:00–18:00** and 14:00–22:00 are recognised at NHS Antrim and NHS Causeway Hospital, Coleraine. They're read from the title in any common format, or from a timed event's own start and end. 08–16 and 10–18 pay as 7.5h Basic (£95.33). Weekends, the 14–22 unsocial split (£105.75) and the 30-minute unpaid break are unchanged. Ambiguous, conflicting and all-day time-less events are still reported, not guessed. "Coleraine"/"Causeway" alone are not NHS (council jobs).
+- **Night Security ×1.33 = £17.92** (Enhanced and Overtime), as on the real August payslips (was £17.91). 4-hour fixed amounts now equal 4 × the paid rate (e.g. Night 1.50 £80.84). (Superseded: the £20.87 ×1.50 rate is now applied from 5 Oct 2026 using effective dates; see above.)
+- **Staffline reconciliation per NHS placement:** each timesheet is compared with its own hospital's shifts (was combined across both). NHS shifts now count 7.5 paid hours (was 0). No combined-placement overtime exists or was added; payslip totals still include both placements.
+- `Tests/node/NhsPayroll_Scenarios.cjs` (15 scenarios; 13 fail on the previous code).
+
+---
+
 # Unreleased — v3.3.0 release candidate (`release/v3.3.0-rc1`): safety, audit and integration
 
 Not deployed. Owner checklist: `docs/v3.3-staging-acceptance.md`.

@@ -213,13 +213,12 @@ const PayTrackerCalendarDiagnosticsService = Object.freeze({
 
     const time = service.detectTimePatterns(title);
     const reasons = PayTrackerCalendarDiagnosticsService.REASONS;
-    // Mirrors classifyNhsEvent's own test, so "looks like NHS" means exactly "the NHS classifier looked at it".
-    const mentionsNhs = title.indexOf('nhs') !== -1 || title.indexOf('hsc') !== -1 ||
-      title.indexOf('antrim hospital') !== -1;
+    // Same test classifyNhsEvent uses, so "looks like NHS" means exactly "the NHS classifier looked at it".
+    const mentionsNhs = service.isNhsTitle(title);
     const otherRole = /\b(?:security|warden|relief|logging|cash)\b|\bnight\b/.test(title);
     const anyTimeRange = /\b\d{1,2}(?::\d{2})?\s*(?:am|pm)?\s*(?:-|to)\s*\d{1,2}(?::\d{2})?\s*(?:am|pm)?\b/.test(title) ||
       /\b\d{1,2}\s*(?:am|pm)\b/.test(title);
-    const supportedNhsTime = time.hasSixToTwo || time.hasTwoToTen;
+    const supportedNhsTime = Boolean(service.findNhsShiftWindow(title, time, event));
 
     if (mentionsNhs && otherRole) {
       return {
@@ -234,15 +233,15 @@ const PayTrackerCalendarDiagnosticsService = Object.freeze({
         return {
           code: reasons.NHS_UNSUPPORTED_TIME,
           message: 'It looks like an NHS shift, but its time is not one Pay Tracker pays NHS shifts for ' +
-            '(only 6-2 and 2-10 are recognised).',
-          suggestion: 'If this is a 6-2 or 2-10 shift, put that in the title. Otherwise add the shift to ' +
+            '(06:00-14:00, 08:00-16:00, 10:00-18:00 and 14:00-22:00 are recognised).',
+          suggestion: 'If this is a 6-2, 8-4, 10-6 or 2-10 shift, put that in the title or the event times. Otherwise add the shift to ' +
             'PaySheet by hand.'
         };
       }
       return {
         code: reasons.NHS_MISSING_TIME,
         message: 'It looks like an NHS shift but the title has no time. NHS pay depends on the shift ' +
-          'type, which Pay Tracker reads from a 6-2 or 2-10 time in the title.',
+          'type, which Pay Tracker reads from the time in the title or, for a timed event, its start and end.',
         suggestion: 'Add the time to the title (for example "' + String(event.getTitle()).trim().slice(0, 60) +
           ' 6-2" or "... 2-10"), or add the shift to PaySheet by hand.'
       };

@@ -230,6 +230,36 @@ const PayTrackerConfig = Object.freeze({
     })
   }),
 
+  /*
+   * Rates that change from a date, without touching history.
+   *
+   * PAY_RULES below holds the rate in force BEFORE any entry here.
+   * A shift dated on or after an entry's effectiveFrom (a calendar
+   * day, yyyy-mm-dd, Europe/London) is paid at that entry instead;
+   * the latest applicable entry wins. Earlier shifts keep the old rate.
+   *
+   * contractConfirmed: false means the rate is proven by payslips but
+   * the contractual start date is not yet confirmed by Staffline, so
+   * effectiveFrom is the first day of the earliest payroll week
+   * (Monday-Sunday, week ending Sunday) seen paid at the new rate.
+   * Move it earlier only with written confirmation.
+   */
+  PAY_RULE_HISTORY: Object.freeze({
+    'Night Security Warden': Object.freeze({
+      'Enhanced 1.50': Object.freeze([
+        Object.freeze({
+          effectiveFrom: '2026-10-05',
+          fixedAmount: 83.48,
+          hourlyRate: 20.87,
+          contractConfirmed: false,
+          evidence: 'Staffline payslips: w/e 04/10/2026 4.50 x 20.21 = 90.95 (old rate); ' +
+            'w/e 11/10/2026 and w/e 18/10/2026 8.00 x 20.87 = 166.96 (new rate). ' +
+            'Basic and other multipliers not evidenced as changed.'
+        })
+      ])
+    })
+  }),
+
   PAY_RULES: Object.freeze({
     NHS: Object.freeze({
       'Basic': Object.freeze({
@@ -285,17 +315,17 @@ const PayTrackerConfig = Object.freeze({
       }),
 
       'Enhanced 1.20': Object.freeze({
-        fixedAmount: 65.71,
+        fixedAmount: 65.72,
         hourlyRate: 16.43
       }),
 
       'Enhanced 1.33': Object.freeze({
-        fixedAmount: 72.83,
+        fixedAmount: 72.84,
         hourlyRate: 18.21
       }),
 
       'Enhanced 1.50': Object.freeze({
-        fixedAmount: 82.14,
+        fixedAmount: 82.16,
         hourlyRate: 20.54
       }),
 
@@ -310,17 +340,17 @@ const PayTrackerConfig = Object.freeze({
       }),
 
       'Overtime 1.20': Object.freeze({
-        fixedAmount: 65.71,
+        fixedAmount: 65.72,
         hourlyRate: 16.43
       }),
 
       'Overtime 1.33': Object.freeze({
-        fixedAmount: 72.83,
+        fixedAmount: 72.84,
         hourlyRate: 18.21
       }),
 
       'Overtime 1.50': Object.freeze({
-        fixedAmount: 82.14,
+        fixedAmount: 82.16,
         hourlyRate: 20.54
       }),
 
@@ -342,17 +372,17 @@ const PayTrackerConfig = Object.freeze({
       }),
 
       'Enhanced 1.20': Object.freeze({
-        fixedAmount: 64.66,
+        fixedAmount: 64.64,
         hourlyRate: 16.16
       }),
 
       'Enhanced 1.33': Object.freeze({
-        fixedAmount: 71.64,
-        hourlyRate: 17.91
+        fixedAmount: 71.68,
+        hourlyRate: 17.92
       }),
 
       'Enhanced 1.50': Object.freeze({
-        fixedAmount: 80.82,
+        fixedAmount: 80.84,
         hourlyRate: 20.21
       }),
 
@@ -367,17 +397,17 @@ const PayTrackerConfig = Object.freeze({
       }),
 
       'Overtime 1.20': Object.freeze({
-        fixedAmount: 64.66,
+        fixedAmount: 64.64,
         hourlyRate: 16.16
       }),
 
       'Overtime 1.33': Object.freeze({
-        fixedAmount: 71.64,
-        hourlyRate: 17.91
+        fixedAmount: 71.68,
+        hourlyRate: 17.92
       }),
 
       'Overtime 1.50': Object.freeze({
-        fixedAmount: 80.82,
+        fixedAmount: 80.84,
         hourlyRate: 20.21
       }),
 
@@ -523,4 +553,35 @@ function getConfiguredPayRules_(tableName) {
   const normalisedName = String(tableName || '').trim();
 
   return PayTrackerConfig.PAY_RULES[normalisedName] || null;
+}
+
+/**
+ * The pay rule for one shift on one date: the PAY_RULES entry, replaced
+ * by the latest PAY_RULE_HISTORY entry whose effectiveFrom is on or
+ * before the shift's calendar day. Without a valid date the PAY_RULES
+ * (historical) rule is returned, so nothing is ever moved forward by
+ * accident.
+ *
+ * @param {string} tableName
+ * @param {string} shiftType
+ * @param {Date=} shiftDate
+ * @return {Object|null} {fixedAmount, hourlyRate, effectiveFrom?, contractConfirmed?, evidence?}
+ */
+function getConfiguredPayRule_(tableName, shiftType, shiftDate) {
+  const table = String(tableName || '').trim();
+  const shift = String(shiftType || '').trim();
+  const rules = getConfiguredPayRules_(table);
+  if (!rules || !rules[shift]) return null;
+
+  const history = ((PayTrackerConfig.PAY_RULE_HISTORY || {})[table] || {})[shift] || [];
+  if (!(shiftDate instanceof Date) || isNaN(shiftDate.getTime()) || !history.length) {
+    return rules[shift];
+  }
+
+  const pad = function(n) { return (n < 10 ? '0' : '') + n; };
+  const day = shiftDate.getFullYear() + '-' + pad(shiftDate.getMonth() + 1) + '-' + pad(shiftDate.getDate());
+  return history
+    .filter(function(entry) { return String(entry.effectiveFrom) <= day; })
+    .sort(function(a, b) { return a.effectiveFrom < b.effectiveFrom ? -1 : (a.effectiveFrom > b.effectiveFrom ? 1 : 0); })
+    .pop() || rules[shift];
 }

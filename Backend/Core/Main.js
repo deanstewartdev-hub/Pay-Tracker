@@ -539,11 +539,12 @@ function buildWeeklySummary(sheet, startRow) {
   );
 }
 
-function calculatePay_(tableName, shiftType, hours) {
+function calculatePay_(tableName, shiftType, hours, shiftDate) {
   return PayTrackerPayCalculator.calculatePay(
     tableName,
     shiftType,
-    hours
+    hours,
+    shiftDate
   );
 }
 
