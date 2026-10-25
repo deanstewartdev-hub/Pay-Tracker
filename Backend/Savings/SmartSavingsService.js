@@ -40,6 +40,9 @@ const PayTrackerSmartSavingsService = Object.freeze({
       today: now,
       cashFlow: cashFlow,
       upcoming: timeline.upcoming,
+      // Past occurrences move to History automatically, but only Paid ones are
+      // settled: the rest are still money to pay (or carried over).
+      pastDue: (timeline.history || []).filter(function(item) { return item.settled === false && item.dueDate; }),
       payments: payments,
       debts: read(finance.DEBTS),
       matchedPaymentIds: matchedPaymentIds,

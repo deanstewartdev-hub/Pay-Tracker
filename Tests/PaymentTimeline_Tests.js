@@ -46,60 +46,63 @@ function runPaymentTimelineTests() {
     T.dayKey(PayTrackerPaymentService.advanceDateByFrequency(d(2026, 1, 31), 'Monthly')) === '2026-02-28' &&
     T.dayKey(PayTrackerPaymentService.advanceDateByFrequency(d(2026, 10, 23), 'Weekly')) === '2026-10-30');
 
-  // Statuses and countdown.
+  // Statuses and countdown: Upcoming is today and later; the past moves to History by date.
+  function past(result, name) {
+    return result.history.filter(function(item) { return item.name === name; });
+  }
   const statuses = view({ bills: [
     bill('B1', 'Tomorrow', 10, 'Monthly', d(2026, 10, 24)),
     bill('B2', 'Today', 10, 'Monthly', d(2026, 10, 23)),
     bill('B3', 'Two days late', 10, 'Monthly', d(2026, 10, 21)),
     bill('B4', 'Ten days late', 10, 'Monthly', d(2026, 10, 13))
   ] });
-  check('upcoming / due today / awaiting / overdue',
+  check('upcoming / due today / past ones in History as Unverified',
     find(statuses, 'Tomorrow')[0].status === S.UPCOMING && find(statuses, 'Today')[0].status === S.DUE_TODAY &&
-    find(statuses, 'Two days late')[0].status === S.AWAITING && find(statuses, 'Ten days late')[0].status === S.OVERDUE);
+    past(statuses, 'Two days late')[0].status === S.UNVERIFIED && past(statuses, 'Ten days late')[0].status === S.UNVERIFIED &&
+    find(statuses, 'Two days late')[0].dueDate === '2026-11-21' && find(statuses, 'Ten days late')[0].dueDate === '2026-11-13');
   check('countdown text and days remaining',
     find(statuses, 'Tomorrow')[0].countdown === 'Tomorrow' && find(statuses, 'Today')[0].daysRemaining === 0 &&
-    find(statuses, 'Ten days late')[0].countdown === '10 days ago');
-  check('an overdue payment is never dropped or marked paid by date alone',
-    find(statuses, 'Ten days late')[0].dueDate === '2026-10-13' && statuses.history.length === 0);
-  check('sorted by due date, earliest first', statuses.upcoming.map(function(i) { return i.dueDate; }).join() ===
-    statuses.upcoming.map(function(i) { return i.dueDate; }).slice().sort().join() && statuses.upcoming[0].name === 'Ten days late');
-  check('the list reorders itself as the date advances', (function() {
+    past(statuses, 'Ten days late')[0].countdown === '10 days ago');
+  check('a past payment is never marked paid by date alone, and is a risk after the grace days',
+    past(statuses, 'Ten days late')[0].settled === false &&
+    statuses.risks.map(function(r) { return r.name; }).join() === 'Ten days late');
+  check('nothing past in Upcoming; sorted by due date, earliest first',
+    statuses.upcoming.every(function(i) { return i.dueDate >= '2026-10-23'; }) &&
+    statuses.upcoming.map(function(i) { return i.dueDate; }).join() ===
+    statuses.upcoming.map(function(i) { return i.dueDate; }).slice().sort().join() && statuses.upcoming[0].name === 'Today');
+  check('the list advances itself as the date advances', (function() {
     const sources = { bills: [bill('A', 'Rent', 600, 'Monthly', d(2026, 11, 1)), bill('B', 'Phone', 20, 'Monthly', d(2026, 10, 25))] };
     const now = view(sources);
     const later = view(sources, {}, d(2026, 10, 27));
-    return now.upcoming[0].name === 'Phone' && later.upcoming[0].name === 'Phone' && later.upcoming[0].status === S.AWAITING &&
-      later.upcoming[1].name === 'Rent' && later.upcoming[1].daysRemaining === 5;
+    return now.upcoming[0].name === 'Phone' && later.upcoming[0].name === 'Rent' && later.upcoming[0].daysRemaining === 5 &&
+      past(later, 'Phone')[0].dueDate === '2026-10-25' && find(later, 'Phone')[0].dueDate === '2026-11-25';
   })());
 
-  // Confirmation evidence.
+  // Confirmation evidence only sets the History status; it never holds the timeline back.
   const queue = function(id, item, due, extra) {
     return Object.assign({ paymentId: id, dueDate: due, paymentType: 'Bill Payment', itemId: item, amountDue: 50, paid: false, status: 'Upcoming' }, extra || {});
   };
-  check('a Confirmed bank match marks the bill paid, moves it to history and shows the next one', (function() {
-    const r = view({
-      bills: [bill('B1', 'Energy', 50, 'Monthly', d(2026, 10, 20))],
-      payments: [queue('PAY-1', 'B1', d(2026, 10, 20))],
+  const energy = function(extra) {
+    return { bills: [bill('B1', 'Energy', 50, 'Monthly', d(2026, 10, 20))], payments: [queue('PAY-1', 'B1', d(2026, 10, 20), extra)] };
+  };
+  check('a Confirmed bank match: History shows it Paid and the next one is upcoming', (function() {
+    const r = view(Object.assign(energy(), {
       bankTransactions: [{ transactionId: 'tx1', matchedFinanceId: 'PAY-1', matchStatus: 'Confirmed', settledAt: d(2026, 10, 20) }]
-    });
-    return r.history.length === 1 && r.history[0].transactionId === 'tx1' && r.history[0].name === 'Energy' &&
+    }));
+    return r.history.length === 1 && r.history[0].transactionId === 'tx1' && r.history[0].status === S.PAID && r.history[0].settled &&
       find(r, 'Energy')[0].dueDate === '2026-11-20' && find(r, 'Energy')[0].status === S.UPCOMING;
   })());
   check('a Suggested bank match needs review and is NOT paid', (function() {
-    const r = view({
-      bills: [bill('B1', 'Energy', 50, 'Monthly', d(2026, 10, 20))],
-      payments: [queue('PAY-1', 'B1', d(2026, 10, 20))],
-      bankTransactions: [{ transactionId: 'tx1', matchedFinanceId: 'PAY-1', matchStatus: 'Suggested' }]
-    });
-    return find(r, 'Energy')[0].status === S.NEEDS_REVIEW && r.history.length === 0;
+    const r = view(Object.assign(energy(), { bankTransactions: [{ transactionId: 'tx1', matchedFinanceId: 'PAY-1', matchStatus: 'Suggested' }] }));
+    return r.history[0].status === S.NEEDS_REVIEW && r.history[0].settled === false && find(r, 'Energy')[0].dueDate === '2026-11-20';
   })());
-  check('a Rejected bank match is ignored', view({
-    bills: [bill('B1', 'Energy', 50, 'Monthly', d(2026, 10, 20))], payments: [queue('PAY-1', 'B1', d(2026, 10, 20))],
+  check('a Rejected bank match is ignored', view(Object.assign(energy(), {
     bankTransactions: [{ transactionId: 'tx1', matchedFinanceId: 'PAY-1', matchStatus: 'Rejected' }]
-  }).upcoming[0].status === S.AWAITING);
-  check('Paid? ticked counts as paid; a processing Error needs review', (function() {
-    const ticked = view({ bills: [bill('B1', 'Energy', 50, 'Monthly', d(2026, 10, 20))], payments: [queue('PAY-1', 'B1', d(2026, 10, 20), { paid: true })] });
-    const failed = view({ bills: [bill('B1', 'Energy', 50, 'Monthly', d(2026, 10, 20))], payments: [queue('PAY-1', 'B1', d(2026, 10, 20), { status: 'Error' })] });
-    return ticked.history.length === 1 && failed.upcoming[0].status === S.NEEDS_REVIEW;
+  })).history[0].status === S.UNVERIFIED);
+  check('Paid? ticked counts as paid; a processing Error is Failed', (function() {
+    const ticked = view(energy({ paid: true }));
+    const failed = view(energy({ status: 'Error' }));
+    return ticked.history[0].status === S.PAID && failed.history[0].status === S.FAILED && failed.history[0].settled === false;
   })());
   check('the Finance Payments due date (and amount) wins over the bill row', (function() {
     const r = view({ bills: [bill('B1', 'Energy', 50, 'Monthly', d(2026, 11, 20))], payments: [queue('PAY-1', 'B1', d(2026, 10, 30), { amountDue: 61.5 })] });
@@ -110,16 +113,17 @@ function runPaymentTimelineTests() {
       subscriptions: [sub('S1', 'Netflix', 10.99, 'Monthly', d(2026, 10, 20))],
       subscriptionLinks: [{ subscriptionId: 'S1', transactionId: 'tx9', paymentDate: d(2026, 10, 21), amount: 10.99, confirmed: true }]
     });
-    return r.history.length === 1 && find(r, 'Netflix')[0].dueDate === '2026-11-20';
+    return r.history.length === 1 && r.history[0].status === S.PAID && r.history[0].paidDate === '2026-10-21' &&
+      find(r, 'Netflix')[0].dueDate === '2026-11-20';
   })());
   check('an unconfirmed subscription link needs review', view({
     subscriptions: [sub('S1', 'Netflix', 10.99, 'Monthly', d(2026, 10, 20))],
     subscriptionLinks: [{ subscriptionId: 'S1', transactionId: 'tx9', paymentDate: d(2026, 10, 21), confirmed: false }]
-  }).upcoming[0].status === S.NEEDS_REVIEW);
-  check('last month\'s payment does not confirm this month', view({
+  }).history[0].status === S.NEEDS_REVIEW);
+  check('last month\'s payment does not confirm this month', past(view({
     subscriptions: [sub('S1', 'Netflix', 10.99, 'Monthly', d(2026, 10, 20))],
     subscriptionLinks: [{ subscriptionId: 'S1', transactionId: 'tx8', paymentDate: d(2026, 9, 20), confirmed: true }]
-  }).upcoming[0].status === S.AWAITING);
+  }), 'Netflix').filter(function(i) { return i.dueDate === '2026-10-20'; })[0].status === S.UNVERIFIED);
 
   // No double counting.
   check('a subscription linked to an active bill is shown once, as the bill', (function() {
@@ -141,7 +145,7 @@ function runPaymentTimelineTests() {
       subscriptionLinks: [{ subscriptionId: 'S1', transactionId: 'tx1', paymentDate: d(2026, 10, 20), confirmed: true }],
       bankTransactions: [{ transactionId: 'tx1', matchedFinanceId: 'PAY-1', matchStatus: 'Confirmed' }]
     });
-    return r.history.length === 1 && find(r, 'Gym App')[0].status === S.AWAITING;
+    return r.history.filter(function(i) { return i.status === S.PAID; }).length === 1 && past(r, 'Gym App')[0].status === S.UNVERIFIED;
   })());
   check('a confirmed payment appears in history once, not again from its link', (function() {
     const r = view({
@@ -169,22 +173,24 @@ function runPaymentTimelineTests() {
   check('a weekly subscription appears for every week in the next 30 days', find(view({
     subscriptions: [sub('S2', 'Paper', 3, 'Weekly', d(2026, 10, 24))]
   }), 'Paper').length === 5);
-  check('a long-overdue series shows the open payment but no past projections', (function() {
-    const items = find(view({ subscriptions: [sub('S3', 'Old', 5, 'Monthly', d(2026, 7, 1))] }), 'Old');
-    return items[0].dueDate === '2026-07-01' && items[0].status === S.OVERDUE &&
-      items.slice(1).every(function(i) { return i.dueDate >= '2026-10-23'; });
+  check('a long-overdue series advances: every missed month is in History, the next one is upcoming', (function() {
+    const r = view({ subscriptions: [sub('S3', 'Old', 5, 'Monthly', d(2026, 7, 1))] });
+    return find(r, 'Old')[0].dueDate === '2026-11-01' &&
+      past(r, 'Old').map(function(i) { return i.dueDate + ':' + i.status; }).sort().join() ===
+      '2026-07-01:Unverified,2026-08-01:Unverified,2026-09-01:Unverified,2026-10-01:Unverified' &&
+      // Risks: the open 1 Jul payment plus the last 35 days (1 Oct); Aug and Sep stay in History.
+      r.risks[0].count === 2 && r.risks[0].amount === 10;
   })());
-  check('7- and 30-day totals include outstanding payments and flag unknown amounts', (function() {
+  check('7- and 30-day totals count only scheduled occurrences and flag unknown amounts', (function() {
     const r = view({ bills: [
       bill('B1', 'Late', 20, 'Monthly', d(2026, 10, 21)),
       bill('B2', 'Soon', 30, 'Monthly', d(2026, 10, 27)),
       bill('B3', 'Later', 40, 'Monthly', d(2026, 11, 10)),
       bill('B4', 'Variable', 0, 'Monthly', d(2026, 10, 25))
     ] });
-    return r.totals.next7Days.amount === 50 && r.totals.next7Days.outstandingCount === 1 &&
-      // 30 days: 20 + 30 + 40, plus Late's next monthly payment on 21 Nov (day 29).
-      r.totals.next7Days.unknownAmountCount === 1 && r.totals.next30Days.amount === 110 &&
-      find(r, 'Variable')[0].amount === null;
+    // 7 days: Soon 30 + Variable (unknown). 30 days: Soon 30, Later 40, Late's next payment on 21 Nov (day 29) 20.
+    return r.totals.next7Days.amount === 30 && r.totals.next7Days.count === 2 && r.totals.next7Days.unknownAmountCount === 1 &&
+      r.totals.next30Days.amount === 90 && find(r, 'Variable')[0].amount === null;
   })());
   check('kind filter and limit (Overview shows the next five)', (function() {
     const sources = {

@@ -15,7 +15,8 @@
  *******************************************************/
 
 const PayTrackerUpcomingPaymentsService = Object.freeze({
-  CACHE_KEY: 'PAYTRACKER_UPCOMING_PAYMENTS_V1',
+  // V2: series carry their payment evidence (date-driven timeline). Older cached shapes are ignored.
+  CACHE_KEY: 'PAYTRACKER_UPCOMING_PAYMENTS_V2',
   CACHE_SECONDS: 6 * 60 * 60,
 
   /**

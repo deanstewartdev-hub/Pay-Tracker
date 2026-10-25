@@ -6,6 +6,20 @@ The project follows Semantic Versioning where practical.
 
 ---
 
+# Unreleased — v3.3 date-driven payment timeline (owner correction after staging)
+
+Not deployed. Upcoming Payments was dominated by July and August bills in October. The timeline is now fully date-driven:
+- **Upcoming** holds only payments due today or later, sorted by date. Every recurring bill and subscription shows its next scheduled occurrence (weekly, fortnightly, four-weekly, monthly, quarterly, six-monthly and annual). One-off payments appear once.
+- **History:** once its due date passes, each occurrence moves to History automatically. Moving is **not** paying: the status comes from evidence only. **Paid** means a confirmed Monzo match, the Paid? tick, Payment History or a confirmed subscription link. **Needs review** means an unconfirmed or likely Monzo match. **Failed** means the payment row reported an error. **Unverified** means there's no evidence. Monzo enriches the status but never holds the timeline back.
+- **Action Centre → "Payments not confirmed":** one entry per bill or subscription with unsettled past payments (after 3 grace days), plus unpaid past debt repayments. It's worked out on every read, so no Action Centre rows are written.
+- **Totals:** the next 7 and 30 days count only occurrences genuinely scheduled from today, each once. Historic overdue items are no longer included.
+- **Due today** stays until midnight Europe/London and moves to History after it.
+- **Smart Savings stays conservative:** unsettled past occurrences in the current month are still deducted, and earlier months are listed as carried over. Only Paid counts as settled.
+- Invalid dates are listed as notes, and missing amounts are counted as "amount unknown", never guessed. The cache key changed to V2.
+- Tests: `PaymentTimeline_Scenarios.cjs` (9, July/August → October/November), plus the Upcoming, Integration and in-script timeline checks updated to the new rules.
+
+---
+
 # Unreleased — v3.3 effective-dated rates, October reconciliation, staging tooling
 
 Not deployed. Details: `docs/v3.3-payroll-audit.md`, `docs/v3.3-staging-acceptance.md`.

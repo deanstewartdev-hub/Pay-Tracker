@@ -10,6 +10,8 @@
     paymentFilter: 'all',
     paymentSort: 'date-asc'
   };
+  // The last inputs to renderAlerts, so the tiles can be redrawn when the timeline arrives.
+  let lastAlertInput = null;
 
 function init() {
     const root =
@@ -22,6 +24,10 @@ function init() {
     }
 
     bind(root);
+
+    document.addEventListener('paytracker:upcomingloaded', function() {
+      if (lastAlertInput) renderAlerts(lastAlertInput.records, lastAlertInput.dashboard);
+    });
 
     document.addEventListener(
       'paytracker:routechange',
@@ -486,6 +492,46 @@ function bind(root) {
         0
       );
 
+    lastAlertInput = { records: records, dashboard: dashboard };
+    const timeline =
+      window.PayTrackerUpcomingPaymentsService &&
+      window.PayTrackerUpcomingPaymentsService.data;
+
+    // Bills and subscriptions come from the date-driven timeline (the same
+    // cards and totals shown above); debt repayments still come from the
+    // payments queue, so the tiles agree with the Upcoming Payments cards.
+    let timelineAlerts = null;
+    if (timeline) {
+      const isDebt = function(record) { return /debt/i.test(String(record.type || '')); };
+      const sum = function(list) {
+        return list.reduce(function(total, item) { return total + (Number(item.amount) || 0); }, 0);
+      };
+      const timelineToday = (timeline.upcoming || []).filter(function(item) { return item.daysRemaining === 0; });
+      const debtToday = dueToday.filter(isDebt);
+      const debtWeek = dueThisWeek.filter(isDebt);
+      const week = (timeline.totals || {}).next7Days || {};
+      const pastCount = (timeline.risks || []).reduce(function(total, risk) { return total + (Number(risk.count) || 0); }, 0);
+      const todayCount = timelineToday.length + debtToday.length;
+      const weekCount = (Number(week.count) || 0) + debtWeek.length;
+      timelineAlerts = [
+        {
+          type: pastCount ? 'warning' : 'success',
+          label: pastCount === 1 ? '1 past payment not confirmed' : String(pastCount) + ' past payments not confirmed',
+          value: pastCount ? 'Review in Action Centre' : 'All confirmed'
+        },
+        {
+          type: todayCount ? 'warning' : 'neutral',
+          label: todayCount === 1 ? '1 payment due today' : String(todayCount) + ' payments due today',
+          value: todayCount ? money(sum(timelineToday) + sum(debtToday)) : 'Clear today'
+        },
+        {
+          type: 'info',
+          label: weekCount === 1 ? '1 payment due in 7 days' : String(weekCount) + ' payments due in 7 days',
+          value: money((Number(week.amount) || 0) + sum(debtWeek))
+        }
+      ];
+    }
+
     const alerts = [
       {
         type:
@@ -555,6 +601,7 @@ function bind(root) {
           )
       }
     ];
+    if (timelineAlerts) Array.prototype.splice.apply(alerts, [0, 3].concat(timelineAlerts));
 
     html(
       '[data-finance-alerts]',

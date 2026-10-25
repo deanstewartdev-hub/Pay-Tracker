@@ -1330,11 +1330,34 @@ const PayTrackerWebDashboardService = Object.freeze({
   buildCommitments: function(finance, savings) {
     const commitments = [];
 
-    const overdue =
+    let overdue =
       Number(finance.overduePayments) || 0;
 
-    const dueSoon =
+    let dueSoon =
       Number(finance.dueNextSevenDays) || 0;
+
+    // The date-driven timeline (cached) is the source for bills and
+    // subscriptions: past payments are "not confirmed", not "overdue".
+    let pastNotConfirmed = null;
+    try {
+      const timeline = PayTrackerUpcomingPaymentsService.get({});
+      pastNotConfirmed = (timeline.risks || []).reduce(function(total, risk) {
+        return total + (Number(risk.count) || 0);
+      }, 0);
+      dueSoon = Number(timeline.totals.next7Days.count) || 0;
+      overdue = 0;
+    } catch (error) {
+      pastNotConfirmed = null;
+    }
+
+    if (pastNotConfirmed) {
+      commitments.push({
+        type: 'warning',
+        name: pastNotConfirmed + (pastNotConfirmed === 1 ? ' past payment not confirmed' : ' past payments not confirmed'),
+        detail: 'Still treated as owed. Review in the Action Centre.',
+        amount: null
+      });
+    }
 
     const upcomingSavings =
       Number(

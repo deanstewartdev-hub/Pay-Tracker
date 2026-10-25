@@ -44,6 +44,12 @@ button.payment-card:hover, button.payment-card:focus-visible { border-color: var
 .payment-history summary { cursor: pointer; font-weight: 600; font-size: .9rem; }
 .payment-history__list { display: grid; gap: .4rem; margin: .6rem 0 0; padding: 0; list-style: none; }
 .payment-history__item { display: flex; flex-wrap: wrap; justify-content: space-between; gap: .25rem .75rem; padding: .5rem .75rem; border-radius: 10px; background: var(--color-surface-soft, #f8fafc); font-size: .85rem; }
+.payment-history__item small { flex-basis: 100%; color: var(--color-text-muted, #64748b); }
+.payment-history__status { display: inline-block; margin-left: .4rem; padding: .05rem .45rem; border-radius: 999px; font-size: .7rem; font-weight: 600; background: var(--color-primary-soft, #dbeafe); color: var(--color-primary, #1d4ed8); }
+.payment-history__status--paid { background: var(--color-success-soft, #dcfce7); color: var(--color-success, #15803d); }
+.payment-history__status--unverified, .payment-history__status--review { background: var(--color-warning-soft, #fef3c7); color: var(--color-warning, #92400e); }
+.payment-history__status--failed { background: var(--color-danger-soft, #fee2e2); color: var(--color-danger, #b91c1c); }
+.upcoming-payments__risk { margin: 0; padding: .55rem .75rem; border-radius: 10px; border-left: 4px solid var(--color-warning, #d97706); background: var(--color-warning-soft, #fef3c7); color: var(--color-warning, #92400e); font-size: .85rem; }
 
 @media (max-width: 480px) {
   .upcoming-payments__list { grid-template-columns: 1fr; }

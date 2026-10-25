@@ -102,19 +102,28 @@ test('confirmed by bank: Energy (Confirmed match) and iCloud (confirmed link) ar
   assert.equal(r.upcoming.filter(i => i.name === 'iCloud')[0].dueDate, '2026-11-22');
 });
 
-test('a Suggested (unconfirmed) bank match keeps Energy visible as Needs review, not paid', () => {
+test('a Suggested (unconfirmed) bank match: the past Energy payment is in History as Needs review, not paid', () => {
   const { sb } = fixture({ energyMatch: 'Suggested' }); at(sb, 2026, 10, 23);
-  const energy = call(sb).upcoming.filter(i => i.name === 'Energy');
-  assert.equal(energy[0].dueDate, '2026-10-20');
-  assert.equal(energy[0].status, 'Needs review');
-  assert.equal(energy[0].paymentId, 'PAY-ENERGY');
+  const r = call(sb);
+  const past = r.history.filter(i => i.name === 'Energy' && i.dueDate === '2026-10-20')[0];
+  assert.equal(past.status, 'Needs review');
+  assert.equal(past.settled, false);
+  assert.equal(past.paymentId, 'PAY-ENERGY');
+  assert.equal(r.upcoming.filter(i => i.name === 'Energy')[0].dueDate, '2026-11-20', 'the timeline still advances');
 });
 
-test('no bank match: Energy is Awaiting confirmation, then Overdue - never silently paid', () => {
+test('no bank match: Energy moves to History as Unverified, and becomes a risk after the grace days', () => {
   const { sb } = fixture({ energyMatch: 'Unmatched' }); at(sb, 2026, 10, 23);
-  assert.equal(call(sb).upcoming[0].status, 'Awaiting confirmation');
-  const later = fixture({ energyMatch: 'Unmatched' }); at(later.sb, 2026, 10, 27);
-  assert.equal(call(later.sb).upcoming[0].status, 'Overdue');
+  const r = call(sb);
+  const past = r.history.filter(i => i.name === 'Energy' && i.dueDate === '2026-10-20')[0];
+  assert.equal(past.status, 'Unverified');
+  assert.equal(past.settled, false, 'moving to History is not paying');
+  assert.equal(r.upcoming.filter(i => i.name === 'Energy')[0].dueDate, '2026-11-20');
+  assert.equal(r.risks.length, 0, '3 days after the due date it is still within the grace days');
+  const later = fixture({ energyMatch: 'Unmatched' }); at(later.sb, 2026, 10, 24);
+  const risk = call(later.sb).risks.filter(x => x.name === 'Energy')[0];
+  assert.equal(risk.count, 1);
+  assert.equal(risk.amount, 85);
 });
 
 test('the Paid? tick on the Finance Payments row is honoured', () => {
@@ -128,7 +137,7 @@ test('7 and 30 day totals', () => {
   const { sb } = fixture(); at(sb, 2026, 10, 23);
   const t = call(sb).totals;
   // "Next 7 days" = today plus the following 6 (23-29 Oct): Netflix on the 30th is day 8.
-  assert.deepEqual(t.next7Days, { amount: 11.99, count: 1, outstandingCount: 0, unknownAmountCount: 0 }, 'Spotify only');
+  assert.deepEqual(t.next7Days, { amount: 11.99, count: 1, unknownAmountCount: 0 }, 'Spotify only');
   // 30 days = 23 Oct - 21 Nov: Spotify, Netflix, Rent, Energy (20 Nov); iCloud on 22 Nov is day 31.
   assert.equal(t.next30Days.amount, 759.98);
   assert.equal(t.next30Days.count, 4);
@@ -156,8 +165,8 @@ test('cache: the second call reads no sheet; dates still advance; a refresh rebu
   assert.equal(second.source, 'cache');
   assert.equal(sb.json('__sheetOpens.length'), opensAfterBuild, 'a cached read opens no sheet');
   assert.equal(second.today, '2026-10-29');
-  assert.equal(second.upcoming[0].name, 'Spotify');
-  assert.equal(second.upcoming[0].status, 'Awaiting confirmation', 'status recomputed for the new day');
+  assert.equal(second.upcoming[0].name, 'Netflix', 'Spotify (28 Oct) moved to History overnight');
+  assert.equal(second.history.filter(i => i.name === 'Spotify')[0].status, 'Unverified', 'recomputed for the new day');
   assert.equal(call(sb, { refresh: true }).source, 'live');
 });
 
