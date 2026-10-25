@@ -186,6 +186,17 @@ function logPayTrackerAcceptanceDetail() {
   }).sort(function(a, b) { return b.amount - a.amount; }).slice(0, 15).forEach(function(p) {
     Logger.log('  unconfirmed out ' + PayTrackerPaymentTimeline.dayKey(p.date) + ' ' + p.amount + ' ' + p.category + ' "' + p.description + '"');
   });
+  C.classifyAll(context.transactions, context).filter(function(p) {
+    return PayTrackerPaymentTimeline.dayKey(p.date) >= from && p.direction === 'Credit' &&
+      (p.categoryConfidence || p.confidence) === C.CONFIDENCE.NEEDS_CONFIRMATION;
+  }).forEach(function(p) {
+    Logger.log('  unconfirmed in ' + PayTrackerPaymentTimeline.dayKey(p.date) + ' ' + p.amount + ' ' + p.category + ' "' + p.description + '" (' + p.reason + ')');
+  });
+  Logger.log('EMPLOYER KEYWORDS ' + JSON.stringify(context.employerKeywords));
+  PayTrackerCashFlowPreviewService.readSheet(PayTrackerPayrollConfig.SHEETS.PAYROLL_GROUPS.NAME).forEach(function(group) {
+    Logger.log('PAYROLL GROUP ' + group.payrollGroupId + ' name="' + group.payrollGroupName + '" employerKey="' + group.primaryEmployerKey +
+      '" senders="' + group.expectedSenderRules + '" active=' + group.active);
+  });
 
   const S = PayTrackerStafflineReconciliationService;
   const shifts = PayTrackerCalendarSyncRepository.getActive();
