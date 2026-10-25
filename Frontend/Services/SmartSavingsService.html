@@ -139,6 +139,9 @@
       root.appendChild(service.potTable(data.distribution || [], data.unallocated));
       if ((data.goals || []).length) root.appendChild(service.goalsCard(data.goals));
       if ((committed.items || []).length) root.appendChild(service.commitmentsCard(committed.items));
+      if ((committed.carriedOver || []).length) {
+        root.appendChild(service.commitmentsCard(committed.carriedOver, 'Unconfirmed from earlier months (not deducted)'));
+      }
       root.appendChild(service.confirmationsCard(data.confirmations || []));
       if ((data.unverifiedRecords || []).length) root.appendChild(service.unverifiedCard(data.unverifiedRecords));
     },
@@ -188,8 +191,8 @@
       return card;
     },
 
-    commitmentsCard: function(items) {
-      const card = service.card('Still to pay this month');
+    commitmentsCard: function(items, title) {
+      const card = service.card(title || 'Still to pay this month');
       const lines = service.el('ul', 'smart-savings__lines');
       items.forEach(function(item) {
         lines.appendChild(service.line(item.name + ' · ' + item.kind + ' · ' + service.day(item.dueDate) + ' (' + item.status + ')',

@@ -189,6 +189,25 @@ test('a weekly debt from the Debts sheet adds each remaining repayment this mont
   assert.deepEqual(debts, ['2026-10-25'], 'queued 25 Oct; the next (1 Nov) is next month');
 });
 
+test('unpaid payments from earlier months are listed as carried over, not deducted from this month', () => {
+  const { sb, H } = fixture();
+  const before = preview(sb);
+  const payments = sb.getSheet(H.payments[0]);
+  sb.getSheet(H.bills[0]).rows.push(H.bills[1].map(h => ({ 'Bill ID': 'BILL-ROADTAX', 'Bill Name': 'Road tax', 'Amount': 540, 'Frequency': 'Yearly',
+    'Next Due Date': sb.date(2026, 6, 17, 12), 'Active': 'Yes' })[h] ?? ''));
+  [
+    { 'Payment ID': 'PAY-ROADTAX', 'Due Date': sb.date(2026, 6, 17, 12), 'Payment Type': 'Bill Payment', 'Item ID': 'BILL-ROADTAX', 'Bill or Debt Name': 'Road tax', 'Amount Due': 540, 'Paid?': false },
+    { 'Payment ID': 'PAY-UC', 'Due Date': sb.date(2026, 7, 17, 12), 'Payment Type': 'Debt Repayment', 'Item ID': 'DEBT-UC', 'Bill or Debt Name': 'UC loan', 'Amount Due': 300, 'Paid?': false }
+  ].forEach(r => payments.rows.push(H.payments[1].map(h => (h in r ? r[h] : ''))));
+  const after = preview(sb);
+  assert.equal(after.disposable, before.disposable, 'July/August items do not reduce October');
+  assert.equal(after.committed.total, before.committed.total);
+  assert.ok(after.committed.items.every(i => i.dueDate >= '2026-10-01'));
+  assert.ok(after.committed.carriedOver.some(i => i.name === 'Road tax' && i.dueDate === '2026-07-17'), JSON.stringify(after.committed.carriedOver));
+  assert.ok(after.committed.carriedOver.some(i => i.name === 'UC loan' && i.dueDate === '2026-08-17' && i.amount === 300));
+  assert.ok(after.warnings.some(w => /due before this month/.test(w) && /not deducted/.test(w)), JSON.stringify(after.warnings));
+});
+
 test('nothing in Smart Savings can move money: no Monzo or UrlFetch call is reachable from the preview', () => {
   const fs = require('node:fs');
   const path = require('node:path');

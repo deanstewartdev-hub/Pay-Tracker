@@ -188,17 +188,26 @@ const PayTrackerSmartSavingsCalculator = Object.freeze({
     });
   },
 
-  /* Still to pay before month end: Step 2B bills/subscriptions plus unpaid debt repayments. */
+  /*
+   * Still to pay before month end: Step 2B bills/subscriptions plus unpaid debt repayments.
+   * Anything due before this month with no bank confirmation is listed as carried over
+   * and NOT deducted: an unconfirmed July bill would otherwise reduce every later month.
+   */
   commitments: function(input, period, actual, warnings) {
     const self = this;
     const T = PayTrackerPaymentTimeline;
     const countedTransactions = actual.transactionIds;
     const items = [];
     const likelyPaid = [];
+    const carriedOver = [];
     const usedDebits = {};
     let outstanding = 0;
     (input.upcoming || []).forEach(function(item) {
       if (item.dueDate > period.to) return;
+      if (item.dueDate < period.from) {
+        carriedOver.push({ kind: item.kind, name: item.name, dueDate: item.dueDate, amount: item.amount, status: item.status });
+        return;
+      }
       // Its bank transaction is already in this month's actuals: don't subtract it twice.
       if (item.evidenceTransactionId && countedTransactions[item.evidenceTransactionId]) return;
       if (item.daysRemaining <= 0) {
@@ -216,6 +225,10 @@ const PayTrackerSmartSavingsCalculator = Object.freeze({
       items.push({ kind: item.kind, name: item.name, dueDate: item.dueDate, amount: item.amount, status: item.status });
     });
     this.debtCommitments(input, period).forEach(function(item) {
+      if (item.dueDate < period.from) {
+        carriedOver.push(item);
+        return;
+      }
       if (item.dueDate < period.today) outstanding++;
       items.push(item);
     });
@@ -223,6 +236,12 @@ const PayTrackerSmartSavingsCalculator = Object.freeze({
     const unknown = items.filter(function(item) { return item.amount === null; }).length;
     if (unknown) warnings.push(unknown + ' payment(s) due this month have no known amount and are not deducted - check them before saving.');
     if (outstanding) warnings.push(outstanding + ' past-due payment(s) have no bank confirmation yet, so they are still treated as money to pay.');
+    if (carriedOver.length) {
+      carriedOver.sort(function(a, b) { return a.dueDate === b.dueDate ? 0 : (a.dueDate < b.dueDate ? -1 : 1); });
+      const carriedTotal = carriedOver.reduce(function(s, i) { return s + (i.amount || 0); }, 0);
+      warnings.push(carriedOver.length + ' payment(s) due before this month (' + this.money(carriedTotal) + ') have no bank confirmation. ' +
+        'They are not deducted from this month: mark them paid in Finance if they were paid.');
+    }
     likelyPaid.forEach(function(item) {
       warnings.push(item.name + ' (due ' + item.dueDate + ') looks paid on ' + item.paidDate +
         ', so it is not deducted twice. Confirm the match in Finance so it moves to history.');
@@ -235,7 +254,7 @@ const PayTrackerSmartSavingsCalculator = Object.freeze({
     const subscriptions = totalOf('Subscription');
     const debts = totalOf('Debt');
     return { bills: bills, subscriptions: subscriptions, debts: debts, total: this.round(bills + subscriptions + debts),
-      items: items, likelyPaid: likelyPaid };
+      items: items, likelyPaid: likelyPaid, carriedOver: carriedOver };
   },
 
   /*
