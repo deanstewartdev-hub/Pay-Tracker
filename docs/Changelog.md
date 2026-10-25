@@ -14,6 +14,8 @@ Not deployed. Details: `docs/v3.3-payroll-audit.md`, `docs/v3.3-staging-acceptan
 - **October reproduced with the engine:** w/e 11/10 £563.84 + £95.33 + £5.28 = £664.45 vs payslip £664.43; w/e 18/10 £819.69 vs £819.67. The −2p is per-shift versus per-line rounding of NHS half-pennies (four 7.5h shifts = 2p), not a calculation error. Actual gross, deductions and net come from the payslip; no tax/NI/pension is invented.
 - **Staging tooling:** `tools/staging-push.cjs` (pushes to a staging Script ID from a temp copy, refuses the production ID, never edits `.clasp.json`), and `runPayTrackerAcceptanceChecks()` (read-only staging self-check). The isolation audit and the user checklist are rewritten in `docs/v3.3-staging-acceptance.md`.
 - **Tests:** `OctoberPayroll_Scenarios.cjs` (10) and `Acceptance_Scenarios.cjs` (4). The read-only test caught that Staffline reconciliation sets up its sheets (and seeds Job references) when they're missing, so the self-check now skips it in that case.
+- **Smart Savings (found on staging):** unpaid payments due **before the current month** are no longer deducted from it. They were (road tax from July, fuel, UC loan…), which would push every later month negative. They're now listed in a separate "Unconfirmed from earlier months (not deducted)" card with a warning. Past-due payments within the month are still deducted until a bank match confirms them.
+- **`logPayTrackerAcceptanceDetail()`** (read-only): logs the Smart Savings workings, commitments, unconfirmed outgoings, every credit this month with its confidence, employer keywords, payroll groups and each Staffline "Hours Differ" row.
 
 ---
 
