@@ -187,10 +187,10 @@ function logPayTrackerAcceptanceDetail() {
     Logger.log('  unconfirmed out ' + PayTrackerPaymentTimeline.dayKey(p.date) + ' ' + p.amount + ' ' + p.category + ' "' + p.description + '"');
   });
   C.classifyAll(context.transactions, context).filter(function(p) {
-    return PayTrackerPaymentTimeline.dayKey(p.date) >= from && p.direction === 'Credit' &&
-      (p.categoryConfidence || p.confidence) === C.CONFIDENCE.NEEDS_CONFIRMATION;
+    return PayTrackerPaymentTimeline.dayKey(p.date) >= from && p.direction === 'Credit';
   }).forEach(function(p) {
-    Logger.log('  unconfirmed in ' + PayTrackerPaymentTimeline.dayKey(p.date) + ' ' + p.amount + ' ' + p.category + ' "' + p.description + '" (' + p.reason + ')');
+    Logger.log('  credit in ' + PayTrackerPaymentTimeline.dayKey(p.date) + ' ' + p.amount + ' ' + p.category + ' [' + (p.categoryConfidence || p.confidence) +
+      '] "' + p.description + '" (' + p.reason + ')');
   });
   Logger.log('EMPLOYER KEYWORDS ' + JSON.stringify(context.employerKeywords));
   PayTrackerCashFlowPreviewService.readSheet(PayTrackerPayrollConfig.SHEETS.PAYROLL_GROUPS.NAME).forEach(function(group) {
