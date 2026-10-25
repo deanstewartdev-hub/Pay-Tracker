@@ -178,7 +178,8 @@ function runPaymentTimelineTests() {
     return find(r, 'Old')[0].dueDate === '2026-11-01' &&
       past(r, 'Old').map(function(i) { return i.dueDate + ':' + i.status; }).sort().join() ===
       '2026-07-01:Unverified,2026-08-01:Unverified,2026-09-01:Unverified,2026-10-01:Unverified' &&
-      r.risks[0].count === 4 && r.risks[0].amount === 20;
+      // Risks: the open 1 Jul payment plus the last 35 days (1 Oct); Aug and Sep stay in History.
+      r.risks[0].count === 2 && r.risks[0].amount === 10;
   })());
   check('7- and 30-day totals count only scheduled occurrences and flag unknown amounts', (function() {
     const r = view({ bills: [

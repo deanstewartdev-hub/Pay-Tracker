@@ -49,6 +49,7 @@
           if (request !== service.requestNumber || !data || data.success !== true) return;
           service.data = data;
           service.mounts().forEach(service.render);
+          documentObject.dispatchEvent(new CustomEvent('paytracker:upcomingloaded'));
         })
         .catch(function(error) {
           if (service.data) return;

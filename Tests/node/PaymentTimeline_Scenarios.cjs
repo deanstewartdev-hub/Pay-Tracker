@@ -93,8 +93,8 @@ test('genuine outstanding risks are listed once per item, including the unpaid d
   oct25.risks.forEach(r => { byName[r.name] = r; });
   assert.equal(byName['Road Tax'].count, 1);
   assert.equal(byName['Road Tax'].amount, 540);
-  assert.equal(byName['Fual'].count, 3);
-  assert.equal(byName['Fual'].amount, 360);
+  assert.equal(byName['Fual'].count, 2, 'the open 3 Aug payment and 3 Oct; 3 Sep (older than 35 days) stays in History only');
+  assert.equal(byName['Fual'].amount, 240);
   assert.equal(byName['Universal Credit Loan'].kind, 'Debt', 'debt obligations are never erased');
   assert.equal(byName['Universal Credit Loan'].amount, 300);
   assert.ok(!byName['ChatGPT'] || byName['ChatGPT'].count === 1, 'only the unconfirmed August payment');

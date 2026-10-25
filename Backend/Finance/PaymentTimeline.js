@@ -56,8 +56,10 @@ const PayTrackerPaymentTimeline = Object.freeze({
   // Past occurrences kept per bill/subscription (the oldest open one is always kept).
   PAST_OCCURRENCES_PER_SERIES: 12,
   HISTORY_LIMIT_PER_KIND: 40,
-  // Unverified projected occurrences older than this are history only, not risks.
-  RISK_LOOKBACK_DAYS: 120,
+  // Risks: the oldest open occurrence always, plus unsettled ones from the last
+  // RISK_LOOKBACK_DAYS. Older projected ones stay in History only, so the Action
+  // Centre lists what can still be acted on rather than every missed week.
+  RISK_LOOKBACK_DAYS: 35,
   MAX_STEPS: 1200,
 
   /* ---------------- calendar-day helpers ---------------- */
