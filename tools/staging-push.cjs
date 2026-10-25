@@ -5,6 +5,7 @@
  *
  *   node tools/staging-push.cjs <stagingScriptId>            # dry run: shows target and files
  *   node tools/staging-push.cjs <stagingScriptId> --push     # copies to a temp folder and runs clasp push there
+ *   ... --user paytracker                                    # named clasp login (this project uses "paytracker")
  *
  * Safety:
  * - Refuses the production Script ID (the one in this repo's .clasp.json) and anything
@@ -40,6 +41,9 @@ function pushableFiles(dir = ROOT, rel = '') {
 function main(argv) {
   const stagingId = String(argv[0] || '').trim();
   const push = argv.includes('--push');
+  const userIndex = argv.indexOf('--user');
+  const user = userIndex === -1 ? '' : String(argv[userIndex + 1] || '').trim();
+  if (userIndex !== -1 && !/^[A-Za-z0-9_-]+$/.test(user)) fail('--user needs a clasp login name, e.g. --user paytracker');
   const clasp = JSON.parse(fs.readFileSync(path.join(ROOT, '.clasp.json'), 'utf8'));
   const productionId = String(clasp.scriptId || '').trim();
 
@@ -64,7 +68,8 @@ function main(argv) {
   });
   fs.writeFileSync(path.join(temp, '.clasp.json'), JSON.stringify(Object.assign({}, clasp, { scriptId: stagingId, rootDir: '' }), null, 2));
   console.log('Pushing from ' + temp + ' ...');
-  const result = spawnSync(process.platform === 'win32' ? 'npx.cmd' : 'npx', ['--no-install', 'clasp', 'push', '--force'], { cwd: temp, stdio: 'inherit', shell: process.platform === 'win32' });
+  const claspArgs = ['--no-install', 'clasp', 'push', '--force'].concat(user ? ['-u', user] : []);
+  const result = spawnSync(process.platform === 'win32' ? 'npx.cmd' : 'npx', claspArgs, { cwd: temp, stdio: 'inherit', shell: process.platform === 'win32' });
   fs.rmSync(temp, { recursive: true, force: true });
   if (result.status !== 0) process.exit(result.status || 1);
   console.log('Pushed to STAGING. Next: staging editor -> Deploy -> New deployment -> Web app (Execute as: Me, Access: Only myself).');
