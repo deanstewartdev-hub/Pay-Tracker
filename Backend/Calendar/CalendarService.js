@@ -1181,7 +1181,8 @@ const PayTrackerCalendarService = Object.freeze({
     const pay = PayTrackerPayCalculator.calculatePay(
       table.name,
       shiftType,
-      normalisedHours
+      normalisedHours,
+      calendarDateOnly
     );
 
     const owner = ownership && ownership.eventKey

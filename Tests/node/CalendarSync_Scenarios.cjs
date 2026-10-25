@@ -268,7 +268,8 @@ test('Relief Warden, Night Security and Logging shifts import with the right typ
   // x1.33 = GBP 17.92, as on the real Aug 2026 payslip (N621105/N624148), not 17.91.
   assert.deepEqual(sb.shiftOn('Night Security Warden', days.wed), ['Enhanced 1.33', 3, 53.76]);
   assert.deepEqual(sb.shiftOn('Night Security Warden', days.thu), ['Enhanced 1.33', 4, 71.68]);
-  assert.deepEqual(sb.shiftOn('Night Security Warden', days.sun), ['Enhanced 1.50', 4, 80.84]);
+  // 1 Nov 2026 is after the payslip-proven x1.50 rate change (from w/e 11 Oct): 4 x 20.87.
+  assert.deepEqual(sb.shiftOn('Night Security Warden', days.sun), ['Enhanced 1.50', 4, 83.48]);
   assert.deepEqual(sb.shiftOn('Logging Cash', days.fri), ['Logging Cash £10/hr', 6, 60]);
   assert.deepEqual(sb.shiftOn('NHS', days.mon), ['', '', ''], 'non-NHS shifts must not land in the NHS table');
 });

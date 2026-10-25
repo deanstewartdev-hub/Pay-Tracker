@@ -26,38 +26,33 @@ const PayTrackerPayCalculator = Object.freeze({
    * - When a shift has no hourly rate, its fixed amount is
    *   always used.
    *
+   * - With a shift date, a rate that changed from a date
+   *   (PayTrackerConfig.PAY_RULE_HISTORY) is applied only to
+   *   shifts on or after that date; without one, the
+   *   historical rate is used.
+   *
    * @param {string} tableName
    * @param {string} shiftType
    * @param {*} hours
+   * @param {Date=} shiftDate The PaySheet row's date.
    * @return {number}
    */
   calculatePay: function (
     tableName,
     shiftType,
-    hours
+    hours,
+    shiftDate
   ) {
-    const normalisedTableName = String(
-      tableName || ''
-    ).trim();
-
-    const normalisedShiftType = String(
-      shiftType || ''
-    ).trim();
-
-    const tableRules =
-      getConfiguredPayRules_(
-        normalisedTableName
+    const rule =
+      getConfiguredPayRule_(
+        tableName,
+        shiftType,
+        shiftDate
       );
 
-    if (
-      !tableRules ||
-      !tableRules[normalisedShiftType]
-    ) {
+    if (!rule) {
       return 0;
     }
-
-    const rule =
-      tableRules[normalisedShiftType];
 
     const hasHours =
       PayTrackerUtils.hasNumericHours(
@@ -148,6 +143,14 @@ const PayTrackerPayCalculator = Object.freeze({
     const hoursValue =
       rowValues[1];
 
+    // The row's own date picks the rate in force on that day.
+    const shiftDate = sheet
+      .getRange(
+        rowNumber,
+        table.startColumn
+      )
+      .getValue();
+
     const payCell = sheet.getRange(
       rowNumber,
       payColumn
@@ -170,7 +173,8 @@ const PayTrackerPayCalculator = Object.freeze({
         .calculatePay(
           table.name,
           selectedShift,
-          hoursValue
+          hoursValue,
+          shiftDate
         );
 
     payCell
@@ -244,9 +248,19 @@ const PayTrackerPayCalculator = Object.freeze({
       )
       .getValues();
 
+    // Each row's own date picks the rate in force on that day.
+    const rowDates = sheet
+      .getRange(
+        firstDataRow,
+        table.startColumn,
+        dataRowCount,
+        1
+      )
+      .getValues();
+
     const payValues =
       shiftAndHours.map(
-        function (rowValues) {
+        function (rowValues, index) {
           const shiftType = String(
             rowValues[0] || ''
           ).trim();
@@ -270,7 +284,8 @@ const PayTrackerPayCalculator = Object.freeze({
               .calculatePay(
                 table.name,
                 shiftType,
-                hours
+                hours,
+                rowDates[index][0]
               )
           ];
         }
@@ -408,31 +423,27 @@ const PayTrackerPayCalculator = Object.freeze({
    *
    * @param {string} tableName
    * @param {string} shiftType
+   * @param {Date=} shiftDate Rate in force on this day (historical rate if omitted).
    * @return {number|null}
    */
   getHourlyRate: function (
     tableName,
-    shiftType
+    shiftType,
+    shiftDate
   ) {
-    const rules =
-      getConfiguredPayRules_(
-        tableName
+    const rule =
+      getConfiguredPayRule_(
+        tableName,
+        shiftType,
+        shiftDate
       );
 
-    const normalisedShift = String(
-      shiftType || ''
-    ).trim();
-
-    if (
-      !rules ||
-      !rules[normalisedShift]
-    ) {
+    if (!rule) {
       return null;
     }
 
     const rate =
-      rules[normalisedShift]
-        .hourlyRate;
+      rule.hourlyRate;
 
     if (
       rate === null ||
@@ -453,32 +464,28 @@ const PayTrackerPayCalculator = Object.freeze({
    *
    * @param {string} tableName
    * @param {string} shiftType
+   * @param {Date=} shiftDate Rate in force on this day (historical rate if omitted).
    * @return {number|null}
    */
   getFixedAmount: function (
     tableName,
-    shiftType
+    shiftType,
+    shiftDate
   ) {
-    const rules =
-      getConfiguredPayRules_(
-        tableName
+    const rule =
+      getConfiguredPayRule_(
+        tableName,
+        shiftType,
+        shiftDate
       );
 
-    const normalisedShift = String(
-      shiftType || ''
-    ).trim();
-
-    if (
-      !rules ||
-      !rules[normalisedShift]
-    ) {
+    if (!rule) {
       return null;
     }
 
     const amount =
       Number(
-        rules[normalisedShift]
-          .fixedAmount
+        rule.fixedAmount
       );
 
     if (!Number.isFinite(amount)) {
