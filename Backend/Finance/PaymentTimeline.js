@@ -1,28 +1,37 @@
 /*******************************************************
  * PAY TRACKER V3.3 (Step 2B - Dynamic Upcoming Payments)
  * Pure payment timeline: one ordered list of upcoming Bill and
- * Subscription payments, their status, and payment history.
+ * Subscription payments, their payment history and outstanding risks.
  *
  * No sheet access: UpcomingPaymentsService reads the existing
  * sheets and hands them in. Two stages, so the expensive part can
  * be cached and the date-dependent part is always current:
  *
  *   buildSeries(sources) -> plain JSON "series" (one per bill or
- *     subscription) + history. Cacheable; independent of today.
- *   present(model, today) -> statuses, countdowns, the ordered
- *     timeline, projected recurrences and 7/30-day totals.
+ *     subscription, with every piece of payment evidence found for
+ *     it) + recorded history. Cacheable; independent of today.
+ *   present(model, today) -> the timeline for that calendar day.
  *
- * Rules (issue #46):
- * - A payment is never "Paid" because its date arrived. Paid
- *   needs evidence: a Confirmed/Automatic bank match to the Finance
- *   Payments row, the row's Paid? tick, or a Subscription
- *   Transactions link dated around the due date.
- * - An unconfirmed past-due payment stays visible (Awaiting
- *   confirmation for a few days, then Overdue). Nothing is removed.
+ * Rules (date-driven timeline):
+ * - Upcoming holds only occurrences due today or later, sorted by
+ *   date. Each recurring bill or subscription always shows its next
+ *   scheduled occurrence, generated from its recurrence rule.
+ * - Once its due date has passed, an occurrence moves to History
+ *   automatically, paid or not. Moving is NOT paying: its status
+ *   comes only from evidence - Paid (confirmed Monzo match, Paid?
+ *   tick, Payment History, confirmed subscription link), Needs review
+ *   (an unconfirmed or likely Monzo match), Failed (the payment row
+ *   reported an error) or Unverified (no evidence). `settled` is true
+ *   only for Paid, so savings figures stay conservative.
+ * - Unsettled past occurrences are reported as outstanding risks,
+ *   one per bill or subscription, for the Action Centre.
+ * - Monzo evidence only enriches statuses; it never holds the
+ *   timeline back.
  * - A subscription linked to (or identical to) an active bill is
  *   shown once, as the bill. One bank transaction confirms at most
  *   one payment.
- * - Dates are calendar days in the script time zone (Europe/London).
+ * - Dates are calendar days in the script time zone (Europe/London),
+ *   so "due today" lasts until midnight and advances after it.
  *******************************************************/
 
 const PayTrackerPaymentTimeline = Object.freeze({
@@ -31,19 +40,25 @@ const PayTrackerPaymentTimeline = Object.freeze({
   STATUSES: Object.freeze({
     UPCOMING: 'Upcoming',
     DUE_TODAY: 'Due today',
-    AWAITING: 'Awaiting confirmation',
-    OVERDUE: 'Overdue',
     PAID: 'Paid',
+    UNVERIFIED: 'Unverified',
+    FAILED: 'Failed',
     NEEDS_REVIEW: 'Needs review'
   }),
 
-  // Bank payments can post a day or two after the due date.
+  // Bank payments can post a day or two after the due date: an unverified
+  // payment is only reported as an outstanding risk after this many days.
   AWAITING_GRACE_DAYS: 3,
   HORIZON_DAYS: 30,
-  // A subscription payment this close to its expected date confirms it.
-  SUBSCRIPTION_MATCH_BEFORE_DAYS: 5,
-  SUBSCRIPTION_MATCH_AFTER_DAYS: 10,
-  HISTORY_LIMIT_PER_KIND: 25,
+  // A payment this close to a due date is evidence for that occurrence.
+  MATCH_BEFORE_DAYS: 5,
+  MATCH_AFTER_DAYS: 10,
+  // Past occurrences kept per bill/subscription (the oldest open one is always kept).
+  PAST_OCCURRENCES_PER_SERIES: 12,
+  HISTORY_LIMIT_PER_KIND: 40,
+  // Unverified projected occurrences older than this are history only, not risks.
+  RISK_LOOKBACK_DAYS: 120,
+  MAX_STEPS: 1200,
 
   /* ---------------- calendar-day helpers ---------------- */
 
@@ -86,12 +101,13 @@ const PayTrackerPaymentTimeline = Object.freeze({
    * steps keep the anchor's day of month and clamp to short months,
    * always counted from the anchor (31 Jan -> 28 Feb -> 31 Mar,
    * never 31 Jan -> 3 Mar, and no drift to the 28th).
-   * Returns '' for frequencies that cannot be projected.
+   * Returns '' for one-off, irregular or unknown frequencies.
    */
   stepKey: function(anchorKey, frequency, count) {
-    const days = { 'Weekly': 7, 'Fortnightly': 14, 'Four Weekly': 28 }[frequency];
+    const name = String(frequency || '').trim();
+    const days = { 'Weekly': 7, 'Fortnightly': 14, 'Four Weekly': 28 }[name];
     if (days) return this.addDaysKey(anchorKey, days * count);
-    const months = { 'Monthly': 1, 'Quarterly': 3, 'Six Monthly': 6, 'Annual': 12 }[frequency];
+    const months = { 'Monthly': 1, 'Quarterly': 3, 'Six Monthly': 6, 'Annual': 12, 'Annually': 12, 'Yearly': 12 }[name];
     if (!months) return '';
     return this.dayKey(this.addMonthsClamped(this.fromKey(anchorKey), months * count));
   },
@@ -132,44 +148,83 @@ const PayTrackerPaymentTimeline = Object.freeze({
       }
     });
 
-    const unpaidBillPayments = {};
+    const billPayments = {};
     (src.payments || []).forEach(function(row) {
       if (String(row.paymentType || '').trim() !== 'Bill Payment') return;
       const itemId = String(row.itemId || '').trim();
       const due = self.dayKey(row.dueDate);
       if (!itemId || !due) return;
-      const current = unpaidBillPayments[itemId];
-      // The queue holds one row per bill; if there are several, the earliest is the next one due.
-      if (!current || due < current.due) unpaidBillPayments[itemId] = { row: row, due: due };
+      (billPayments[itemId] = billPayments[itemId] || []).push({ row: row, due: due });
+    });
+
+    const recordedByBill = {};
+    const unshownHistory = [];
+    (src.paymentHistory || []).forEach(function(row) {
+      if (String(row.paymentType || '').trim() !== 'Bill Payment' || String(row.undoStatus || '').trim() === 'Undone') return;
+      const paid = self.dayKey(row.paidDate);
+      if (!paid) return;
+      const record = {
+        id: 'H:' + String(row.paymentId || row.rowNumber || paid), due: self.dayKey(row.originalDueDate), date: paid,
+        state: 'paid', source: 'Recorded in Payment History', transactionId: '',
+        amount: Math.round((Number(row.amountPaid) || 0) * 100) / 100, name: String(row.billOrDebtName || '')
+      };
+      const itemId = String(row.itemId || '').trim();
+      (recordedByBill[itemId] = recordedByBill[itemId] || []).push(record);
     });
 
     const activeBills = {};
     (src.bills || []).forEach(function(bill) {
       const id = String(bill.billId || '').trim();
       if (!id || String(bill.active || '').trim() !== 'Yes') return;
-      const queued = unpaidBillPayments[id];
-      const due = queued ? queued.due : self.dayKey(bill.nextDueDate);
-      if (!due) return;
-      const paymentId = queued ? String(queued.row.paymentId || '').trim() : '';
-      const amount = queued ? Number(queued.row.amountDue) : Number(bill.amount);
-      let evidence = { state: 'none' };
-      if (queued && self.isTrue(queued.row.paid)) evidence = { state: 'paid', source: 'Marked paid in Pay Tracker' };
-      else if (queued && String(queued.row.status || '').trim() === 'Error') {
-        evidence = { state: 'review', source: 'Payment processing reported an error' };
-      } else if (paymentId && bankByPayment[paymentId]) {
-        const bank = bankByPayment[paymentId];
-        evidence = bank.confirmed
-          ? { state: 'paid', source: 'Confirmed Monzo transaction', transactionId: bank.transactionId, date: bank.date }
-          : { state: 'review', source: 'Possible Monzo transaction - confirm the match', transactionId: bank.transactionId, date: bank.date };
+      const queue = (billPayments[id] || []).slice().sort(function(a, b) { return a.due < b.due ? -1 : (a.due > b.due ? 1 : 0); });
+      // The earliest queued payment row anchors the series (it holds the open occurrence).
+      const anchor = queue[0];
+      const name = String(bill.billName || (anchor && anchor.row.billOrDebtName) || id);
+      const due = anchor ? anchor.due : self.dayKey(bill.nextDueDate);
+      if (!due) {
+        notes.push(name + ' has no valid due date, so it is not on the timeline. Set its Next Due Date in Finance.');
+        return;
       }
-      if (evidence.transactionId) usedTransactions[evidence.transactionId] = true;
-      activeBills[id] = { name: String(bill.billName || ''), amount: Number(bill.amount) || 0 };
+      const records = [];
+      queue.forEach(function(entry) {
+        const paymentId = String(entry.row.paymentId || '').trim();
+        let record = null;
+        if (self.isTrue(entry.row.paid)) record = { state: 'paid', source: 'Marked paid in Pay Tracker' };
+        else if (String(entry.row.status || '').trim() === 'Error') record = { state: 'failed', source: 'Payment processing reported an error' };
+        else if (paymentId && bankByPayment[paymentId]) {
+          const bank = bankByPayment[paymentId];
+          record = bank.confirmed
+            ? { state: 'paid', source: 'Confirmed Monzo transaction', transactionId: bank.transactionId, date: bank.date }
+            : { state: 'review', source: 'Possible Monzo transaction - confirm the match', transactionId: bank.transactionId, date: bank.date };
+        }
+        if (!record) return;
+        record.id = 'P:' + (paymentId || entry.due);
+        record.due = entry.due;
+        record.date = record.date || (record.state === 'paid' ? entry.due : '');
+        record.transactionId = record.transactionId || '';
+        if (record.transactionId) usedTransactions[record.transactionId] = true;
+        records.push(record);
+      });
+      (recordedByBill[id] || []).forEach(function(record) { records.push(record); });
+      delete recordedByBill[id];
+      const amount = anchor ? Number(anchor.row.amountDue) : Number(bill.amount);
+      activeBills[id] = { name: name, amount: Number(bill.amount) || 0 };
       series.push({
-        seriesId: 'BILL:' + id, kind: self.KINDS.BILL, sourceId: id, paymentId: paymentId,
-        name: String(bill.billName || (queued && queued.row.billOrDebtName) || id),
-        category: String(bill.category || ''), frequency: String(bill.frequency || ''),
+        seriesId: 'BILL:' + id, kind: self.KINDS.BILL, sourceId: id,
+        paymentId: anchor ? String(anchor.row.paymentId || '').trim() : '',
+        name: name, category: String(bill.category || ''), frequency: String(bill.frequency || ''),
         amount: amount > 0 ? Math.round(amount * 100) / 100 : null,
-        nextDue: due, evidence: evidence, priceChange: 0
+        nextDue: due, priceChange: 0, records: records
+      });
+    });
+    // Payment History of bills that are no longer shown stays visible as history.
+    Object.keys(recordedByBill).forEach(function(itemId) {
+      recordedByBill[itemId].forEach(function(record) {
+        unshownHistory.push({
+          kind: self.KINDS.BILL, sourceId: itemId, name: record.name, amount: record.amount,
+          dueDate: record.due, paidDate: record.date, status: self.STATUSES.PAID, settled: true,
+          source: record.source, evidence: record.source
+        });
       });
     });
 
@@ -181,7 +236,6 @@ const PayTrackerPaymentTimeline = Object.freeze({
     });
 
     let awaitingReview = 0;
-    const shownSubscriptions = {};
     (src.subscriptions || []).forEach(function(sub) {
       const id = String(sub.subscriptionId || '').trim();
       if (!id) return;
@@ -206,69 +260,88 @@ const PayTrackerPaymentTimeline = Object.freeze({
         return;
       }
       const due = self.dayKey(sub.nextExpectedDate);
-      if (!due) return;
-      shownSubscriptions[id] = name;
-
-      let evidence = { state: 'none' };
+      if (!due) {
+        notes.push(name + ' has no valid next expected date, so it is not on the timeline.');
+        return;
+      }
+      const records = [];
       (linksBySubscription[id] || []).forEach(function(link) {
         const txId = String(link.transactionId || '').trim();
         const paid = self.dayKey(link.paymentDate);
         if (!paid || (txId && usedTransactions[txId])) return;
-        const offset = self.daysBetween(due, paid);
-        if (offset >= -self.SUBSCRIPTION_MATCH_BEFORE_DAYS && offset <= self.SUBSCRIPTION_MATCH_AFTER_DAYS) {
-          evidence = self.isTrue(link.confirmed)
-            ? { state: 'paid', source: 'Confirmed Monzo transaction', transactionId: txId, date: paid }
-            : { state: 'review', source: 'Possible Monzo transaction - confirm the match', transactionId: txId, date: paid };
-        }
+        if (txId) usedTransactions[txId] = true;
+        const confirmed = self.isTrue(link.confirmed);
+        records.push({
+          id: 'L:' + String(link.linkId || txId || paid), due: '', date: paid,
+          state: confirmed ? 'paid' : 'review',
+          source: confirmed ? 'Confirmed Monzo transaction' : 'Possible Monzo transaction - confirm the match',
+          transactionId: txId, amount: Math.round((Number(link.amount) || 0) * 100) / 100
+        });
       });
-      if (evidence.transactionId) usedTransactions[evidence.transactionId] = true;
-
       series.push({
         seriesId: 'SUB:' + id, kind: self.KINDS.SUBSCRIPTION, sourceId: id, paymentId: '',
         name: name, category: String(sub.category || ''), frequency: String(sub.frequency || ''),
         amount: amount > 0 ? Math.round(amount * 100) / 100 : null,
-        nextDue: due, evidence: evidence, priceChange: Number(sub.priceChangeAmount) || 0
+        nextDue: due, priceChange: Number(sub.priceChangeAmount) || 0, records: records
       });
     });
     if (awaitingReview) notes.push(awaitingReview + ' detected subscription(s) are waiting for your review and are not shown yet.');
 
-    return { series: series, history: this.buildHistory(src, shownSubscriptions, usedTransactions), notes: notes };
+    this.addLikelyBankPayments(series, src.bankTransactions || [], usedTransactions);
+
+    // Debt repayments are not bills or subscriptions, but an unpaid past one is
+    // still an obligation: present() reports it as a risk, never as settled.
+    const debtsDue = (src.payments || []).filter(function(row) {
+      const paymentId = String(row.paymentId || '').trim();
+      return /debt/i.test(String(row.paymentType || '')) && self.dayKey(row.dueDate) && !self.isTrue(row.paid) &&
+        !(bankByPayment[paymentId] && bankByPayment[paymentId].confirmed);
+    }).map(function(row) {
+      const amount = Number(row.amountDue);
+      return {
+        paymentId: String(row.paymentId || '').trim(), itemId: String(row.itemId || '').trim(),
+        name: String(row.billOrDebtName || row.itemId || 'Debt repayment'), dueDate: self.dayKey(row.dueDate),
+        amount: amount > 0 ? Math.round(amount * 100) / 100 : null
+      };
+    });
+
+    const newestFirst = function(a, b) { return a.paidDate === b.paidDate ? 0 : (a.paidDate < b.paidDate ? 1 : -1); };
+    return { series: series, history: unshownHistory.sort(newestFirst).slice(0, this.HISTORY_LIMIT_PER_KIND), debtsDue: debtsDue, notes: notes };
   },
 
-  buildHistory: function(src, shownSubscriptions, usedTransactions) {
+  /**
+   * Monzo debits not linked to anything that look like a series' payment
+   * (same amount within 1p or 1%, and the payee contains the name or the
+   * reverse) become "Needs review" evidence. They enrich History; they
+   * never mark anything paid.
+   */
+  addLikelyBankPayments: function(series, transactions, usedTransactions) {
     const self = this;
-    const bills = (src.paymentHistory || []).filter(function(row) {
-      return String(row.paymentType || '').trim() === 'Bill Payment' &&
-        String(row.undoStatus || '').trim() !== 'Undone' && self.dayKey(row.paidDate);
-    }).map(function(row) {
-      return {
-        kind: self.KINDS.BILL, sourceId: String(row.itemId || ''), name: String(row.billOrDebtName || ''),
-        amount: Math.round((Number(row.amountPaid) || 0) * 100) / 100,
-        dueDate: self.dayKey(row.originalDueDate), paidDate: self.dayKey(row.paidDate),
-        source: 'Recorded in Payment History'
-      };
+    const debits = transactions.filter(function(tx) {
+      const id = String(tx.transactionId || '').trim();
+      const status = String(tx.matchStatus || '').trim();
+      const linked = String(tx.matchedFinanceId || '').trim() && status && status !== 'Rejected' && status !== 'Unmatched';
+      return id && !usedTransactions[id] && !linked && String(tx.debitOrCredit || '').trim() === 'Debit' &&
+        !self.isTrue(tx.declined) && Number(tx.amount);
     });
-    const seen = {};
-    const subs = (src.subscriptionLinks || []).filter(function(link) {
-      const id = String(link.subscriptionId || '').trim();
-      const txId = String(link.transactionId || '').trim();
-      if (!shownSubscriptions[id] || !self.isTrue(link.confirmed) || !self.dayKey(link.paymentDate)) return false;
-      // A transaction already used as evidence (for a bill, or for the current
-      // occurrence, which present() moves into history itself) is never listed twice.
-      if (txId && (seen[txId] || usedTransactions[txId])) return false;
-      if (txId) seen[txId] = true;
-      return true;
-    }).map(function(link) {
-      return {
-        kind: self.KINDS.SUBSCRIPTION, sourceId: String(link.subscriptionId), name: shownSubscriptions[link.subscriptionId],
-        amount: Math.round((Number(link.amount) || 0) * 100) / 100,
-        dueDate: '', paidDate: self.dayKey(link.paymentDate), transactionId: String(link.transactionId || ''),
-        source: 'Confirmed Monzo transaction'
-      };
+    series.forEach(function(item) {
+      const name = self.normaliseName(item.name);
+      if (item.amount === null || name.length < 3) return;
+      debits.forEach(function(tx) {
+        const id = String(tx.transactionId);
+        if (usedTransactions[id]) return;
+        const amount = Math.abs(Number(tx.amount));
+        const payee = self.normaliseName(tx.merchantName || tx.description);
+        if (payee.length < 3 || Math.abs(amount - item.amount) > Math.max(0.01, 0.01 * item.amount)) return;
+        if (payee.indexOf(name) === -1 && name.indexOf(payee) === -1) return;
+        const date = self.dayKey(tx.settledAt || tx.createdAt);
+        if (!date) return;
+        usedTransactions[id] = true;
+        item.records.push({
+          id: 'T:' + id, due: '', date: date, state: 'review', transactionId: id,
+          source: 'Likely Monzo payment on ' + date + ' - confirm the match', amount: Math.round(amount * 100) / 100
+        });
+      });
     });
-    const newestFirst = function(a, b) { return a.paidDate === b.paidDate ? 0 : (a.paidDate < b.paidDate ? 1 : -1); };
-    return bills.sort(newestFirst).slice(0, this.HISTORY_LIMIT_PER_KIND)
-      .concat(subs.sort(newestFirst).slice(0, this.HISTORY_LIMIT_PER_KIND));
   },
 
   /* ---------------- stage 2: present (always current) ---------------- */
@@ -282,38 +355,82 @@ const PayTrackerPaymentTimeline = Object.freeze({
    */
   present: function(model, today, options) {
     const self = this;
+    const S = this.STATUSES;
     const opts = options || {};
     const todayKey = this.dayKey(today);
     const horizonKey = this.addDaysKey(todayKey, Number(opts.horizonDays) || this.HORIZON_DAYS);
+    const graceKey = this.addDaysKey(todayKey, -this.AWAITING_GRACE_DAYS);
+    const riskFromKey = this.addDaysKey(todayKey, -this.RISK_LOOKBACK_DAYS);
     const upcoming = [];
-    const confirmedNow = [];
+    let history = [];
+    const risks = [];
 
     (model.series || []).forEach(function(series) {
       if (opts.kind && series.kind !== opts.kind) return;
+      const records = (series.records || []).slice().sort(function(a, b) { return a.date < b.date ? -1 : (a.date > b.date ? 1 : 0); });
+      const used = {};
+      const evidenceFor = function(dueKey) {
+        const rank = { paid: 0, failed: 1, review: 2 };
+        const candidates = records.filter(function(record) {
+          if (used[record.id]) return false;
+          if (record.due) return record.due === dueKey;
+          const offset = record.date ? self.daysBetween(dueKey, record.date) : NaN;
+          return offset >= -self.MATCH_BEFORE_DAYS && offset <= self.MATCH_AFTER_DAYS;
+        }).sort(function(a, b) {
+          return (rank[a.state] - rank[b.state]) ||
+            (Math.abs(self.daysBetween(dueKey, a.date || dueKey)) - Math.abs(self.daysBetween(dueKey, b.date || dueKey)));
+        });
+        if (candidates[0]) used[candidates[0].id] = true;
+        return candidates[0] || null;
+      };
+
+      // Past occurrences: from the anchor up to yesterday. All of them move to History.
+      const past = [];
       let index = 0;
       let dueKey = series.nextDue;
-      if (series.evidence && series.evidence.state === 'paid') {
-        confirmedNow.push({
-          kind: series.kind, sourceId: series.sourceId, name: series.name, amount: series.amount,
-          dueDate: series.nextDue, paidDate: series.evidence.date || '', transactionId: series.evidence.transactionId || '',
-          source: series.evidence.source
-        });
-        index = 1;
-        dueKey = self.stepKey(series.nextDue, series.frequency, 1);
-      }
-      // Always show the next unresolved payment, then project recurrences inside the horizon.
-      let first = true;
-      while (dueKey && (first || dueKey < horizonKey)) {
-        const isOpenOccurrence = index === 0;
-        // Only the open occurrence may be in the past; projections start today.
-        if (isOpenOccurrence || dueKey >= todayKey || first) {
-          upcoming.push(self.occurrence(series, dueKey, todayKey, isOpenOccurrence ? series.evidence : { state: 'none' }, index));
-        }
-        first = false;
+      while (dueKey && dueKey < todayKey && index < self.MAX_STEPS) {
+        past.push({ dueKey: dueKey, index: index });
         index++;
         dueKey = self.stepKey(series.nextDue, series.frequency, index);
-        if (index > 60) break;
       }
+      const kept = past.filter(function(entry, position) {
+        return entry.index === 0 || position >= past.length - self.PAST_OCCURRENCES_PER_SERIES;
+      });
+      const unsettled = [];
+      kept.forEach(function(entry) {
+        const evidence = evidenceFor(entry.dueKey);
+        const status = !evidence ? S.UNVERIFIED : evidence.state === 'paid' ? S.PAID : evidence.state === 'failed' ? S.FAILED : S.NEEDS_REVIEW;
+        const item = self.occurrence(series, entry.dueKey, todayKey, evidence, entry.index, status);
+        history.push(item);
+        if (!item.settled && entry.dueKey < graceKey && (entry.index === 0 || entry.dueKey >= riskFromKey)) unsettled.push(item);
+      });
+      if (unsettled.length) risks.push(self.risk(series, unsettled));
+
+      // Today and later: the next scheduled occurrence always shows, then
+      // recurrences inside the horizon. One already paid moves to History.
+      let shown = false;
+      while (dueKey && (!shown || dueKey < horizonKey) && index < self.MAX_STEPS) {
+        const evidence = evidenceFor(dueKey);
+        if (evidence && evidence.state === 'paid') {
+          history.push(self.occurrence(series, dueKey, todayKey, evidence, index, S.PAID));
+        } else {
+          upcoming.push(self.occurrence(series, dueKey, todayKey, evidence, index, dueKey === todayKey ? S.DUE_TODAY : S.UPCOMING));
+          shown = true;
+        }
+        index++;
+        dueKey = self.stepKey(series.nextDue, series.frequency, index);
+      }
+
+      // Recorded payments that matched no occurrence shown here are still history.
+      records.forEach(function(record) {
+        if (used[record.id] || record.state !== 'paid') return;
+        history.push({
+          kind: series.kind, sourceId: series.sourceId, name: series.name, frequency: series.frequency,
+          amount: record.amount === undefined ? series.amount : record.amount,
+          dueDate: record.due || '', paidDate: record.date, status: S.PAID, settled: true,
+          source: record.source, evidence: record.source, transactionId: record.transactionId || ''
+        });
+      });
     });
 
     upcoming.sort(function(a, b) {
@@ -321,13 +438,35 @@ const PayTrackerPaymentTimeline = Object.freeze({
       return a.name.localeCompare(b.name);
     });
 
-    const history = (model.history || []).concat(confirmedNow)
+    const historyDay = function(item) { return item.paidDate || item.dueDate; };
+    history = history.concat(model.history || [])
       .filter(function(item) { return !opts.kind || item.kind === opts.kind; })
       .sort(function(a, b) {
-        const left = a.paidDate || a.dueDate;
-        const right = b.paidDate || b.dueDate;
+        const left = historyDay(a);
+        const right = historyDay(b);
         return left === right ? 0 : (left < right ? 1 : -1);
       });
+    history = [this.KINDS.BILL, this.KINDS.SUBSCRIPTION].reduce(function(kept, kind) {
+      return kept.concat(history.filter(function(item) { return item.kind === kind; }).slice(0, self.HISTORY_LIMIT_PER_KIND));
+    }, []).sort(function(a, b) {
+      const left = historyDay(a);
+      const right = historyDay(b);
+      return left === right ? 0 : (left < right ? 1 : -1);
+    });
+
+    if (!opts.kind) {
+      (model.debtsDue || []).filter(function(debt) { return debt.dueDate < graceKey; }).forEach(function(debt) {
+        risks.push({
+          riskId: 'DEBT:' + (debt.paymentId || debt.itemId + '@' + debt.dueDate), kind: 'Debt', sourceId: debt.itemId, name: debt.name,
+          count: 1, amount: debt.amount || 0, unknownAmountCount: debt.amount === null ? 1 : 0,
+          oldestDue: debt.dueDate, latestDue: debt.dueDate, statuses: { Unverified: 1 },
+          message: 'Debt repayment due on ' + debt.dueDate + ' is not marked paid and has no confirmed Monzo match. ' +
+            'It is still owed until you confirm it in Finance.',
+          occurrences: [{ dueDate: debt.dueDate, amount: debt.amount, status: S.UNVERIFIED, evidence: 'No bank confirmation yet' }]
+        });
+      });
+    }
+    risks.sort(function(a, b) { return a.oldestDue < b.oldestDue ? -1 : (a.oldestDue > b.oldestDue ? 1 : 0); });
 
     return {
       today: todayKey,
@@ -342,28 +481,47 @@ const PayTrackerPaymentTimeline = Object.freeze({
         return byKind;
       }, {}),
       history: history,
+      risks: risks,
       notes: (model.notes || []).slice()
     };
   },
 
-  occurrence: function(series, dueKey, todayKey, evidence, index) {
-    const S = this.STATUSES;
+  occurrence: function(series, dueKey, todayKey, evidence, index, status) {
     const days = this.daysBetween(todayKey, dueKey);
-    let status;
-    if (evidence && evidence.state === 'review') status = S.NEEDS_REVIEW;
-    else if (days > 0) status = S.UPCOMING;
-    else if (days === 0) status = S.DUE_TODAY;
-    else if (-days <= this.AWAITING_GRACE_DAYS) status = S.AWAITING;
-    else status = S.OVERDUE;
+    const settled = status === this.STATUSES.PAID;
+    const source = evidence ? evidence.source : (days < 0 ? 'No bank confirmation yet' : '');
     return {
       occurrenceId: series.seriesId + '@' + dueKey,
       kind: series.kind, sourceId: series.sourceId, paymentId: index === 0 ? series.paymentId : '',
       name: series.name, category: series.category, frequency: series.frequency,
       amount: series.amount, priceChange: series.priceChange || 0,
       dueDate: dueKey, daysRemaining: days, countdown: this.countdownText(days),
-      status: status, projected: index > 0,
-      evidence: evidence && evidence.state !== 'none' ? evidence.source : '',
-      evidenceTransactionId: (evidence && evidence.transactionId) || ''
+      status: status, settled: settled, projected: index > 0,
+      paidDate: settled && evidence ? evidence.date || '' : '',
+      evidence: source, source: source,
+      evidenceTransactionId: (evidence && evidence.transactionId) || '',
+      transactionId: (evidence && evidence.transactionId) || ''
+    };
+  },
+
+  /** One Action Centre risk per bill/subscription: its unsettled past payments. */
+  risk: function(series, items) {
+    const known = items.filter(function(item) { return item.amount !== null; });
+    const amount = Math.round(known.reduce(function(sum, item) { return sum + item.amount; }, 0) * 100) / 100;
+    const statuses = {};
+    items.forEach(function(item) { statuses[item.status] = (statuses[item.status] || 0) + 1; });
+    const summary = Object.keys(statuses).map(function(status) { return statuses[status] + ' ' + status.toLowerCase(); }).join(', ');
+    return {
+      riskId: series.seriesId, kind: series.kind, sourceId: series.sourceId, name: series.name,
+      count: items.length, amount: amount, unknownAmountCount: items.length - known.length,
+      oldestDue: items[0].dueDate, latestDue: items[items.length - 1].dueDate,
+      statuses: statuses,
+      message: items.length + ' past ' + (items.length === 1 ? 'payment' : 'payments') + ' (' + summary + ') due ' +
+        (items.length === 1 ? 'on ' + items[0].dueDate : 'between ' + items[0].dueDate + ' and ' + items[items.length - 1].dueDate) +
+        ' with no confirmed payment. Check your bank, then mark it paid in Finance or confirm the Monzo match.',
+      occurrences: items.map(function(item) {
+        return { dueDate: item.dueDate, amount: item.amount, status: item.status, evidence: item.evidence };
+      })
     };
   },
 
@@ -375,14 +533,13 @@ const PayTrackerPaymentTimeline = Object.freeze({
     return (-days) + ' days ago';
   },
 
-  /** Unpaid amounts due before today + days, including anything still outstanding. */
+  /** Amounts genuinely scheduled from today up to (not including) today + days. */
   totalWithin: function(upcoming, days) {
-    const within = upcoming.filter(function(item) { return item.daysRemaining < days; });
+    const within = upcoming.filter(function(item) { return item.daysRemaining >= 0 && item.daysRemaining < days; });
     const known = within.filter(function(item) { return item.amount !== null; });
     return {
       amount: Math.round(known.reduce(function(sum, item) { return sum + item.amount; }, 0) * 100) / 100,
       count: within.length,
-      outstandingCount: within.filter(function(item) { return item.daysRemaining < 0; }).length,
       unknownAmountCount: within.length - known.length
     };
   },

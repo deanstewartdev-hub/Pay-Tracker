@@ -14,6 +14,11 @@
     <label>Job<select data-action-filter="job"><option value="">All jobs</option></select></label>
     <button class="button button--secondary" type="button" data-action-refresh>Refresh</button>
   </div>
+  <section class="card action-centre__risks" data-payment-risks hidden aria-label="Payments not confirmed">
+    <h3>Payments not confirmed</h3>
+    <p class="action-centre__risks-intro">These past payments moved to History without a confirmed payment. They are still treated as owed until you mark them paid in Finance or confirm the Monzo match.</p>
+    <ul class="action-centre__risk-list" data-payment-risk-list></ul>
+  </section>
   <div class="card action-centre__empty" data-action-empty hidden>
     <h3>No items need attention</h3>
     <p>New uncertain or unmatched records will appear here with their source links.</p>

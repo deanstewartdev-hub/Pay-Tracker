@@ -147,14 +147,19 @@ test('Money Movements + cash flow (2A): a manual entry for the same salary is fl
   assert.equal(p.summary.totals.confirmed.income, 0, 'the salary is not counted twice (ledger + bank)');
 });
 
-test('Upcoming Payments (2B): Energy needs review, unlinked Netflix stays visible (never paid by date), cache works', () => {
+test('Upcoming Payments (2B): past Energy and Netflix move to History unsettled, next ones are upcoming, cache works', () => {
   const r = C('getPayTrackerUpcomingPayments({ refresh: true })');
-  const energy = r.upcoming.find(i => i.name === 'Energy');
-  assert.equal(energy.status, 'Needs review');
+  assert.ok(r.upcoming.every(i => i.dueDate >= r.today), 'nothing past is in Upcoming');
+  const energy = r.history.find(i => i.name === 'Energy' && i.dueDate === '2026-10-20');
+  assert.equal(energy.status, 'Needs review', 'suggested bank match: not paid');
+  assert.equal(energy.settled, false);
   assert.equal(energy.evidenceTransactionId, 'tx_energy');
-  const netflix = r.upcoming.find(i => i.name === 'Netflix');
-  assert.equal(netflix.dueDate, '2026-10-24');
-  assert.equal(netflix.status, 'Overdue', 'no subscription link, so not marked paid by the timeline');
+  assert.equal(r.upcoming.find(i => i.name === 'Energy').dueDate, '2026-11-20');
+  const netflix = r.history.find(i => i.name === 'Netflix' && i.dueDate === '2026-10-24');
+  assert.equal(netflix.status, 'Needs review', 'unlinked Netflix debit enriches it, but never marks it paid');
+  assert.equal(netflix.evidenceTransactionId, 'tx_netflix');
+  assert.equal(r.upcoming.find(i => i.name === 'Netflix').dueDate, '2026-11-24');
+  assert.deepEqual(r.risks.map(x => x.name).sort(), ['Energy', 'Netflix']);
   assert.equal(C('getPayTrackerUpcomingPayments({})').source, 'cache');
 });
 
@@ -182,7 +187,7 @@ test('Smart Savings (3) agrees with 2A and 2B: each payment deducted once, savin
   assert.equal(r.actual.incomeReceived, 2100, 'bank salary counts once (the ledger duplicate does not add)');
   // Tesco 120 + Netflix 10.99 (no subscription link, so 2A calls it everyday spending).
   assert.equal(r.actual.spending, 130.99);
-  assert.deepEqual(r.committed.likelyPaid.map(x => x.transactionId), ['tx_netflix'], 'so it is not ALSO deducted as still to pay');
+  assert.deepEqual(r.committed.likelyPaid, [], 'Netflix carries its Monzo evidence (tx_netflix, already in actuals), so it is not ALSO deducted as still to pay');
   assert.equal(r.actual.unconfirmedOutgoing, 85, 'Energy: suggested match, conservatively subtracted once');
   assert.ok(!r.committed.items.some(i => i.name === 'Energy'), 'Energy not also "still to pay"');
   assert.ok(!r.committed.items.some(i => i.name === 'Netflix'), 'Netflix paid on its due date: not also "still to pay"');

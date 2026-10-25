@@ -59,6 +59,14 @@ const PayTrackerAcceptanceChecks = Object.freeze({
       const view = getPayTrackerUpcomingPayments({ refresh: true });
       add('Finance', 'Upcoming Payments build', view.success ? 'PASS' : 'FAIL',
         view.upcoming.length + ' upcoming, next 30 days ' + view.totals.next30Days.amount);
+      const stale = view.upcoming.filter(function(item) { return item.dueDate < view.today; });
+      add('Finance', 'Upcoming Payments holds only today and later', stale.length ? 'FAIL' : 'PASS',
+        stale.length ? stale.map(function(item) { return item.name + ' ' + item.dueDate; }).join(', ')
+          : 'next: ' + view.upcoming.slice(0, 5).map(function(item) { return item.name + ' ' + item.dueDate; }).join(', '));
+      add('Finance', 'Past payments with no confirmed payment', view.risks.length ? 'REVIEW' : 'PASS',
+        view.risks.length + ' item(s): ' + view.risks.map(function(risk) {
+          return risk.name + ' (' + risk.count + ', ' + risk.amount + ')';
+        }).join(', '));
     });
     attempt('Finance', 'Cash-flow preview', function() {
       const preview = getPayTrackerCashFlowPreview({});

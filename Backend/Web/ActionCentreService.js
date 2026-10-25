@@ -16,8 +16,23 @@ function getPayTrackerActionCentre(options) {
   return {
     success: true, generatedAt: new Date().toISOString(), counts: counts,
     jobs: jobs.map(serializePayTrackerReconciliationRecord_),
-    items: items.map(serializePayTrackerReconciliationRecord_)
+    items: items.map(serializePayTrackerReconciliationRecord_),
+    paymentRisks: getPayTrackerPaymentRisks_()
   };
+}
+
+/**
+ * Past bills, subscriptions and debt repayments with no confirmed payment,
+ * worked out from the (cached) payment timeline every time. Read-only: no
+ * Action Centre row is written, so nothing needs clearing once a payment
+ * is confirmed - it simply stops being listed.
+ */
+function getPayTrackerPaymentRisks_() {
+  try {
+    return PayTrackerUpcomingPaymentsService.get({}).risks || [];
+  } catch (error) {
+    return [];
+  }
 }
 
 function decidePayTrackerAction(actionId, decision) {

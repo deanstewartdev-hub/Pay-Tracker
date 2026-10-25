@@ -202,7 +202,7 @@ const PayTrackerSmartSavingsCalculator = Object.freeze({
     const carriedOver = [];
     const usedDebits = {};
     let outstanding = 0;
-    (input.upcoming || []).forEach(function(item) {
+    (input.pastDue || []).concat(input.upcoming || []).forEach(function(item) {
       if (item.dueDate > period.to) return;
       if (item.dueDate < period.from) {
         carriedOver.push({ kind: item.kind, name: item.name, dueDate: item.dueDate, amount: item.amount, status: item.status });

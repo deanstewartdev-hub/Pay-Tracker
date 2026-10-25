@@ -12,10 +12,10 @@
    */
   const STATUS_CLASSES = {
     'Due today': 'due-today',
-    'Awaiting confirmation': 'awaiting',
-    'Overdue': 'overdue',
     'Needs review': 'review',
-    'Paid': 'paid'
+    'Paid': 'paid',
+    'Unverified': 'unverified',
+    'Failed': 'failed'
   };
   const ICON_COLOURS = ['#2563eb', '#7c3aed', '#0891b2', '#059669', '#d97706', '#db2777', '#4f46e5', '#0d9488'];
   const UNHEALTHY_BANK = ['Manual', 'Failed', 'Needs attention', 'Unavailable', 'Unknown'];
@@ -114,6 +114,13 @@
       header.append(titleWrap, totalsWrap);
       mount.appendChild(header);
       mount.appendChild(service.freshness(data));
+      const risks = (data.risks || []).filter(function(risk) { return !kind || risk.kind === kind; });
+      if (risks.length) {
+        const pastCount = risks.reduce(function(sum, risk) { return sum + (Number(risk.count) || 0); }, 0);
+        mount.appendChild(service.el('p', 'upcoming-payments__risk',
+          pastCount + (pastCount === 1 ? ' past payment has' : ' past payments have') +
+          ' no confirmed payment yet. They are in History and the Action Centre, and are still treated as owed.'));
+      }
 
       if (shown.length === 0) {
         mount.appendChild(service.el('p', 'upcoming-payments__empty',
@@ -177,16 +184,21 @@
       const details = service.el('details', 'payment-history');
       details.appendChild(service.el('summary', '', 'Payment history (' + items.length + ')'));
       if (items.length === 0) {
-        details.appendChild(service.el('p', 'upcoming-payments__empty', 'No confirmed payments yet.'));
+        details.appendChild(service.el('p', 'upcoming-payments__empty', 'No past payments yet.'));
         return details;
       }
       const list = service.el('ul', 'payment-history__list');
       items.forEach(function(item) {
         const li = service.el('li', 'payment-history__item');
+        const label = service.el('span', '', service.longDate(item.dueDate || item.paidDate) + ' · ' + item.name);
+        const status = item.status || 'Paid';
+        label.appendChild(service.el('span', 'payment-history__status payment-history__status--' + (STATUS_CLASSES[status] || 'review'), status));
+        const detail = [item.paidDate && item.paidDate !== item.dueDate ? 'Paid ' + service.longDate(item.paidDate) : '', item.source || '']
+          .filter(Boolean).join(' · ');
         li.append(
-          service.el('span', '', service.longDate(item.paidDate || item.dueDate) + ' · ' + item.name),
-          service.el('strong', '', item.amount === null ? '—' : service.money(item.amount)),
-          service.el('small', '', item.source || '')
+          label,
+          service.el('strong', '', item.amount === null || item.amount === undefined ? '—' : service.money(item.amount)),
+          service.el('small', '', detail)
         );
         list.appendChild(li);
       });
@@ -215,7 +227,6 @@
       const box = service.el('div', 'upcoming-payments__total');
       box.append(service.el('span', '', label), service.el('strong', '', service.money(value.amount || 0)));
       const extra = [];
-      if (value.outstandingCount) extra.push(value.outstandingCount + ' outstanding');
       if (value.unknownAmountCount) extra.push(value.unknownAmountCount + ' amount unknown');
       if (extra.length) box.appendChild(service.el('small', '', extra.join(', ')));
       return box;

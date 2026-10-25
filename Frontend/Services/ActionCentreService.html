@@ -39,6 +39,20 @@
       const empty = documentObject.querySelector('[data-action-empty]');
       list.textContent = ''; empty.hidden = Boolean((data.items || []).length);
       (data.items || []).forEach(function(item) { list.appendChild(service.card(item)); });
+      service.renderRisks(data.paymentRisks || []);
+    },
+    renderRisks: function(risks) {
+      const section = documentObject.querySelector('[data-payment-risks]');
+      const list = documentObject.querySelector('[data-payment-risk-list]');
+      if (!section || !list) return;
+      list.textContent = ''; section.hidden = risks.length === 0;
+      risks.forEach(function(risk) {
+        const item = documentObject.createElement('li'); item.className = 'action-centre__risk';
+        const title = documentObject.createElement('strong');
+        title.textContent = risk.name + ' · ' + risk.kind + ' · £' + (Number(risk.amount) || 0).toFixed(2);
+        const message = documentObject.createElement('span'); message.textContent = risk.message;
+        item.append(title, message); list.appendChild(item);
+      });
     },
     card: function(item) {
       const article = documentObject.createElement('article'); article.className = 'card action-item';
