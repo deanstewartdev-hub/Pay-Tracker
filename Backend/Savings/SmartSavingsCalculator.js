@@ -24,6 +24,8 @@
 
 const PayTrackerSmartSavingsCalculator = Object.freeze({
   MATCH_WINDOW_DAYS: 3,
+  // Shown on the Savings page so a stale deployment is visible. Update with each release.
+  BUILD: 'v3.3 finance · PR #53',
 
   /**
    * @param {Object} input
@@ -111,6 +113,7 @@ const PayTrackerSmartSavingsCalculator = Object.freeze({
       actual: actual.summary,
       committed: committed,
       variable: { fuel: fuel },
+      build: this.BUILD,
       presentation: this.presentation(actual, fuel, disposable, period),
       savedThisMonth: savedThisMonth,
       savedTowardsTarget: savedTowardsTarget,

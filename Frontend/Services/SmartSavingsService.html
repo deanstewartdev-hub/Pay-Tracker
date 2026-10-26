@@ -89,7 +89,8 @@
       titles.append(
         service.el('p', 'smart-savings__eyebrow', 'Smart savings · ' + service.monthLabel(data.period)),
         service.el('h3', 'smart-savings__title', 'What you can genuinely save this month'),
-        service.el('p', 'smart-savings__muted', 'A preview from your actual bank activity. Pay Tracker never moves money.')
+        service.el('p', 'smart-savings__muted', 'A preview from your actual bank activity. Pay Tracker never moves money.'),
+        service.el('p', 'smart-savings__muted', 'Build: ' + (data.build || 'unknown (older code)'))
       );
       const refresh = service.el('button', 'button button--secondary', 'Recalculate');
       refresh.type = 'button';
