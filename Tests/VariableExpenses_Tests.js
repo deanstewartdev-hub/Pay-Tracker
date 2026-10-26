@@ -199,5 +199,39 @@ function runVariableExpenseTests() {
   check('payoff estimate runs on the corrected £77 weekly, 8.50% APR loan',
     Number.isFinite(payoff.monthsLeft) && payoff.monthsLeft > 0 && payoff.payoffDate instanceof Date);
 
+  // ---- Presentation: fuel line, three separate money figures, and the incomplete-data explanation ----
+  check('the fuel line states the amount and the period it covers',
+    empty.presentation.fuel.amount === 93.75 && empty.presentation.fuel.daysAhead === 5 &&
+    empty.presentation.fuel.from === '2026-10-27' && empty.presentation.fuel.to === '2026-10-31');
+  check('with no salary this month, the result is explained as incomplete, not just negative',
+    empty.presentation.incomplete !== null && /No salary has reached/.test(empty.presentation.incomplete) &&
+    /This figure is incomplete/.test(empty.presentation.incomplete));
+  const otherAccountPay = proposalsOf([{ transactionId: 'pay1', description: 'FROM OTHER ACCOUNT', amount: 300,
+    debitOrCredit: 'Credit', settledAt: new Date(2026, 9, 20, 12), category: 'income' }]);
+  const awaitingPay = PayTrackerSmartSavingsCalculator.calculate(baseInput({ cashFlow: otherAccountPay }));
+  check('incoming money awaiting classification is shown separately, not as income',
+    money(awaitingPay.presentation.awaiting.incoming) === 300 && awaitingPay.actual.incomeReceived === 0);
+  check('awaiting incoming money is also named in the incomplete explanation',
+    /awaiting classification/.test(awaitingPay.presentation.incomplete));
+  const salary = proposalsOf([{ transactionId: 'sal1', description: 'PAYROLL', amount: 1000,
+    debitOrCredit: 'Credit', settledAt: new Date(2026, 9, 20, 12), payTrackerCategory: 'Salary Income', categorySource: 'Manual' }]);
+  const paid = PayTrackerSmartSavingsCalculator.calculate(baseInput({ cashFlow: salary }));
+  check('with salary confirmed in connected Monzo, the result is not marked incomplete', paid.presentation.incomplete === null);
+  check('the connected-account figure is salary less outgoings, with no fuel or loan mixed in',
+    money(paid.presentation.connected.amount) === 1000 && money(paid.presentation.available.amount) === money(paid.disposable));
+
+  // ---- Repayments: a scheduled loan Friday with no bank evidence stays owed, never confirmed ----
+  const pastFriday = PayTrackerSmartSavingsCalculator.calculate(baseInput({
+    today: new Date(2026, 9, 26, 12),
+    payments: [{ paymentId: 'PAY-OLD', paymentType: 'Debt Repayment', itemId: 'DEBT-CU', billOrDebtName: 'Univeral Credit Loan',
+      dueDate: new Date(2026, 9, 2, 12), amountDue: 77, paid: false }],
+    debts: [creditUnionDebt]
+  }));
+  check('a past scheduled loan repayment with no bank evidence is still owed, and not marked paid',
+    pastFriday.committed.items.some(function(i) { return i.name === 'Univeral Credit Loan' && i.dueDate === '2026-10-02' && i.status === 'Overdue'; }) &&
+    pastFriday.committed.likelyPaid.length === 0 && money(pastFriday.actual.debtRepaymentsPaid) === 0);
+  check('a scheduled repayment is not treated as a transfer without a bank transaction',
+    money(pastFriday.actual.sentToLoanAccount) === 0);
+
   return { success: true, passed: results.length, results: results };
 }

@@ -111,6 +111,7 @@ const PayTrackerSmartSavingsCalculator = Object.freeze({
       actual: actual.summary,
       committed: committed,
       variable: { fuel: fuel },
+      presentation: this.presentation(actual, fuel, disposable, period),
       savedThisMonth: savedThisMonth,
       savedTowardsTarget: savedTowardsTarget,
       disposable: disposable,
@@ -301,6 +302,42 @@ const PayTrackerSmartSavingsCalculator = Object.freeze({
     const debts = totalOf('Debt');
     return { bills: bills, subscriptions: subscriptions, debts: debts, total: this.round(bills + subscriptions + debts),
       items: items, likelyPaid: likelyPaid, carriedOver: carriedOver };
+  },
+
+  /*
+   * The three different money figures, kept apart, plus an explanation when the
+   * result cannot be complete. Nothing here changes the calculation.
+   *  - connected: money that has actually moved in the connected Monzo accounts this month
+   *  - awaiting: incoming or outgoing money that still needs classifying
+   *  - available: the overall genuinely-available figure (may be incomplete)
+   */
+  presentation: function(actual, fuel, disposable, period) {
+    const T = PayTrackerPaymentTimeline;
+    const parts = period.today.split('-').map(Number);
+    const firstFuelDay = T.dayKey(new Date(parts[0], parts[1] - 1, parts[2] + 1));
+    const noSalary = actual.income === 0;
+    const awaiting = actual.uncertainIn > 0;
+    let incomplete = null;
+    if (noSalary || awaiting) {
+      const reasons = [];
+      if (noSalary) reasons.push('No salary has reached the connected Monzo accounts this month.');
+      if (awaiting) reasons.push(this.money(actual.uncertainIn) + ' of incoming money is still awaiting classification.');
+      incomplete = reasons.join(' ') + ' This figure is incomplete: if pay goes into another account, move it into Monzo and confirm it in Money Movements before relying on it.';
+    }
+    return {
+      connected: {
+        label: 'Net movement in connected Monzo accounts (confirmed items; pending counted as out)',
+        amount: this.round(actual.income + actual.refunds + actual.ownTransfersIn - actual.spending -
+          actual.billsPaid - actual.ownTransfersOut - actual.loanTransfersOut - actual.pendingOut)
+      },
+      awaiting: { incoming: actual.uncertainIn, outgoing: actual.uncertainOut },
+      fuel: {
+        label: 'Estimated fuel to come', amount: fuel.forecast, dailyRate: fuel.dailyRate,
+        daysAhead: fuel.daysAhead, from: fuel.daysAhead > 0 ? firstFuelDay : '', to: period.to, source: fuel.source
+      },
+      available: { label: 'Genuinely available', amount: disposable },
+      incomplete: incomplete
+    };
   },
 
   // Name, due date and amount: the same obligation whether it is listed as a Bill or a Debt.
