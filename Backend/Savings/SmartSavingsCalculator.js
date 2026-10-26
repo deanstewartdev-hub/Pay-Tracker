@@ -242,6 +242,7 @@ const PayTrackerSmartSavingsCalculator = Object.freeze({
     const usedDebits = {};
     // Bills already listed, so a Debt with the same name, date and amount is not counted again.
     const billKeys = {};
+    const warnedDuplicates = {};
     let outstanding = 0;
     (input.pastDue || []).concat(input.upcoming || []).forEach(function(item) {
       if (item.kind === 'Bill') billKeys[self.obligationKey(item)] = true;
@@ -274,7 +275,11 @@ const PayTrackerSmartSavingsCalculator = Object.freeze({
       }
       // The same obligation listed as a Bill is already counted: one obligation, one deduction.
       if (billKeys[self.obligationKey(item)]) {
-        warnings.push('"' + item.name + '" is listed as both a bill and a debt on ' + item.dueDate + '. Counted once.');
+        const key = self.obligationKey(item);
+        if (!warnedDuplicates[key]) {
+          warnedDuplicates[key] = true;
+          warnings.push('"' + item.name + '" is listed as both a bill and a debt on ' + item.dueDate + '. Counted once.');
+        }
         return;
       }
       // A loan transfer of the same amount on about the same day IS this repayment: count it once, as the transfer.

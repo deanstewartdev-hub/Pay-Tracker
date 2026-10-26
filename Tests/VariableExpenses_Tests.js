@@ -186,6 +186,15 @@ function runVariableExpenseTests() {
     money(sameLoan.disposable) === money(empty.disposable - 77));
   check('the double listing is explained, not silently dropped',
     sameLoan.warnings.some(function(w) { return /listed as both a bill and a debt/.test(w); }));
+  const duplicateRows = PayTrackerSmartSavingsCalculator.calculate(baseInput({
+    upcoming: [{ kind: 'Bill', name: loanName, dueDate: '2026-10-30', amount: 77, status: 'Upcoming', daysRemaining: 4 }],
+    debts: [Object.assign({}, creditUnionDebt, { debtName: loanName })],
+    payments: [{ paymentId: 'PAY-A', paymentType: 'Debt Repayment', itemId: 'DEBT-CU', billOrDebtName: loanName, dueDate: new Date(2026, 9, 30, 12), amountDue: 77, paid: false },
+      { paymentId: 'PAY-B', paymentType: 'Debt Repayment', itemId: 'DEBT-CU', billOrDebtName: loanName, dueDate: new Date(2026, 9, 30, 12), amountDue: 77, paid: false }]
+  }));
+  check('a duplicated loan row is counted once and warned about once',
+    duplicateRows.warnings.filter(function(w) { return /listed as both a bill and a debt/.test(w); }).length === 1 &&
+    money(duplicateRows.disposable) === money(empty.disposable - 77));
   const differentLoan = PayTrackerSmartSavingsCalculator.calculate(baseInput({
     upcoming: [{ kind: 'Bill', name: 'Phone', dueDate: '2026-10-30', amount: 77, status: 'Upcoming', daysRemaining: 4 }],
     debts: [Object.assign({}, creditUnionDebt, { debtName: loanName })]
