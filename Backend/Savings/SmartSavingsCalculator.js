@@ -236,8 +236,11 @@ const PayTrackerSmartSavingsCalculator = Object.freeze({
     const likelyPaid = [];
     const carriedOver = [];
     const usedDebits = {};
+    // Bills already listed, so a Debt with the same name, date and amount is not counted again.
+    const billKeys = {};
     let outstanding = 0;
     (input.pastDue || []).concat(input.upcoming || []).forEach(function(item) {
+      if (item.kind === 'Bill') billKeys[self.obligationKey(item)] = true;
       if (item.dueDate > period.to) return;
       if (item.dueDate < period.from) {
         carriedOver.push({ kind: item.kind, name: item.name, dueDate: item.dueDate, amount: item.amount, status: item.status });
@@ -263,6 +266,11 @@ const PayTrackerSmartSavingsCalculator = Object.freeze({
     this.debtCommitments(input, period).forEach(function(item) {
       if (item.dueDate < period.from) {
         carriedOver.push(item);
+        return;
+      }
+      // The same obligation listed as a Bill is already counted: one obligation, one deduction.
+      if (billKeys[self.obligationKey(item)]) {
+        warnings.push('"' + item.name + '" is listed as both a bill and a debt on ' + item.dueDate + '. Counted once.');
         return;
       }
       // A loan transfer of the same amount on about the same day IS this repayment: count it once, as the transfer.
@@ -293,6 +301,12 @@ const PayTrackerSmartSavingsCalculator = Object.freeze({
     const debts = totalOf('Debt');
     return { bills: bills, subscriptions: subscriptions, debts: debts, total: this.round(bills + subscriptions + debts),
       items: items, likelyPaid: likelyPaid, carriedOver: carriedOver };
+  },
+
+  // Name, due date and amount: the same obligation whether it is listed as a Bill or a Debt.
+  obligationKey: function(item) {
+    return PayTrackerPaymentTimeline.normaliseName(item.name) + '|' + item.dueDate + '|' +
+      (item.amount === null || item.amount === undefined ? '' : this.round(item.amount));
   },
 
   /*

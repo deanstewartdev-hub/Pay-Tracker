@@ -175,5 +175,29 @@ function runVariableExpenseTests() {
   check('the fuel forecast in a 30-day month covers every remaining day',
     money(octEmpty.variable.fuel.forecast) === 562.5);
 
+  // ---- One loan listed as both a Bill and a Debt is one obligation ----
+  const loanName = 'Univeral Credit Loan';
+  const sameLoan = PayTrackerSmartSavingsCalculator.calculate(baseInput({
+    upcoming: [{ kind: 'Bill', name: loanName, dueDate: '2026-10-30', amount: 77, status: 'Upcoming', daysRemaining: 4 }],
+    debts: [Object.assign({}, creditUnionDebt, { debtName: loanName })]
+  }));
+  check('a loan listed as a bill and a debt on the same date is counted once',
+    sameLoan.committed.items.filter(function(i) { return i.name === loanName; }).length === 1 &&
+    money(sameLoan.disposable) === money(empty.disposable - 77));
+  check('the double listing is explained, not silently dropped',
+    sameLoan.warnings.some(function(w) { return /listed as both a bill and a debt/.test(w); }));
+  const differentLoan = PayTrackerSmartSavingsCalculator.calculate(baseInput({
+    upcoming: [{ kind: 'Bill', name: 'Phone', dueDate: '2026-10-30', amount: 77, status: 'Upcoming', daysRemaining: 4 }],
+    debts: [Object.assign({}, creditUnionDebt, { debtName: loanName })]
+  }));
+  check('a bill with a different name is not treated as the same loan',
+    money(differentLoan.disposable) === money(empty.disposable - 77 - 77));
+
+  // ---- Payoff estimate: the existing model on the corrected weekly £77 at 8.50% APR ----
+  const payoff = PayTrackerFinanceService.calculateDebtEstimate(14806.25, 8.5,
+    PayTrackerFinanceService.convertToMonthly(77, 'Weekly'));
+  check('payoff estimate runs on the corrected £77 weekly, 8.50% APR loan',
+    Number.isFinite(payoff.monthsLeft) && payoff.monthsLeft > 0 && payoff.payoffDate instanceof Date);
+
   return { success: true, passed: results.length, results: results };
 }
