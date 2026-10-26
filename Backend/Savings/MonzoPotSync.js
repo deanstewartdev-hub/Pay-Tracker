@@ -21,6 +21,28 @@
 
 const PayTrackerMonzoPotSync = Object.freeze({
   STALE_LABEL: 'Stored balance — not currently synced',
+  // A balance is only "verified" if Monzo synced successfully this recently.
+  FRESH_HOURS: 24,
+
+  /**
+   * How one pot's balance should be presented.
+   * @param {Object} pot {monzoPotId}
+   * @param {Object} sync {connected, syncedAt (ISO or ''), status}
+   * @param {Date} now
+   * @return {{verified: boolean, label: string, syncedAt: string}}
+   */
+  balanceState: function(pot, sync, now) {
+    if (!String(pot.monzoPotId || '').trim()) {
+      return { verified: false, label: 'Stored balance — not linked to Monzo', syncedAt: '' };
+    }
+    const syncedAt = sync && sync.syncedAt ? new Date(sync.syncedAt) : null;
+    const ageHours = syncedAt ? (now.getTime() - syncedAt.getTime()) / 3600000 : Infinity;
+    const fresh = Boolean(sync && sync.connected && syncedAt && ageHours >= 0 && ageHours <= this.FRESH_HOURS);
+    if (!fresh) {
+      return { verified: false, label: this.STALE_LABEL, syncedAt: sync && sync.syncedAt ? sync.syncedAt : '' };
+    }
+    return { verified: true, label: 'Verified from Monzo · synced ' + this.formatSynced(syncedAt), syncedAt: sync.syncedAt };
+  },
 
   /**
    * @param {Object} input

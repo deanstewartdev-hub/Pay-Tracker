@@ -469,6 +469,11 @@
               '</td>',
               '<td>',
                 money(pot.currentBalance),
+                pot.balanceState
+                  ? '<small class="savings-balance-state' +
+                    (pot.balanceState.verified ? ' savings-balance-state--verified' : ' savings-balance-state--stored') +
+                    '">' + escape(pot.balanceState.label) + '</small>'
+                  : '',
               '</td>',
               '<td>',
                 pot.goalAmount > 0

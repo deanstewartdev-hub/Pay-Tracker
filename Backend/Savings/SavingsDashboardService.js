@@ -147,6 +147,13 @@ const PayTrackerSavingsDashboardService = Object.freeze({
         result.totalMonthlyContributions
       );
 
+    // Every pot says whether its balance is verified from Monzo or only stored.
+    const monzoSync = PayTrackerSavingsDashboardService.readMonzoSyncState();
+    result.monzoSync = monzoSync;
+    result.potRows.forEach(function (row) {
+      row.balanceState = PayTrackerMonzoPotSync.balanceState(row, monzoSync, new Date());
+    });
+
     result.totalAnnualInterest =
       PayTrackerUtils.roundCurrency(
         result.totalAnnualInterest
@@ -177,6 +184,20 @@ const PayTrackerSavingsDashboardService = Object.freeze({
    * @param {Object} result
    * @param {GoogleAppsScript.Spreadsheet.Sheet|null} potsSheet
    */
+  /*
+   * Last successful Monzo sync, from the sync status row. Balances are only
+   * "verified" from this when it is recent (see MonzoPotSync.balanceState).
+   */
+  readMonzoSyncState: function () {
+    const bank = PayTrackerUpcomingPaymentsService.readBankFreshness();
+    const failed = /error|fail/i.test(String(bank.status || '')) || Boolean(bank.message && /error|fail/i.test(bank.message));
+    return {
+      connected: Boolean(bank.lastSuccess) && !failed,
+      syncedAt: bank.lastSuccess || '',
+      status: bank.status || 'Unknown'
+    };
+  },
+
   addPotFigures: function (
     result,
     potsSheet

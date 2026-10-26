@@ -67,5 +67,24 @@ function runMonzoPotSyncTests() {
     sheetPots: [{ potId: 'P9', potName: 'Home Deposit', linkedMonzoPotId: 'pot_home', currentBalance: 500 }] });
   check('an unchanged pot produces no update', unchanged.updates.length === 0);
 
+  // Balance state shown on each pot: verified only from a recent successful sync.
+  const now = new Date(2026, 9, 26, 10, 0);
+  const linkedPot = { monzoPotId: 'pot_home' };
+  const freshSync = { connected: true, syncedAt: new Date(2026, 9, 26, 9, 15).toISOString(), status: 'Connected' };
+  const fresh = S.balanceState(linkedPot, freshSync, now);
+  check('a balance synced within the last 24 hours is shown as verified from Monzo',
+    fresh.verified === true && fresh.label === 'Verified from Monzo · synced 2026-10-26 09:15');
+  const staleSync = { connected: true, syncedAt: new Date(2026, 9, 23, 12, 6).toISOString(), status: 'Connected' };
+  const stale = S.balanceState(linkedPot, staleSync, now);
+  check('a balance last synced days ago is stored, not shown as verified',
+    stale.verified === false && stale.label === S.STALE_LABEL);
+  check('a failed sync is stored, even when the last success was recent',
+    S.balanceState(linkedPot, { connected: false, syncedAt: freshSync.syncedAt, status: 'Error' }, now).verified === false);
+  check('with no sync record, the balance is stored, not presented as live',
+    S.balanceState(linkedPot, { connected: false, syncedAt: '', status: 'Unknown' }, now).label === S.STALE_LABEL);
+  check('a pot not linked to Monzo says so, and is never verified',
+    S.balanceState({ monzoPotId: '' }, freshSync, now).verified === false &&
+    S.balanceState({ monzoPotId: '' }, freshSync, now).label === 'Stored balance — not linked to Monzo');
+
   return { success: true, passed: results.length, results: results };
 }
