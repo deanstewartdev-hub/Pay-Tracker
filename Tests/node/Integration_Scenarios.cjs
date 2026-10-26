@@ -194,7 +194,8 @@ test('Smart Savings (3) agrees with 2A and 2B: each payment deducted once, savin
   assert.deepEqual(r.committed.items.filter(i => i.kind === 'Debt').map(i => i.dueDate), ['2026-10-29'], 'weekly phone loan, rest of October');
   assert.equal(r.savedThisMonth, 200, 'from the Monzo pot transfer');
   // 2100 in; out: spending 130.99, Energy 85 (unconfirmed), phone loan 20 (still due), 200 saved. Netflix once.
-  assert.equal(r.disposable, Math.round((2100 - 130.99 - 85 - 20 - 200) * 100) / 100);
+  // Fuel estimate for the 3 days after 28 Oct (£75 every four days) is also deducted.
+  assert.equal(r.disposable, Math.round((2100 - 130.99 - 85 - 20 - 200 - 18.75 * 3) * 100) / 100);
   assert.equal(r.goals[0].current, 8200);
   // Planned = whatever the existing module holds (it recalculated the pot when the contribution was recorded).
   const monthlyEquivalent = sb.getSheet(F.pots[0]).rows[1][F.pots[1].indexOf('Monthly Equivalent')];

@@ -15,6 +15,8 @@ function runSmartSavingsTests() {
   const C = PayTrackerCashFlowClassifier.CATEGORIES;
   const d = function(day, month) { return new Date(2026, (month || 10) - 1, day, 12); };
   const TODAY = d(15);
+  // Fuel estimate for the 16 days after 15 Oct: £75 every four days, deducted from disposable income.
+  const FUEL = 18.75 * 16;
   function p(category, amount, fields) {
     return Object.assign({ transactionId: 'tx' + Math.random(), date: d(5), description: '', amount: amount,
       direction: 'Debit', category: category, internalTransfer: category === C.SAVINGS || category === C.TRANSFER,
@@ -50,7 +52,7 @@ function runSmartSavingsTests() {
   check('outstanding debt commitments', base.committed.debts === 120 && base.committed.total === 218);
   check('existing savings contributions: pot deposits less withdrawals', base.savedThisMonth === 150);
   check('disposable income = received - spent + refunds - paid - still due - already saved',
-    base.disposable === Math.round((2003 - 300 + 20 - 762 - 218 - 150) * 100) / 100);
+    base.disposable === Math.round((2003 - 300 + 20 - 762 - 218 - 150 - FUEL) * 100) / 100);
   check('suggested = savings % of disposable', base.suggestion.amount === Calc.floorPennies(base.disposable * 0.5));
 
   // Conservative treatment.
@@ -69,17 +71,17 @@ function runSmartSavingsTests() {
   check('a possible duplicate whose category is itself unsure stays unconfirmed', run({
     cashFlow: [credit(C.OTHER_INCOME, 50, { status: 'Possible duplicate', confidence: 'Needs confirmation', categoryConfidence: 'Needs confirmation' })]
   }).actual.unconfirmedIncoming === 50);
-  check('pending income is not counted', careful.disposable === 1000 - 100 - 25 - 300);
+  check('pending income is not counted', careful.disposable === 1000 - 100 - 25 - 300 - FUEL);
   check('a confirmed transfer to your own other account is not spending, but is no longer available in Monzo',
     careful.actual.movedToOwnAccounts === 300 && careful.actual.spending === 0 &&
     careful.warnings.some(function(w) { return w.indexOf('no longer in Monzo') !== -1; }));
   check('a confirmed transfer IN from your own account is not income, but is available', (function() {
     const r = run({ cashFlow: [credit(C.SALARY, 1000), credit(C.TRANSFER, 200, { confidence: 'Confirmed' })] });
-    return r.actual.incomeReceived === 1000 && r.actual.receivedFromOwnAccounts === 200 && r.disposable === 1200;
+    return r.actual.incomeReceived === 1000 && r.actual.receivedFromOwnAccounts === 200 && r.disposable === 1200 - FUEL;
   })());
   check('a pending move into a pot has already left the spendable balance', run({
     cashFlow: [credit(C.SALARY, 1000), p(C.SAVINGS, 100, { description: 'pot_X', status: 'Pending' })]
-  }).disposable === 900);
+  }).disposable === 900 - FUEL);
 
   // Audit: a past-due payment already paid without a link is not deducted twice.
   check('a past-due subscription paid this month (no link) is not also "still to pay"', (function() {
@@ -88,7 +90,7 @@ function runSmartSavingsTests() {
       upcoming: [{ kind: 'Subscription', name: 'Netflix', dueDate: '2026-10-11', amount: 10.99, daysRemaining: -4, status: 'Overdue' }]
     });
     return r.committed.total === 0 && r.committed.likelyPaid.length === 1 && r.committed.likelyPaid[0].transactionId === 'nf' &&
-      r.disposable === Math.round((1000 - 10.99) * 100) / 100 && r.warnings.some(function(w) { return w.indexOf('looks paid') !== -1; });
+      r.disposable === Math.round((1000 - 10.99 - FUEL) * 100) / 100 && r.warnings.some(function(w) { return w.indexOf('looks paid') !== -1; });
   })());
   check('one payment never covers two past-due occurrences', (function() {
     const r = run({
@@ -145,7 +147,7 @@ function runSmartSavingsTests() {
   })());
   check('overspent month suggests nothing and says by how much', (function() {
     const r = run({ cashFlow: [credit(C.SALARY, 100), p(C.SPENDING, 150)] });
-    return r.disposable === -50 && r.suggestion.amount === 0 && r.warnings.some(function(w) { return w.indexOf('£50.00') !== -1; });
+    return r.disposable === -50 - FUEL && r.suggestion.amount === 0 && r.warnings.some(function(w) { return w.indexOf('£350.00') !== -1; });
   })());
 
   // No double counting between actuals and commitments.
@@ -174,7 +176,8 @@ function runSmartSavingsTests() {
   check('fixed mode: fixed amount less already saved, never more than is available', (function() {
     const fixed = { mode: 'Fixed Monthly Amount', fixedAmount: 400, percentage: 0, maximumAmount: 0 };
     const plenty = run({ settings: fixed, cashFlow: [credit(C.SALARY, 2000), p(C.SAVINGS, 100, { description: 'pot_X' })] });
-    const tight = run({ settings: fixed, cashFlow: [credit(C.SALARY, 250)] });
+    // £550 less the £300 fuel estimate leaves £250 available: the suggestion is capped at that.
+    const tight = run({ settings: fixed, cashFlow: [credit(C.SALARY, 550)] });
     return plenty.suggestion.amount === 300 && tight.suggestion.amount === 250;
   })());
   check('Maximum Monthly Savings caps the total including what was already saved', (function() {
@@ -186,7 +189,8 @@ function runSmartSavingsTests() {
   // Distribution into existing pots.
   const split = run({
     settings: { mode: 'Percentage of Disposable Income', percentage: 1, maximumAmount: 0 },
-    cashFlow: [credit(C.SALARY, 1000)],
+    // Salary covers the £1,000 being split plus the fuel estimate.
+    cashFlow: [credit(C.SALARY, 1000 + FUEL)],
     pots: [
       pot('FIXED', { contributionMethod: 'Fixed Amount', monthlyEquivalent: 100 }),
       pot('HOUSE', { allocation: 0.6, goalAmount: 20000, currentBalance: 5000, linkedGoalId: 'G1' }),
@@ -221,7 +225,7 @@ function runSmartSavingsTests() {
     return r.distribution[0].savedThisMonth === 25 && r.distribution[0].savedSource === 'Savings History';
   })());
   check('allocations over 100% are scaled, with a warning', (function() {
-    const r = run({ settings: { mode: 'Percentage of Disposable Income', percentage: 1 }, cashFlow: [credit(C.SALARY, 100)],
+    const r = run({ settings: { mode: 'Percentage of Disposable Income', percentage: 1 }, cashFlow: [credit(C.SALARY, 100 + FUEL)],
       pots: [pot('A', { allocation: 0.8 }), pot('B', { allocation: 0.7 })] });
     // 100 x 0.8/1.5 = 53.33 and 100 x 0.7/1.5 = 46.66 (rounded down); the penny left is unallocated.
     return r.distribution[0].suggested === 53.33 && r.distribution[1].suggested === 46.66 && r.unallocated === 0.01 &&
