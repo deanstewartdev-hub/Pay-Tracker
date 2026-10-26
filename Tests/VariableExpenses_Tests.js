@@ -152,5 +152,28 @@ function runVariableExpenseTests() {
   check('a transfer of a different amount does not cover the £77 commitment (both deducted)',
     money(partial.disposable) === money(fridayEmpty.disposable - 50 - 77) && money(partial.committed.debts) === 77);
 
+  // ---- Weekly commitments across months with four and five Fridays ----
+  const creditUnionFrom = function(day, month) {
+    return Object.assign({}, creditUnionDebt, { nextPaymentDate: new Date(2026, month - 1, day, 12) });
+  };
+  // September 2026 has four Fridays (4, 11, 18, 25); the 30th is a Wednesday.
+  const sepEmpty = PayTrackerSmartSavingsCalculator.calculate(baseInput({ today: new Date(2026, 8, 1, 12) }));
+  const sepLoan = PayTrackerSmartSavingsCalculator.calculate(baseInput({
+    today: new Date(2026, 8, 1, 12), debts: [creditUnionFrom(4, 9)]
+  }));
+  check('a four-Friday month deducts four weekly commitments',
+    sepLoan.committed.items.filter(function(i) { return i.name === 'Credit Union car loan'; }).length === 4 &&
+    money(sepLoan.disposable) === money(sepEmpty.disposable - 4 * 77));
+  // October 2026 has five Fridays (2, 9, 16, 23, 30).
+  const octEmpty = PayTrackerSmartSavingsCalculator.calculate(baseInput({ today: new Date(2026, 9, 1, 12) }));
+  const octLoan = PayTrackerSmartSavingsCalculator.calculate(baseInput({
+    today: new Date(2026, 9, 1, 12), debts: [creditUnionFrom(2, 10)]
+  }));
+  check('a five-Friday month deducts five weekly commitments',
+    octLoan.committed.items.filter(function(i) { return i.name === 'Credit Union car loan'; }).length === 5 &&
+    money(octLoan.disposable) === money(octEmpty.disposable - 5 * 77));
+  check('the fuel forecast in a 30-day month covers every remaining day',
+    money(octEmpty.variable.fuel.forecast) === 562.5);
+
   return { success: true, passed: results.length, results: results };
 }
