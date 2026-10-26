@@ -270,7 +270,8 @@ const PayTrackerSmartSavingsCalculator = Object.freeze({
     const loanTransfers = (actual.loanTransfers || []).slice();
     this.debtCommitments(input, period).forEach(function(item) {
       if (item.dueDate < period.from) {
-        carriedOver.push(item);
+        // The same obligation already listed as a carried-over Bill is shown once.
+        if (!billKeys[self.obligationKey(item)]) carriedOver.push(item);
         return;
       }
       // The same obligation listed as a Bill is already counted: one obligation, one deduction.

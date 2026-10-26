@@ -239,6 +239,18 @@ function runVariableExpenseTests() {
   check('a past scheduled loan repayment with no bank evidence is still owed, and not marked paid',
     pastFriday.committed.items.some(function(i) { return i.name === 'Univeral Credit Loan' && i.dueDate === '2026-10-02' && i.status === 'Overdue'; }) &&
     pastFriday.committed.likelyPaid.length === 0 && money(pastFriday.actual.debtRepaymentsPaid) === 0);
+  // The 18 Sept repayment is an unpaid queue row (Debt) and the same payment is a past Bill: one carried-over line.
+  const earlierDuplicate = PayTrackerSmartSavingsCalculator.calculate(baseInput({
+    today: new Date(2026, 9, 26, 12),
+    pastDue: [{ kind: 'Bill', name: loanName, dueDate: '2026-09-18', amount: 77, status: 'Unverified', daysRemaining: -38 }],
+    payments: [{ paymentId: 'PAY-SEP', paymentType: 'Debt Repayment', itemId: 'DEBT-CU', billOrDebtName: loanName,
+      dueDate: new Date(2026, 8, 18, 12), amountDue: 77, paid: false }],
+    debts: [creditUnionDebt]
+  }));
+  check('a loan listed as both a bill and a debt from an earlier month is shown once in the carried-over list',
+    earlierDuplicate.committed.carriedOver.filter(function(i) { return i.name === loanName && i.dueDate === '2026-09-18'; }).length === 1);
+  check('the earlier-months duplicate is not deducted; only the 30 Oct commitment is',
+    money(earlierDuplicate.committed.total) === 77);
   check('a scheduled repayment is not treated as a transfer without a bank transaction',
     money(pastFriday.actual.sentToLoanAccount) === 0);
 
