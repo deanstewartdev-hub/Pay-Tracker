@@ -1159,6 +1159,10 @@ const PayTrackerAppController = Object.freeze({
             'A sync is already in progress elsewhere -- ' +
             'continuing with the latest available data.'
           );
+        } else if (result && result.skipped) {
+          PayTrackerAppController.renderSyncMessage(
+            'Data was synced a few minutes ago -- showing the latest available data.'
+          );
         } else if (result) {
           PayTrackerAppController.renderSyncResults(
             result

@@ -138,5 +138,8 @@ const PayTrackerSyncConfig = Object.freeze({
    */
   RUN_LOCK_STALE_AFTER_MILLISECONDS: 10 * 60 * 1000,
 
-  RUN_LOCK_PROPERTY_KEY: 'PAY_TRACKER_SYNC_ACTIVE_RUN'
+  RUN_LOCK_PROPERTY_KEY: 'PAY_TRACKER_SYNC_ACTIVE_RUN',
+  // When the last pass finished. A page-load (STARTUP) pass is skipped inside this window.
+  LAST_FINISHED_PROPERTY_KEY: 'PAY_TRACKER_SYNC_LAST_FINISHED',
+  STARTUP_COOLDOWN_MS: 10 * 60 * 1000
 });
