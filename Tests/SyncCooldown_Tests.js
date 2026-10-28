@@ -30,6 +30,15 @@ function runSyncCooldownTests() {
   check('a page-load pass inside the cooldown returns skipped without running the sync',
     skipped.skipped === true && skipped.alreadyRunning === false);
 
+  // Opening a page must not start a costly sync: only the zero-cost recompute runs on page load.
+  const startupTasks = C.TASKS.filter(function(task) { return task.enabled && task.startupEligible; })
+    .map(function(task) { return task.id; });
+  check('a page load runs only the zero-cost reconciliation', startupTasks.join(',') === 'RECONCILIATION');
+
+  const costlyTasks = C.TASKS.filter(function(task) { return task.id !== 'RECONCILIATION'; });
+  check('costly tasks stay on the scheduled and manual paths',
+    costlyTasks.every(function(task) { return !task.startupEligible && task.scheduledEligible; }));
+
   props.setProperty(C.LAST_FINISHED_PROPERTY_KEY, '');
   return { success: true, passed: results.length, results: results };
 }

@@ -71,37 +71,37 @@ const PayTrackerSyncConfig = Object.freeze({
     Object.freeze({
       id: 'CALENDAR', name: 'Calendar', source: 'Google Calendar',
       dependencies: Object.freeze([]), freshnessTtlMinutes: 15,
-      enabled: true, startupEligible: true, scheduledEligible: true,
+      enabled: true, startupEligible: false, scheduledEligible: true,
       critical: true
     }),
     Object.freeze({
       id: 'STAFFLINE_GMAIL', name: 'Staffline', source: 'Gmail (Staffline approvals)',
       dependencies: Object.freeze([]), freshnessTtlMinutes: 360,
-      enabled: true, startupEligible: true, scheduledEligible: true,
+      enabled: true, startupEligible: false, scheduledEligible: true,
       critical: true
     }),
     Object.freeze({
       id: 'PAYSLIP_GMAIL', name: 'Payslips', source: 'Gmail (Payroll Centre)',
       dependencies: Object.freeze([]), freshnessTtlMinutes: 360,
-      enabled: true, startupEligible: true, scheduledEligible: true,
+      enabled: true, startupEligible: false, scheduledEligible: true,
       critical: false
     }),
     Object.freeze({
       id: 'ANNUAL_LEAVE_GMAIL', name: 'Annual Leave', source: 'Gmail (Annual Leave)',
       dependencies: Object.freeze([]), freshnessTtlMinutes: 360,
-      enabled: true, startupEligible: true, scheduledEligible: true,
+      enabled: true, startupEligible: false, scheduledEligible: true,
       critical: false
     }),
     Object.freeze({
       id: 'MONZO_TRANSACTIONS', name: 'Monzo Transactions', source: 'Monzo API',
       dependencies: Object.freeze([]), freshnessTtlMinutes: 15,
-      enabled: true, startupEligible: true, scheduledEligible: true,
+      enabled: true, startupEligible: false, scheduledEligible: true,
       critical: false
     }),
     Object.freeze({
       id: 'MONZO_POTS', name: 'Savings Pots', source: 'Monzo API',
       dependencies: Object.freeze([]), freshnessTtlMinutes: 15,
-      enabled: true, startupEligible: true, scheduledEligible: true,
+      enabled: true, startupEligible: false, scheduledEligible: true,
       critical: false
     }),
     Object.freeze({
