@@ -26,12 +26,15 @@ function withRecordingRunners() {
   return sb;
 }
 
-test('"Check Monzo now" runs only MONZO_TRANSACTIONS; a full pass runs every task', () => {
+test('"Check Monzo now" runs only MONZO_TRANSACTIONS; a page load runs no costly task; a manual full pass runs every task', () => {
   const sb = withRecordingRunners();
   sb.json('runPayTrackerSync({ triggerSource: "MANUAL", taskIds: ["MONZO_TRANSACTIONS"], force: true })');
   assert.deepEqual(sb.json('__ran'), ['MONZO_TRANSACTIONS']);
   sb.run('__ran.length = 0');
   sb.json('runPayTrackerSync({ triggerSource: "STARTUP", force: true })');
+  assert.deepEqual(sb.json('__ran'), ['RECONCILIATION']);
+  sb.run('__ran.length = 0');
+  sb.json('runPayTrackerSync({ triggerSource: "MANUAL", force: true })');
   assert.ok(sb.json('__ran').length >= 7);
   const ui = source('Frontend/Services/UpcomingPaymentsService.html');
   assert.match(ui, /taskIds: \['MONZO_TRANSACTIONS'\]/, 'the button asks for the Monzo task only');

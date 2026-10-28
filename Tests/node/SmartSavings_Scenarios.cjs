@@ -96,7 +96,8 @@ test('end to end: actuals, commitments, disposable, suggestion and pot split for
   assert.equal(r.committed.bills, 85);
   assert.equal(r.committed.debts, 150);
   assert.equal(r.committed.total, 235, 'Rent (Nov) is next month; Energy and the car loan are this month');
-  assert.equal(r.disposable, 2100 - 180 - 650 - 30 - 235 - 100);
+  // Fuel estimate for the 16 days after 15 Oct (£75 every four days) is also deducted.
+  assert.equal(r.disposable, 2100 - 180 - 650 - 30 - 235 - 100 - 18.75 * 16);
   assert.equal(r.suggestion.amount, Math.floor(r.disposable * 0.6 * 100) / 100);
   const house = r.distribution.find(p => p.potId === 'POT-HOUSE');
   const emerg = r.distribution.find(p => p.potId === 'POT-EMERG');

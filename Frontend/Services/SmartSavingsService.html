@@ -89,7 +89,8 @@
       titles.append(
         service.el('p', 'smart-savings__eyebrow', 'Smart savings · ' + service.monthLabel(data.period)),
         service.el('h3', 'smart-savings__title', 'What you can genuinely save this month'),
-        service.el('p', 'smart-savings__muted', 'A preview from your actual bank activity. Pay Tracker never moves money.')
+        service.el('p', 'smart-savings__muted', 'A preview from your actual bank activity. Pay Tracker never moves money.'),
+        service.el('p', 'smart-savings__muted', 'Build: ' + (data.build || 'unknown (older code)'))
       );
       const refresh = service.el('button', 'button button--secondary', 'Recalculate');
       refresh.type = 'button';
@@ -97,6 +98,10 @@
       header.append(titles, refresh);
       root.appendChild(header);
 
+      const presentation = data.presentation || {};
+      if (presentation.incomplete) {
+        root.appendChild(service.el('p', 'smart-savings__warnings', presentation.incomplete));
+      }
       if ((data.warnings || []).length) {
         const list = service.el('ul', 'smart-savings__warnings');
         data.warnings.forEach(function(w) { list.appendChild(service.el('li', '', w)); });
@@ -116,6 +121,7 @@
         ['Moved to your own other accounts', actual.movedToOwnAccounts, -1],
         ['Received from your own accounts', actual.receivedFromOwnAccounts, 1],
         ['Still to pay before month end', committed.total, -1],
+        [(presentation.fuel || {}).label || 'Estimated fuel to come', (presentation.fuel || {}).amount, -1],
         ['Already saved this month', data.savedThisMonth, -1]
       ].forEach(function(line) {
         if (!Number(line[1]) && line[0] !== 'Income received') return;
@@ -125,6 +131,24 @@
       total.classList.add('smart-savings__line--total');
       lines.appendChild(total);
       workings.appendChild(lines);
+      if ((presentation.fuel || {}).from) {
+        const fuelNote = presentation.fuel;
+        workings.appendChild(service.el('p', 'smart-savings__muted',
+          'Fuel is an estimate, not a bill: ' + service.money(fuelNote.dailyRate * 7) + ' a week at ' + fuelNote.source.toLowerCase() +
+          ', for the ' + fuelNote.daysAhead + ' days from ' + fuelNote.from + ' to ' + fuelNote.to + '.'));
+      }
+
+      const concepts = service.card('Three different figures');
+      const conceptLines = service.el('ul', 'smart-savings__lines');
+      conceptLines.appendChild(service.line((presentation.connected || {}).label || 'Connected Monzo',
+        service.money((presentation.connected || {}).amount)));
+      conceptLines.appendChild(service.line('Awaiting classification: incoming',
+        service.money((presentation.awaiting || {}).incoming)));
+      conceptLines.appendChild(service.line('Awaiting classification: outgoing',
+        service.money((presentation.awaiting || {}).outgoing)));
+      conceptLines.appendChild(service.line((presentation.available || {}).label || 'Genuinely available',
+        service.money((presentation.available || {}).amount)));
+      concepts.appendChild(conceptLines);
 
       const suggest = service.card('Suggested to save now');
       suggest.append(
@@ -135,6 +159,7 @@
       );
       grid.append(workings, suggest);
       root.appendChild(grid);
+      root.appendChild(concepts);
 
       root.appendChild(service.potTable(data.distribution || [], data.unallocated));
       if ((data.goals || []).length) root.appendChild(service.goalsCard(data.goals));

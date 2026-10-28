@@ -202,26 +202,49 @@
     );
   }
 
+  // A workspace call that never returns must not leave the page loading forever.
+  var WORKSPACE_TIMEOUT_MS = 45000;
+
   function load(force) {
     if (
-      state.loading ||
-      (
-        state.loaded &&
-        force !== true
-      )
+      state.loading &&
+      force !== true
+    ) {
+      return;
+    }
+    if (
+      state.loaded &&
+      force !== true
     ) {
       return;
     }
 
     state.loading = true;
+    state.requestId = (state.requestId || 0) + 1;
+    var requestId = state.requestId;
+    var startedAt = Date.now();
     setLoading(true);
+
+    var timeoutId = window.setTimeout(function() {
+      if (state.requestId !== requestId || !state.loading) return;
+      state.loading = false;
+      setLoading(false);
+      console.warn('Savings workspace timed out after ' + WORKSPACE_TIMEOUT_MS + ' ms.');
+      showNotice(
+        'Savings is taking too long to load. Select Refresh to try again. If it keeps happening, a sync may be holding the spreadsheet.',
+        true
+      );
+    }, WORKSPACE_TIMEOUT_MS);
 
     call(
       'getPayTrackerSavingsWorkspace',
       [],
       function(data) {
+        if (state.requestId !== requestId) return;
+        window.clearTimeout(timeoutId);
         state.loading = false;
         setLoading(false);
+        console.info('Savings workspace loaded in ' + (Date.now() - startedAt) + ' ms.');
 
         if (
           !data ||
@@ -240,8 +263,11 @@
         loadMonzoPotOptions();
       },
       function(error) {
+        if (state.requestId !== requestId) return;
+        window.clearTimeout(timeoutId);
         state.loading = false;
         setLoading(false);
+        console.warn('Savings workspace failed after ' + (Date.now() - startedAt) + ' ms.');
         showNotice(
           getError(error),
           true
@@ -469,6 +495,11 @@
               '</td>',
               '<td>',
                 money(pot.currentBalance),
+                pot.balanceState
+                  ? '<small class="savings-balance-state' +
+                    (pot.balanceState.verified ? ' savings-balance-state--verified' : ' savings-balance-state--stored') +
+                    '">' + escape(pot.balanceState.label) + '</small>'
+                  : '',
               '</td>',
               '<td>',
                 pot.goalAmount > 0
