@@ -218,6 +218,40 @@ test('Bank Connections: token present but last sync errored is Unavailable, not 
   assert.equal(s.status, 'Unavailable');
 });
 
+// History cap: only settled history is capped. An old unpaid bill must not be dropped
+// (the Road Tax 540 due 17 Jul was lost once 40 newer paid items filled the cap).
+function timelineWithSettledHistory(count) {
+  const sources = {
+    bills: [
+      { billId: 'B-ROAD', billName: 'Road Tax', amount: 640, frequency: 'Annual', nextDueDate: '2026-07-17', active: 'Yes' },
+      { billId: 'B-BD', billName: 'Birthday Draw', amount: 1, frequency: 'Weekly', nextDueDate: '2026-08-17', active: 'Yes' }
+    ],
+    payments: [{ paymentId: 'P-ROAD', itemId: 'B-ROAD', billOrDebtName: 'Road Tax', paymentType: 'Bill Payment',
+      dueDate: '2026-07-17', amountDue: 540, paid: false, status: 'Upcoming' }],
+    paymentHistory: [], bankTransactions: [], subscriptions: [], subscriptionLinks: []
+  };
+  for (let i = 0; i < count; i++) {
+    const day = new Date(Date.UTC(2026, 6, 20 + i)).toISOString().slice(0, 10);
+    sources.paymentHistory.push({ paymentId: 'H' + i, itemId: 'B-BD', billOrDebtName: 'Birthday Draw', paymentType: 'Bill Payment',
+      originalDueDate: day, paidDate: day, amountPaid: 1, undoStatus: '' });
+  }
+  return sb.json('(function () { var m = PayTrackerPaymentTimeline.buildSeries(' + JSON.stringify(sources) + '); ' +
+    'return PayTrackerPaymentTimeline.present(m, "2026-11-04", {}); })()');
+}
+
+test('an unpaid bill from 17 July is kept in history even when 45 newer paid items exist', () => {
+  const view = timelineWithSettledHistory(45);
+  const road = view.history.filter((i) => i.name === 'Road Tax' && i.settled === false);
+  assert.equal(road.length, 1, 'the unsettled Road Tax occurrence is still listed');
+  assert.equal(road[0].dueDate, '2026-07-17');
+});
+
+test('settled history is still capped at 40 per kind', () => {
+  const view = timelineWithSettledHistory(60);
+  const settled = view.history.filter((i) => i.kind === 'Bill' && i.settled === true);
+  assert.ok(settled.length <= 40, 'settled bill history is capped (got ' + settled.length + ')');
+});
+
 const failed = results.filter((r) => !r.ok).length;
 console.log('Finance audit regressions: ' + (results.length - failed) + '/' + results.length + ' passed.');
 module.exports = { results };

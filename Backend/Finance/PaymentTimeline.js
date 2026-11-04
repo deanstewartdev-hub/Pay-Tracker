@@ -448,8 +448,13 @@ const PayTrackerPaymentTimeline = Object.freeze({
         const right = historyDay(b);
         return left === right ? 0 : (left < right ? 1 : -1);
       });
+    // Only settled history is capped. An unsettled past payment is still an obligation
+    // (it feeds the potential liability), so it is never dropped by the cap.
     history = [this.KINDS.BILL, this.KINDS.SUBSCRIPTION].reduce(function(kept, kind) {
-      return kept.concat(history.filter(function(item) { return item.kind === kind; }).slice(0, self.HISTORY_LIMIT_PER_KIND));
+      const ofKind = history.filter(function(item) { return item.kind === kind; });
+      const unsettled = ofKind.filter(function(item) { return item.settled === false; });
+      const settled = ofKind.filter(function(item) { return item.settled !== false; }).slice(0, self.HISTORY_LIMIT_PER_KIND);
+      return kept.concat(unsettled, settled);
     }, []).sort(function(a, b) {
       const left = historyDay(a);
       const right = historyDay(b);
