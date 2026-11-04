@@ -454,14 +454,22 @@ const PayTrackerSmartSavingsCalculator = Object.freeze({
     // Two rows for the same repayment (same debt, due date and amount) are one obligation.
     // Counted once, and reported, so a duplicated scheduled record cannot double the deduction.
     const seen = {};
+    const sameDay = {};
     const unique = [];
     items.forEach(function(item) {
       const key = this.obligationKey(item);
+      const dayKey = PayTrackerPaymentTimeline.normaliseName(item.name) + '|' + item.dueDate;
       if (seen[key]) {
         if (warnings) warnings.push('"' + item.name + '" has more than one repayment due ' + item.dueDate + ' for ' + this.money(item.amount || 0) + '. Counted once; check Finance Payments for the duplicate.');
         return;
       }
+      // Same debt and date, different amount: not provably the same obligation, so both stay (the
+      // conservative choice), and the owner is asked to check them.
+      if (sameDay[dayKey] && warnings) {
+        warnings.push('"' + item.name + '" has repayments on ' + item.dueDate + ' for different amounts. Both are counted; check Finance Payments.');
+      }
       seen[key] = true;
+      sameDay[dayKey] = true;
       unique.push(item);
     }, this);
     return unique;

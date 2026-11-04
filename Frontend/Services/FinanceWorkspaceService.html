@@ -1289,19 +1289,11 @@ function renderPayments(records) {
     setText(
       '[data-finance-bank-copy]',
       bank.connected
-        ? (
-            (bank.accountName || 'Monzo account') +
-            ' is connected. Last sync: ' +
-            (
-              bank.lastSuccessfulSync
-                ? date(
-                    bank.lastSuccessfulSync
-                  )
-                : 'not synced yet'
-            ) +
-            '.'
+        ? (bank.detail || 'Connected and usable.')
+        : (
+            (bank.detail ? bank.detail + ' ' : '') +
+            'Connect your own Monzo account with read-only access to import transactions and find recurring payments.'
           )
-        : 'Connect your own Monzo account with read-only access to import transactions and find recurring payments.'
     );
 
     setText(

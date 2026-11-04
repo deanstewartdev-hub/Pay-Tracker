@@ -189,24 +189,31 @@ const PayTrackerSavingsDashboardService = Object.freeze({
    * "verified" from this when it is recent (see MonzoPotSync.balanceState).
    */
   readMonzoSyncState: function () {
+    // hasAccessToken is a local property check: no Monzo request is made on page load.
     return PayTrackerSavingsDashboardService.monzoSyncFromBank(
-      PayTrackerUpcomingPaymentsService.readBankFreshness()
+      PayTrackerUpcomingPaymentsService.readBankFreshness(),
+      PayTrackerMonzoService.hasAccessToken()
     );
   },
 
   /*
-   * Pure: a stored "Disconnected" / "Not connected" / "Reauthorisation required"
-   * status is not connected, even when an older successful sync time remains.
+   * Pure (given the bank row and token presence): only a CONNECTED state is usable.
+   * Balances are verified from Monzo only in that state; everything else is stale.
    */
-  monzoSyncFromBank: function (bank) {
-    const status = String(bank.status || '');
-    const message = String(bank.message || '');
-    const failed = /error|fail/i.test(status) || /error|fail/i.test(message);
-    const notConnected = /disconnect|not connected|reauthoris/i.test(status + ' ' + message);
+  monzoSyncFromBank: function (bank, hasToken, now) {
+    const state = PayTrackerMonzoConnectionState.derive({
+      hasToken: Boolean(hasToken),
+      storedStatus: bank.status,
+      lastSuccess: bank.lastSuccess,
+      error: bank.message,
+      now: now || new Date()
+    });
     return {
-      connected: Boolean(bank.lastSuccess) && !failed && !notConnected,
-      syncedAt: bank.lastSuccess || '',
-      status: status || 'Unknown'
+      connected: state.usable,
+      state: state.state,
+      detail: state.detail,
+      syncedAt: state.lastSuccess,
+      status: bank.status || 'Unknown'
     };
   },
 
