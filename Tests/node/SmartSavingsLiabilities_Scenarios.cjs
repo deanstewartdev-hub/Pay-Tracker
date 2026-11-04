@@ -42,7 +42,7 @@ test('the conservative scenario subtracts the unresolved commitments', () => {
 
 test('a warning states both figures and that a mark-paid needs evidence', () => {
   const r = calculate(roadTaxInput);
-  assert.ok(r.warnings.some((w) => /Potential liability: .*unresolved earlier-month/.test(w)), 'liability warning present');
+  assert.ok(r.warnings.some((w) => /Potential liability \(maximum-exposure scenario.*unresolved earlier-month/.test(w)), 'liability warning present');
   assert.ok(r.warnings.some((w) => /if they were all still owed/.test(w)), 'conservative figure explained');
 });
 

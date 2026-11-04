@@ -252,6 +252,81 @@ test('settled history is still capped at 40 per kind', () => {
   assert.ok(settled.length <= 40, 'settled bill history is capped (got ' + settled.length + ')');
 });
 
+// Recorded vs projected liabilities: shown separately, and the maximum-exposure total is deducted once.
+test('recorded and projected liabilities are subtotalled separately and deducted once in the maximum-exposure figure', () => {
+  const r = calculate({
+    ...base,
+    debts: [],
+    payments: [],
+    pastDue: [
+      { kind: 'Bill', name: 'Recorded bill', dueDate: '2026-10-02', amount: 77, status: 'Unverified', daysRemaining: -33, recordedRow: true },
+      { kind: 'Bill', name: 'Projected bill', dueDate: '2026-10-09', amount: 20, status: 'Unverified', daysRemaining: -26, recordedRow: false }
+    ]
+  });
+  assert.equal(r.potentialLiabilities.recordedTotal, 77, 'recorded subtotal');
+  assert.equal(r.potentialLiabilities.projectedTotal, 20, 'projection subtotal');
+  assert.equal(r.potentialLiabilities.total, 97, 'total is the sum, counted once');
+  assert.equal(r.conservativeDisposable, r.disposable - 97, 'maximum exposure deducts the total once');
+  assert.ok(r.warnings.some((w) => /maximum-exposure scenario, unverified assumptions/.test(w)), 'labelled as a maximum-exposure scenario');
+});
+
+// Past-due planned contributions are not "this month" and never change available savings.
+test('a planned contribution from before this month is listed as overdue, not as this month\'s plan', () => {
+  const contribution = { contributionId: 'C1', potId: 'POT-HD', potName: 'House Deposit', dueDate: '2026-06-17',
+    contributionAmount: 354.91, deposited: false, status: 'Pending' };
+  const withOld = calculate({ ...base, debts: [], payments: [], contributions: [contribution] });
+  const without = calculate({ ...base, debts: [], payments: [], contributions: [] });
+  assert.equal(withOld.confirmations.length, 0, 'not in this month\'s planned contributions');
+  assert.equal(withOld.overdueContributions.length, 1, 'listed as overdue');
+  assert.equal(withOld.disposable, without.disposable, 'available money unchanged');
+  assert.equal(withOld.savedTowardsTarget, without.savedTowardsTarget, 'not counted as saved');
+  assert.ok(withOld.warnings.some((w) => /due before this month/.test(w)), 'warning present');
+});
+
+// Action Centre: a debt row for a repayment already listed as a bill occurrence is one line, not two.
+test('a debt row duplicating a bill occurrence is not listed as a separate debt', () => {
+  const sources = {
+    bills: [{ billId: 'B-UCL', billName: 'Univeral Credit Loan', amount: 77, frequency: 'Weekly', nextDueDate: '2026-10-30', active: 'Yes' }],
+    payments: [
+      { paymentId: 'P-BILL', itemId: 'B-UCL', billOrDebtName: 'Univeral Credit Loan', paymentType: 'Bill Payment', dueDate: '2026-10-30', amountDue: 77, paid: false, status: 'Upcoming' },
+      { paymentId: 'P-DEBT', itemId: 'D-UCL', billOrDebtName: 'Univeral Credit Loan', paymentType: 'Debt Repayment', dueDate: '2026-10-30', amountDue: 77, paid: false, status: 'Upcoming' }
+    ],
+    paymentHistory: [], bankTransactions: [], subscriptions: [], subscriptionLinks: []
+  };
+  const view = sb.json('(function () { var m = PayTrackerPaymentTimeline.buildSeries(' + JSON.stringify(sources) + '); ' +
+    'return PayTrackerPaymentTimeline.present(m, "2026-11-04", {}); })()');
+  const lines = view.risks.filter((risk) => /Univeral/.test(risk.name));
+  assert.equal(lines.length, 1, 'one Action Centre line for the repayment');
+  assert.equal(lines.reduce((s, risk) => s + risk.count, 0), 1, 'counted once');
+});
+
+// Recorded flag: an occurrence is "recorded" only when a Finance Payments row exists for its due date.
+test('an occurrence is marked recorded only when a Finance Payments row exists for its due date', () => {
+  const sources = {
+    bills: [{ billId: 'B-PH', billName: 'Phone Bill', amount: 10, frequency: 'Monthly', nextDueDate: '2026-09-01', active: 'Yes' }],
+    payments: [{ paymentId: 'P-PH', itemId: 'B-PH', billOrDebtName: 'Phone Bill', paymentType: 'Bill Payment', dueDate: '2026-09-01', amountDue: 10, paid: false, status: 'Upcoming' }],
+    paymentHistory: [], bankTransactions: [], subscriptions: [], subscriptionLinks: []
+  };
+  const view = sb.json('(function () { var m = PayTrackerPaymentTimeline.buildSeries(' + JSON.stringify(sources) + '); ' +
+    'return PayTrackerPaymentTimeline.present(m, "2026-11-04", {}); })()');
+  const phone = view.history.filter((i) => i.name === 'Phone Bill' && i.settled === false);
+  assert.equal(phone.find((i) => i.dueDate === '2026-09-01').recordedRow, true, 'the row-backed occurrence is recorded');
+  assert.equal(phone.find((i) => i.dueDate === '2026-10-01').recordedRow, false, 'the projected occurrence is not');
+});
+
+// Every unsettled past occurrence is listed in the Action Centre, however old (no list limit by age).
+test('every unsettled past occurrence is listed, however old', () => {
+  const sources = {
+    bills: [{ billId: 'B-OLD', billName: 'Old Subscription Bill', amount: 5, frequency: 'Monthly', nextDueDate: '2026-01-01', active: 'Yes' }],
+    payments: [], paymentHistory: [], bankTransactions: [], subscriptions: [], subscriptionLinks: []
+  };
+  const view = sb.json('(function () { var m = PayTrackerPaymentTimeline.buildSeries(' + JSON.stringify(sources) + '); ' +
+    'return PayTrackerPaymentTimeline.present(m, "2026-11-04", {}); })()');
+  const risk = view.risks.filter((r) => r.name === 'Old Subscription Bill')[0];
+  // Jan to Oct 2026 are ten monthly occurrences before today; all unsettled, all listed.
+  assert.equal(risk.count, 10, 'all ten unsettled occurrences are listed');
+});
+
 const failed = results.filter((r) => !r.ok).length;
 console.log('Finance audit regressions: ' + (results.length - failed) + '/' + results.length + ' passed.');
 module.exports = { results };

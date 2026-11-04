@@ -71,14 +71,22 @@ const PayTrackerSmartSavingsCalculator = Object.freeze({
 
     // Historical commitments with no payment evidence: not deducted above, shown as potential liabilities.
     // The conservative figure is what would remain if every one of them were still owed.
-    const unresolvedTotal = this.round(committed.carriedOver.reduce(function(sum, item) {
-      return sum + (item.amount === null || item.amount === undefined ? 0 : Number(item.amount) || 0);
-    }, 0));
+    // Split by evidence type, never mixed silently: recorded Finance Payments rows with no
+    // confirmed payment, and schedule projections that have no payment row at all.
+    const amountOf = function(item) { return item.amount === null || item.amount === undefined ? 0 : Number(item.amount) || 0; };
+    const recordedTotal = this.round(committed.carriedOver.filter(function(item) { return item.recordedRow; })
+      .reduce(function(sum, item) { return sum + amountOf(item); }, 0));
+    const projectedTotal = this.round(committed.carriedOver.filter(function(item) { return !item.recordedRow; })
+      .reduce(function(sum, item) { return sum + amountOf(item); }, 0));
+    const unresolvedTotal = this.round(recordedTotal + projectedTotal);
+    // Maximum-exposure scenario: every unresolved item counted once, on unverified assumptions.
     const conservativeDisposable = this.round(disposable - unresolvedTotal);
     if (unresolvedTotal > 0) {
-      warnings.push('Potential liability: ' + this.money(unresolvedTotal) + ' of unresolved earlier-month commitments. ' +
+      warnings.push('Potential liability (maximum-exposure scenario, unverified assumptions): ' + this.money(unresolvedTotal) +
+        ' of unresolved earlier-month commitments. ' + this.money(recordedTotal) + ' is recorded in Finance Payments with no confirmed payment; ' +
+        this.money(projectedTotal) + ' is from recurring schedules with no payment row. ' +
         'Available money is ' + this.money(disposable) + ', or ' + this.money(conservativeDisposable) +
-        ' if they were all still owed. Mark them paid in Finance only with evidence.');
+        ' if they were all still owed. This is not a confirmed debt. Mark them paid in Finance only with evidence.');
     }
 
     const suggestion = this.suggest(input.settings || {}, disposable, savedTowardsTarget, warnings);
@@ -120,6 +128,13 @@ const PayTrackerSmartSavingsCalculator = Object.freeze({
         'They are not counted as saved; check Monzo if a sync has run since.');
     }
 
+    const overdueContributions = confirmations.filter(function(c) { return c.dueDate < period.from; });
+    if (overdueContributions.length) {
+      warnings.push(overdueContributions.length + ' planned contribution(s) due before this month (' +
+        this.money(this.round(overdueContributions.reduce(function(s, c) { return s + (c.amount || 0); }, 0))) +
+        ') are not recorded as deposited. They are not counted as saved or as this month\'s plan. Record them only with bank evidence.');
+    }
+
     return {
       period: period,
       actual: actual.summary,
@@ -130,14 +145,17 @@ const PayTrackerSmartSavingsCalculator = Object.freeze({
       savedThisMonth: savedThisMonth,
       savedTowardsTarget: savedTowardsTarget,
       disposable: disposable,
-      potentialLiabilities: { total: unresolvedTotal, items: committed.carriedOver },
+      potentialLiabilities: { total: unresolvedTotal, recordedTotal: recordedTotal, projectedTotal: projectedTotal,
+        items: committed.carriedOver },
       conservativeDisposable: conservativeDisposable,
       suggestion: suggestion,
       distribution: distribution.pots,
       unallocated: distribution.unallocated,
       planned: planned,
       goals: this.goals(input.goals || [], pots, distribution.pots),
-      confirmations: confirmations,
+      // This month's planned contributions only. Older undeposited ones are listed separately and never counted.
+      confirmations: confirmations.filter(function(c) { return c.dueDate >= period.from; }),
+      overdueContributions: confirmations.filter(function(c) { return c.dueDate < period.from; }),
       unverifiedRecords: unverified,
       warnings: warnings
     };
@@ -262,7 +280,8 @@ const PayTrackerSmartSavingsCalculator = Object.freeze({
       if (item.kind === 'Bill') billKeys[self.obligationKey(item)] = true;
       if (item.dueDate > period.to) return;
       if (item.dueDate < period.from) {
-        carriedOver.push({ kind: item.kind, name: item.name, dueDate: item.dueDate, amount: item.amount, status: item.status });
+        carriedOver.push({ kind: item.kind, name: item.name, dueDate: item.dueDate, amount: item.amount, status: item.status,
+          recordedRow: Boolean(item.recordedRow) });
         return;
       }
       // Its bank transaction is already in this month's actuals: don't subtract it twice.
@@ -430,7 +449,7 @@ const PayTrackerSmartSavingsCalculator = Object.freeze({
       // A bank transaction already matched to this repayment is counted in the actuals.
       if (matched[String(row.paymentId || '')]) return;
       const amount = Number(row.amountDue);
-      items.push({ kind: 'Debt', name: String(row.billOrDebtName || ''), dueDate: due, amount: amount > 0 ? amount : null,
+      items.push({ kind: 'Debt', recordedRow: true, name: String(row.billOrDebtName || ''), dueDate: due, amount: amount > 0 ? amount : null,
         status: due < period.today ? 'Overdue' : 'Upcoming' });
     });
     (input.debts || []).forEach(function(debt) {
@@ -442,13 +461,13 @@ const PayTrackerSmartSavingsCalculator = Object.freeze({
       const anchor = anchors[id] || T.dayKey(debt.nextPaymentDate);
       if (!anchor) return;
       if (!anchors[id] && anchor >= period.today && anchor <= period.to) {
-        items.push({ kind: 'Debt', name: String(debt.debtName || id), dueDate: anchor, amount: amount > 0 ? amount : null, status: 'Upcoming' });
+        items.push({ kind: 'Debt', recordedRow: false, name: String(debt.debtName || id), dueDate: anchor, amount: amount > 0 ? amount : null, status: 'Upcoming' });
       }
       for (let step = 1; step <= 10; step++) {
         const due = T.stepKey(anchor, frequency, step);
         if (!due || due > period.to) break;
         if (due < period.today) continue;
-        items.push({ kind: 'Debt', name: String(debt.debtName || id), dueDate: due, amount: amount > 0 ? amount : null, status: 'Upcoming' });
+        items.push({ kind: 'Debt', recordedRow: false, name: String(debt.debtName || id), dueDate: due, amount: amount > 0 ? amount : null, status: 'Upcoming' });
       }
     });
     // Two rows for the same repayment (same debt, due date and amount) are one obligation.

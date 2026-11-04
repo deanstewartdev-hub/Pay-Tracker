@@ -119,5 +119,12 @@ function runPayTrackerLiabilityReconciliation() {
   }).forEach(function(row) {
     log('DEBT', { row: row.rowNumber, debtId: row['Debt ID'], name: row['Debt Name'], active: row['Active'], repaymentAmount: row['Repayment Amount'], frequency: row['Frequency'], nextPaymentDate: T.dayKey(row['Next Payment Date']) });
   });
+  // 6. Savings contribution queue and pots, for the old planned contribution (read-only).
+  readRows(PayTrackerSavingsConfig.SHEETS.CONTRIBUTIONS).slice(0, 40).forEach(function(row) {
+    log('CONTRIB_ROW', row);
+  });
+  readRows(PayTrackerSavingsConfig.SHEETS.POTS).slice(0, 20).forEach(function(row) {
+    log('POT_ROW', row);
+  });
   log('DONE', { today: today });
 }

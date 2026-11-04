@@ -165,9 +165,10 @@
       if ((data.goals || []).length) root.appendChild(service.goalsCard(data.goals));
       if ((committed.items || []).length) root.appendChild(service.commitmentsCard(committed.items));
       if ((committed.carriedOver || []).length) {
-        root.appendChild(service.commitmentsCard(committed.carriedOver, 'Unconfirmed from earlier months (not deducted)'));
+        root.appendChild(service.liabilityCard(data.potentialLiabilities || {}, committed.carriedOver));
       }
       root.appendChild(service.confirmationsCard(data.confirmations || []));
+      if ((data.overdueContributions || []).length) root.appendChild(service.overdueCard(data.overdueContributions));
       if ((data.unverifiedRecords || []).length) root.appendChild(service.unverifiedCard(data.unverifiedRecords));
     },
 
@@ -224,6 +225,40 @@
           item.amount === null ? 'Amount unknown' : service.money(item.amount)));
       });
       card.appendChild(lines);
+      return card;
+    },
+
+    // Earlier-month items with no confirmed payment, in two groups with separate subtotals.
+    // The total is a maximum-exposure scenario on unverified assumptions, never a confirmed debt.
+    liabilityCard: function(liability, items) {
+      const card = service.card('Earlier-month payments with no confirmed payment (not deducted)');
+      card.appendChild(service.el('p', 'smart-savings__muted',
+        'These are not confirmed debts. Mark them paid in Finance only with bank evidence.'));
+      const section = function(heading, group, subtotal) {
+        card.appendChild(service.el('p', 'smart-savings__subhead', heading + ': ' + service.money(subtotal || 0)));
+        const lines = service.el('ul', 'smart-savings__lines');
+        group.forEach(function(item) {
+          lines.appendChild(service.line(item.name + ' · ' + item.kind + ' · ' + service.day(item.dueDate) + ' (' + item.status + ')',
+            item.amount === null ? 'Amount unknown' : service.money(item.amount)));
+        });
+        card.appendChild(lines);
+      };
+      section('Recorded in Finance Payments, no confirmed payment', items.filter(function(i) { return i.recordedRow; }), liability.recordedTotal);
+      section('Projected from recurring schedules, no payment row', items.filter(function(i) { return !i.recordedRow; }), liability.projectedTotal);
+      card.appendChild(service.el('p', 'smart-savings__muted',
+        'Maximum-exposure scenario on unverified assumptions: ' + service.money(liability.total || 0) +
+        ' in total, counted once in the conservative figure. Not a confirmed debt.'));
+      return card;
+    },
+
+    // Planned contributions due before this month that were never recorded: shown, never counted.
+    overdueCard: function(items) {
+      const card = service.card('Past-due planned contributions, not recorded (not counted)');
+      card.appendChild(service.el('p', 'smart-savings__muted',
+        'Due before this month with no deposit recorded. Not counted as saved or in this month\'s plan. Check Monzo before recording anything.'));
+      items.forEach(function(item) {
+        card.appendChild(service.line(item.potName + ' · due ' + service.day(item.dueDate), service.money(item.amount)));
+      });
       return card;
     },
 
