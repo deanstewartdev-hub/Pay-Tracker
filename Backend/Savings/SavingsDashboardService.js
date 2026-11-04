@@ -189,12 +189,24 @@ const PayTrackerSavingsDashboardService = Object.freeze({
    * "verified" from this when it is recent (see MonzoPotSync.balanceState).
    */
   readMonzoSyncState: function () {
-    const bank = PayTrackerUpcomingPaymentsService.readBankFreshness();
-    const failed = /error|fail/i.test(String(bank.status || '')) || Boolean(bank.message && /error|fail/i.test(bank.message));
+    return PayTrackerSavingsDashboardService.monzoSyncFromBank(
+      PayTrackerUpcomingPaymentsService.readBankFreshness()
+    );
+  },
+
+  /*
+   * Pure: a stored "Disconnected" / "Not connected" / "Reauthorisation required"
+   * status is not connected, even when an older successful sync time remains.
+   */
+  monzoSyncFromBank: function (bank) {
+    const status = String(bank.status || '');
+    const message = String(bank.message || '');
+    const failed = /error|fail/i.test(status) || /error|fail/i.test(message);
+    const notConnected = /disconnect|not connected|reauthoris/i.test(status + ' ' + message);
     return {
-      connected: Boolean(bank.lastSuccess) && !failed,
+      connected: Boolean(bank.lastSuccess) && !failed && !notConnected,
       syncedAt: bank.lastSuccess || '',
-      status: bank.status || 'Unknown'
+      status: status || 'Unknown'
     };
   },
 

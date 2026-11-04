@@ -282,7 +282,7 @@ const PayTrackerSmartSavingsCalculator = Object.freeze({
       items.push({ kind: item.kind, name: item.name, dueDate: item.dueDate, amount: item.amount, status: item.status });
     });
     const loanTransfers = (actual.loanTransfers || []).slice();
-    this.debtCommitments(input, period).forEach(function(item) {
+    this.debtCommitments(input, period, warnings).forEach(function(item) {
       if (item.dueDate < period.from) {
         // The same obligation already listed as a carried-over Bill is shown once.
         if (!billKeys[self.obligationKey(item)]) carriedOver.push(item);
@@ -412,7 +412,7 @@ const PayTrackerSmartSavingsCalculator = Object.freeze({
    * queue holds only the next repayment per debt, so later repayments of
    * weekly/fortnightly debts are projected from the Debts sheet.
    */
-  debtCommitments: function(input, period) {
+  debtCommitments: function(input, period, warnings) {
     const T = PayTrackerPaymentTimeline;
     const matched = input.matchedPaymentIds || {};
     const items = [];
@@ -451,7 +451,20 @@ const PayTrackerSmartSavingsCalculator = Object.freeze({
         items.push({ kind: 'Debt', name: String(debt.debtName || id), dueDate: due, amount: amount > 0 ? amount : null, status: 'Upcoming' });
       }
     });
-    return items;
+    // Two rows for the same repayment (same debt, due date and amount) are one obligation.
+    // Counted once, and reported, so a duplicated scheduled record cannot double the deduction.
+    const seen = {};
+    const unique = [];
+    items.forEach(function(item) {
+      const key = this.obligationKey(item);
+      if (seen[key]) {
+        if (warnings) warnings.push('"' + item.name + '" has more than one repayment due ' + item.dueDate + ' for ' + this.money(item.amount || 0) + '. Counted once; check Finance Payments for the duplicate.');
+        return;
+      }
+      seen[key] = true;
+      unique.push(item);
+    }, this);
+    return unique;
   },
 
   readPots: function(rows, depositsByMonzoPot, history, period) {
