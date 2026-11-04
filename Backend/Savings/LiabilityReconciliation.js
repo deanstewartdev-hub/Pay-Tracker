@@ -66,45 +66,51 @@ function runPayTrackerLiabilityReconciliation() {
   }
 
   // 3. Every unpaid Finance Payments row dated before this month.
-  const payments = readRows(PayTrackerFinanceConfig.SHEETS.PAYMENTS);
+  // Header names are the sheet's own (see FinanceConfig.PAYMENTS.HEADERS). Blank rows are skipped.
+  const payments = readRows(PayTrackerFinanceConfig.SHEETS.PAYMENTS).filter(function(row) {
+    return String(row['Payment ID'] || '').trim() !== '' || String(row['Bill or Debt Name'] || '').trim() !== '';
+  });
   const unpaidBefore = payments.filter(function(row) {
-    return !T.isTrue(row['paid?']) && T.dayKey(row['dueDate']) && T.dayKey(row['dueDate']) < monthStart;
+    return !T.isTrue(row['Paid?']) && T.dayKey(row['Due Date']) && T.dayKey(row['Due Date']) < monthStart;
   });
   unpaidBefore.forEach(function(row) {
     log('PAYMENT', {
-      row: row.rowNumber, paymentId: row['paymentId'], itemId: row['itemId'], paymentType: row['paymentType'],
-      name: row['billOrDebtName'], dueDate: T.dayKey(row['dueDate']), amountDue: row['amountDue'],
-      paid: row['paid?'], status: row['status'], matchedFinanceId: row['matchedFinanceId'] || ''
+      row: row.rowNumber, paymentId: row['Payment ID'], itemId: row['Item ID'], paymentType: row['Payment Type'],
+      name: row['Bill or Debt Name'], dueDate: T.dayKey(row['Due Date']), amountDue: row['Amount Due'],
+      paid: row['Paid?'], status: row['Status']
     });
   });
-  log('PAYMENT_TOTAL', { rows: unpaidBefore.length, amount: unpaidBefore.reduce(function(s, r) { return s + (Number(r['amountDue']) || 0); }, 0) });
+  log('PAYMENT_TOTAL', { rows: unpaidBefore.length, amount: unpaidBefore.reduce(function(s, r) { return s + (Number(r['Amount Due']) || 0); }, 0) });
+  log('PAYMENT_ROWS_READ', { nonBlankRows: payments.length });
 
   // 4. Duplicates: the same payment ID twice, and the same obligation (name, date, amount) twice.
   const byId = {};
   payments.forEach(function(row) {
-    const id = String(row['paymentId'] || '').trim();
+    const id = String(row['Payment ID'] || '').trim();
     if (id) (byId[id] = byId[id] || []).push(row.rowNumber);
   });
   Object.keys(byId).filter(function(id) { return byId[id].length > 1; }).forEach(function(id) {
     log('DUPLICATE_ID', { paymentId: id, rows: byId[id] });
   });
   const byObligation = {};
-  payments.filter(function(row) { return !T.isTrue(row['paid?']); }).forEach(function(row) {
-    const key = T.normaliseName(row['billOrDebtName']) + '|' + T.dayKey(row['dueDate']) + '|' + Number(row['amountDue']);
-    (byObligation[key] = byObligation[key] || []).push({ row: row.rowNumber, paymentId: row['paymentId'], paymentType: row['paymentType'] });
+  payments.filter(function(row) { return !T.isTrue(row['Paid?']); }).forEach(function(row) {
+    const key = T.normaliseName(row['Bill or Debt Name']) + '|' + T.dayKey(row['Due Date']) + '|' + Number(row['Amount Due']);
+    (byObligation[key] = byObligation[key] || []).push({ row: row.rowNumber, paymentId: row['Payment ID'], paymentType: row['Payment Type'] });
   });
   Object.keys(byObligation).filter(function(key) { return byObligation[key].length > 1; }).forEach(function(key) {
     log('DUPLICATE_OBLIGATION', { obligation: key, records: byObligation[key] });
   });
 
   // 5. Definitions, for bill-versus-debt representation checks.
-  readRows(PayTrackerFinanceConfig.SHEETS.BILLS || 'Bills').filter(function(row) {
-    return String(row['active'] || '').trim() === 'Yes';
+  readRows(PayTrackerFinanceConfig.SHEETS.BILLS).filter(function(row) {
+    return String(row['Active'] || '').trim() === 'Yes';
   }).forEach(function(row) {
-    log('BILL', { row: row.rowNumber, billId: row['billId'], name: row['billName'], amount: row['amount'], frequency: row['frequency'], nextDueDate: T.dayKey(row['nextDueDate']) });
+    log('BILL', { row: row.rowNumber, billId: row['Bill ID'], name: row['Bill Name'], amount: row['Amount'], frequency: row['Frequency'], nextDueDate: T.dayKey(row['Next Due Date']) });
   });
-  readRows(PayTrackerFinanceConfig.SHEETS.DEBTS || 'Debts').forEach(function(row) {
-    log('DEBT', { row: row.rowNumber, debtId: row['debtId'], name: row['debtName'], active: row['active'], repaymentAmount: row['repaymentAmount'], frequency: row['frequency'], nextPaymentDate: T.dayKey(row['nextPaymentDate']) });
+  readRows(PayTrackerFinanceConfig.SHEETS.DEBTS).filter(function(row) {
+    return String(row['Debt ID'] || '').trim() !== '';
+  }).forEach(function(row) {
+    log('DEBT', { row: row.rowNumber, debtId: row['Debt ID'], name: row['Debt Name'], active: row['Active'], repaymentAmount: row['Repayment Amount'], frequency: row['Frequency'], nextPaymentDate: T.dayKey(row['Next Payment Date']) });
   });
   log('DONE', { today: today });
 }
