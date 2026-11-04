@@ -496,9 +496,7 @@
               '<td>',
                 money(pot.currentBalance),
                 pot.balanceState
-                  ? '<small class="savings-balance-state' +
-                    (pot.balanceState.verified ? ' savings-balance-state--verified' : ' savings-balance-state--stored') +
-                    '">' + escape(pot.balanceState.label) + '</small>'
+                  ? balanceStateBadge(pot.balanceState)
                   : '',
               '</td>',
               '<td>',
@@ -1023,6 +1021,18 @@
       );
 
     return element.innerHTML;
+  }
+
+  // Built with the DOM, not HTML text: the Apps Script template engine reads tag-like
+  // text inside JavaScript strings as markup, and on staging that rewrote '+' and then
+  // failed the whole include. This source therefore has no tag text for this badge.
+  function balanceStateBadge(state) {
+    const badge = document.createElement('small');
+    badge.className = state.verified
+      ? 'savings-balance-state savings-balance-state--verified'
+      : 'savings-balance-state savings-balance-state--stored';
+    badge.textContent = String(state.label === undefined || state.label === null ? '' : state.label);
+    return badge.outerHTML;
   }
 
   function empty(message) {
