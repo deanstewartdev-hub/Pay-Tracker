@@ -89,28 +89,40 @@ test('reauthorisation required: UNAVAILABLE with the reason', () => {
   assert.match(s.detail, /reauthorisation is needed/);
 });
 
-test('an old successful sync is out of date: UNAVAILABLE, never verified current', () => {
+test('an old successful sync: still CONNECTED (credentials usable), but freshness STALE', () => {
   const s = monzo({ hasToken: true, storedStatus: 'Connected', lastSuccess: OLD, error: '' });
-  assert.equal(s.state, 'UNAVAILABLE');
-  assert.equal(s.usable, false);
+  assert.equal(s.state, 'CONNECTED');
+  assert.equal(s.usable, true);
+  assert.equal(s.freshness, 'STALE');
+  assert.equal(s.status, 'Connected · data out of date');
   assert.match(s.detail, /out of date/);
 });
 
-test('token present but never synced: UNAVAILABLE, no successful sync yet', () => {
+test('token present, never synced: CONNECTED with freshness NONE, no sync time', () => {
   const s = monzo({ hasToken: true, storedStatus: 'Connected', lastSuccess: '', error: '' });
-  assert.equal(s.state, 'UNAVAILABLE');
+  assert.equal(s.state, 'CONNECTED');
+  assert.equal(s.freshness, 'NONE');
   assert.equal(s.lastSuccess, '');
 });
 
-test('no token and no successful sync ever: NEVER', () => {
+test('no token and no successful sync ever: NEVER, "Never connected"', () => {
   const s = monzo({ hasToken: false, storedStatus: 'Not Connected', lastSuccess: '', error: '' });
   assert.equal(s.state, 'NEVER');
-  assert.equal(s.status, 'Not connected');
+  assert.equal(s.status, 'Never connected');
 });
 
-test('a sync time in the future is not trusted as current', () => {
+test('a sync time in the future is not trusted as fresh (STALE), connection still usable', () => {
   const s = monzo({ hasToken: true, storedStatus: 'Connected', lastSuccess: '2026-11-05T09:00:00.000Z', error: '' });
-  assert.equal(s.usable, false);
+  assert.equal(s.freshness, 'STALE');
+  assert.equal(s.usable, true);
+});
+
+test('a stale connection never verifies a pot balance, even when the connection is usable', () => {
+  const bank = { status: 'Connected', lastSuccess: OLD, message: '' };
+  const sync = sb.json('PayTrackerSavingsDashboardService.monzoSyncFromBank(' + JSON.stringify(bank) + ', true, new Date("' + NOW + '"))');
+  const state = sb.json('PayTrackerMonzoPotSync.balanceState({ monzoPotId: "pot_linked" }, ' + JSON.stringify(sync) + ', new Date("' + NOW + '"))');
+  assert.equal(sync.connected, true);
+  assert.equal(state.verified, false);
 });
 
 test('the Savings pot sync treats every non-CONNECTED state as stale, never verified', () => {

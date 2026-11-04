@@ -211,6 +211,8 @@ const PayTrackerSavingsDashboardService = Object.freeze({
     return {
       connected: state.usable,
       state: state.state,
+      freshness: state.freshness,
+      label: state.status,
       detail: state.detail,
       syncedAt: state.lastSuccess,
       status: bank.status || 'Unknown'

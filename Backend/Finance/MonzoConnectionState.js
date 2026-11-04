@@ -4,18 +4,21 @@
  * already holds. It reads nothing, calls nothing and never exposes a token.
  * Callers pass hasToken (a local property check, not a Monzo request).
  *
- * States:
- *  CONNECTED     An access token is present, the last successful sync is
- *                recent (within the pot-sync freshness window), and the
- *                last sync did not error. Balances may be shown as verified.
- *  UNAVAILABLE   Previously connected but not usable now: the last sync
- *                errored, reauthorisation is needed, there is no successful
- *                sync yet, or the last successful sync is out of date.
- *  DISCONNECTED  No access token, or the stored status says disconnected,
- *                and a successful sync exists from before.
- *  NEVER         No access token and no successful sync ever.
+ * Connection states (usability: credentials and the last sync outcome):
+ *  CONNECTED     A local access token is present, the last sync did not error,
+ *                and no reauthorisation is needed. The connection is usable.
+ *  UNAVAILABLE   Token present but unusable now: reauthorisation is required,
+ *                or the last sync failed.
+ *  DISCONNECTED  No active authorised connection (no token, or the stored
+ *                status says disconnected), but a successful sync exists.
+ *  NEVER         No token and no successful sync ever (no connection history).
  *
- * Only CONNECTED is "usable". Everything else must be shown as stale.
+ * Data freshness is a SEPARATE indicator (FRESH / STALE / NONE), based only on
+ * the last successful sync time. Stale data does not make a connection
+ * unusable; it only stops balances being shown as freshly verified.
+ *
+ * Token expiry is not probed (that would be a Monzo request). It shows up as
+ * a failed or reauthorisation-required sync and is reported as UNAVAILABLE.
  *******************************************************/
 const PayTrackerMonzoConnectionState = Object.freeze({
   STATES: Object.freeze({
@@ -25,16 +28,22 @@ const PayTrackerMonzoConnectionState = Object.freeze({
     NEVER: 'NEVER'
   }),
 
+  FRESHNESS: Object.freeze({
+    FRESH: 'FRESH',
+    STALE: 'STALE',
+    NONE: 'NONE'
+  }),
+
   SHORT_LABELS: Object.freeze({
     CONNECTED: 'Connected',
     UNAVAILABLE: 'Unavailable',
     DISCONNECTED: 'Disconnected',
-    NEVER: 'Not connected'
+    NEVER: 'Never connected'
   }),
 
   /**
    * @param {Object} input {hasToken, storedStatus, lastSuccess (ISO, Date or ''), error, now (Date)}
-   * @return {{state, usable, status, detail, lastSuccess, ageHours}}
+   * @return {{state, usable, freshness, status, detail, lastSuccess, ageHours}}
    */
   derive: function(input) {
     const now = input.now instanceof Date ? input.now : new Date();
@@ -42,11 +51,18 @@ const PayTrackerMonzoConnectionState = Object.freeze({
     const message = String(input.error || '');
     const last = this.toDate_(input.lastSuccess);
     const ageHours = last ? (now.getTime() - last.getTime()) / 3600000 : null;
-    const freshHours = PayTrackerMonzoPotSync.FRESH_HOURS;
     const lastText = last ? PayTrackerMonzoPotSync.formatSynced(last) : '';
     const errored = /error|fail/i.test(status) || /error|fail/i.test(message);
     const reauthorise = /reauthori[sz]/i.test(status + ' ' + message);
     const off = /disconnect|not connected/i.test(status + ' ' + message);
+
+    // Freshness: a future sync time is not trusted as current.
+    let freshness = this.FRESHNESS.NONE;
+    if (last) {
+      freshness = ageHours >= 0 && ageHours <= PayTrackerMonzoPotSync.FRESH_HOURS
+        ? this.FRESHNESS.FRESH
+        : this.FRESHNESS.STALE;
+    }
 
     let state;
     let detail;
@@ -54,26 +70,29 @@ const PayTrackerMonzoConnectionState = Object.freeze({
       state = last ? this.STATES.DISCONNECTED : this.STATES.NEVER;
       detail = last
         ? 'Disconnected. Last successful sync ' + lastText + '.'
-        : 'Not connected to Monzo.';
+        : 'Never connected to Monzo.';
     } else if (reauthorise || errored) {
       state = this.STATES.UNAVAILABLE;
-      detail = 'Previously connected, currently unavailable: ' + (reauthorise ? 'reauthorisation is needed' : 'the last sync failed') +
+      detail = 'Unavailable: ' + (reauthorise ? 'reauthorisation is needed' : 'the last sync failed') +
         (last ? '. Last successful sync ' + lastText + '.' : '.');
-    } else if (!last) {
-      state = this.STATES.UNAVAILABLE;
-      detail = 'Connected, but no successful sync yet.';
-    } else if (ageHours < 0 || ageHours > freshHours) {
-      state = this.STATES.UNAVAILABLE;
-      detail = 'Previously connected, currently unavailable: the last successful sync ' + lastText + ' is out of date.';
     } else {
       state = this.STATES.CONNECTED;
-      detail = 'Connected and usable. Last successful sync ' + lastText + '.';
+      detail = !last
+        ? 'Connected. No successful sync yet.'
+        : freshness === this.FRESHNESS.FRESH
+          ? 'Connected. Last successful sync ' + lastText + '.'
+          : 'Connected, but data is out of date: last successful sync ' + lastText + '. Sync to refresh.';
     }
+
+    const label = state === this.STATES.CONNECTED && freshness === this.FRESHNESS.STALE
+      ? 'Connected · data out of date'
+      : this.SHORT_LABELS[state];
 
     return {
       state: state,
       usable: state === this.STATES.CONNECTED,
-      status: this.SHORT_LABELS[state],
+      freshness: freshness,
+      status: label,
       detail: detail,
       lastSuccess: last ? last.toISOString() : '',
       ageHours: ageHours === null ? null : Math.round(ageHours * 10) / 10
