@@ -85,6 +85,28 @@ test('the assembled page binds the Savings tabs and loads the workspace on route
   window.close();
 });
 
+test('repeated navigation to Savings starts one workspace load while one is in flight', async () => {
+  const { JSDOM } = require('jsdom');
+  const dom = new JSDOM(assembleIndex(), { runScripts: 'dangerously', pretendToBeVisual: true, url: 'https://example.test/' });
+  const window = dom.window;
+  const calls = [];
+  const runner = new Proxy({}, {
+    get(target, name) {
+      if (name === 'withSuccessHandler' || name === 'withFailureHandler') return () => runner;
+      return () => { calls.push(String(name)); };
+    }
+  });
+  window.google = { script: { run: runner } };
+  await new Promise((resolve) => setTimeout(resolve, 1500));
+  const navigate = () => window.document.dispatchEvent(new window.CustomEvent('paytracker:routechange', { detail: { route: 'savings' } }));
+  navigate();
+  navigate();
+  navigate();
+  const workspaceCalls = calls.filter((name) => name === 'getPayTrackerSavingsWorkspace');
+  assert.equal(workspaceCalls.length, 1, 'only one workspace request is sent while one is in flight');
+  window.close();
+});
+
 module.exports = { tests };
 
 if (require.main === module) {
