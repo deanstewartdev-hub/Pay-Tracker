@@ -124,6 +124,61 @@ test('repeated navigation to Savings starts one workspace load while one is in f
   window.close();
 });
 
+test('a workspace request that never returns shows the timeout notice and stops loading', async () => {
+  const { JSDOM } = require('jsdom');
+  const dom = new JSDOM(assembleIndex(), {
+    runScripts: 'dangerously',
+    pretendToBeVisual: true,
+    url: 'https://example.test/',
+    beforeParse(window) {
+      // Shorten only the 45-second workspace timeout so the real timeout path runs quickly.
+      const realSetTimeout = window.setTimeout.bind(window);
+      window.setTimeout = (fn, ms, ...args) => realSetTimeout(fn, ms === 45000 ? 50 : ms, ...args);
+    }
+  });
+  const window = dom.window;
+  const runner = new Proxy({}, {
+    get(target, name) {
+      if (name === 'withSuccessHandler' || name === 'withFailureHandler') return () => runner;
+      return () => {};
+    }
+  });
+  window.google = { script: { run: runner } };
+  await waitForSavingsBinding(window);
+  window.document.dispatchEvent(new window.CustomEvent('paytracker:routechange', { detail: { route: 'savings' } }));
+  await new Promise((resolve) => setTimeout(resolve, 300));
+  const notice = window.document.querySelector('[data-savings-notice]');
+  assert.match(notice.textContent, /taking too long to load/);
+  assert.equal(window.document.querySelector('[data-savings-loading]').hidden, true, 'the loading state is cleared');
+  window.close();
+});
+
+test('a failed workspace request shows the error and clears the loading state', async () => {
+  const { JSDOM } = require('jsdom');
+  const dom = new JSDOM(assembleIndex(), { runScripts: 'dangerously', pretendToBeVisual: true, url: 'https://example.test/' });
+  const window = dom.window;
+  // Pair each server call with the failure handler set just before it.
+  let pendingFailure = null;
+  const failureFor = {};
+  const runner = new Proxy({}, {
+    get(target, name) {
+      if (name === 'withSuccessHandler') return () => runner;
+      if (name === 'withFailureHandler') return (handler) => { pendingFailure = handler; return runner; };
+      return () => { failureFor[String(name)] = pendingFailure; pendingFailure = null; };
+    }
+  });
+  window.google = { script: { run: runner } };
+  await waitForSavingsBinding(window);
+  window.document.dispatchEvent(new window.CustomEvent('paytracker:routechange', { detail: { route: 'savings' } }));
+  const failureHandler = failureFor.getPayTrackerSavingsWorkspace;
+  assert.ok(failureHandler, 'a failure handler was registered for the workspace request');
+  failureHandler(new Error('Required sheet not found: Savings Pots'));
+  const notice = window.document.querySelector('[data-savings-notice]');
+  assert.match(notice.textContent, /Required sheet not found/);
+  assert.equal(window.document.querySelector('[data-savings-loading]').hidden, true);
+  window.close();
+});
+
 module.exports = { tests };
 
 if (require.main === module) {
