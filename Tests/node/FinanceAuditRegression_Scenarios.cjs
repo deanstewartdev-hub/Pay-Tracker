@@ -270,6 +270,20 @@ test('recorded and projected liabilities are subtotalled separately and deducted
   assert.ok(r.warnings.some((w) => /maximum-exposure scenario, unverified assumptions/.test(w)), 'labelled as a maximum-exposure scenario');
 });
 
+// A Finance Payments debt row that duplicates a projected bill occurrence is the record of it:
+// the obligation is counted once and classed as recorded, not as a projection.
+test('a debt row that duplicates a projected bill occurrence is classed as recorded, counted once', () => {
+  const r = calculate({
+    ...base,
+    debts: [],
+    payments: [debtRow('P10', '2026-09-18')],
+    pastDue: [{ kind: 'Bill', name: 'Credit Union', dueDate: '2026-09-18', amount: 77, status: 'Unverified', daysRemaining: -47, recordedRow: false }]
+  });
+  assert.equal(r.potentialLiabilities.total, 77, 'counted once');
+  assert.equal(r.potentialLiabilities.recordedTotal, 77, 'classed as recorded');
+  assert.equal(r.potentialLiabilities.projectedTotal, 0, 'not a projection');
+});
+
 // Past-due planned contributions are not "this month" and never change available savings.
 test('a planned contribution from before this month is listed as overdue, not as this month\'s plan', () => {
   const contribution = { contributionId: 'C1', potId: 'POT-HD', potName: 'House Deposit', dueDate: '2026-06-17',

@@ -478,12 +478,16 @@ const PayTrackerPaymentTimeline = Object.freeze({
         return self.normaliseName(name) + '|' + dueDate + '|' + (amount === null || amount === undefined ? '' : Math.round(Number(amount) * 100));
       };
       risks.forEach(function(risk) {
-        (risk.occurrences || []).forEach(function(o) { listed[obligationKey(risk.name, o.dueDate, o.amount)] = true; });
+        (risk.occurrences || []).forEach(function(o) { listed[obligationKey(risk.name, o.dueDate, o.amount)] = o; });
       });
       (model.debtsDue || []).filter(function(debt) { return debt.dueDate < graceKey; }).forEach(function(debt) {
         const key = obligationKey(debt.name, debt.dueDate, debt.amount);
-        if (listed[key]) return;
-        listed[key] = true;
+        if (listed[key]) {
+          // The Finance Payments debt row is the record of a schedule projection shown as a bill.
+          if (debt.paymentId) listed[key].recordedRow = true;
+          return;
+        }
+        listed[key] = {};
         risks.push({
           riskId: 'DEBT:' + (debt.paymentId || debt.itemId + '@' + debt.dueDate), kind: 'Debt', sourceId: debt.itemId, name: debt.name,
           count: 1, amount: debt.amount || 0, unknownAmountCount: debt.amount === null ? 1 : 0,

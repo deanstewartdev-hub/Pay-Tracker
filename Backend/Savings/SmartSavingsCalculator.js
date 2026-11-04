@@ -303,8 +303,15 @@ const PayTrackerSmartSavingsCalculator = Object.freeze({
     const loanTransfers = (actual.loanTransfers || []).slice();
     this.debtCommitments(input, period, warnings).forEach(function(item) {
       if (item.dueDate < period.from) {
-        // The same obligation already listed as a carried-over Bill is shown once.
-        if (!billKeys[self.obligationKey(item)]) carriedOver.push(item);
+        // The same obligation already listed as a carried-over Bill is shown once. If that
+        // bill occurrence was only a schedule projection, the Finance Payments debt row is
+        // the record of it, so it is marked recorded.
+        const key = self.obligationKey(item);
+        if (!billKeys[key]) {
+          carriedOver.push(item);
+        } else if (item.recordedRow) {
+          carriedOver.forEach(function(c) { if (self.obligationKey(c) === key) c.recordedRow = true; });
+        }
         return;
       }
       // The same obligation listed as a Bill is already counted: one obligation, one deduction.
