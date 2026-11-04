@@ -40,6 +40,23 @@ function assembleIndex() {
   return html;
 }
 
+async function waitForSavingsBinding(window) {
+  const deadline = Date.now() + 8000;
+  while (Date.now() < deadline) {
+    const pots = window.document.querySelector('[data-savings-tab="pots"]');
+    if (pots) {
+      pots.click();
+      const active = window.document.querySelector('.savings-tab.is-active');
+      if (active && active.getAttribute('data-savings-tab') === 'pots') {
+        window.document.querySelector('[data-savings-tab="overview"]').click();
+        return;
+      }
+    }
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
+  throw new Error('Savings handlers did not bind within 8 seconds');
+}
+
 const tests = [];
 function test(name, run) { tests.push({ name, run }); }
 
@@ -66,7 +83,7 @@ test('the assembled page binds the Savings tabs and loads the workspace on route
   });
   window.google = { script: { run: runner } };
 
-  await new Promise((resolve) => setTimeout(resolve, 1500));
+  await waitForSavingsBinding(window);
   const doc = window.document;
 
   assert.ok(doc.querySelector('[data-savings-workspace]'), 'the Savings page is in the assembled page');
@@ -97,7 +114,7 @@ test('repeated navigation to Savings starts one workspace load while one is in f
     }
   });
   window.google = { script: { run: runner } };
-  await new Promise((resolve) => setTimeout(resolve, 1500));
+  await waitForSavingsBinding(window);
   const navigate = () => window.document.dispatchEvent(new window.CustomEvent('paytracker:routechange', { detail: { route: 'savings' } }));
   navigate();
   navigate();

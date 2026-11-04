@@ -69,6 +69,18 @@ const PayTrackerSmartSavingsCalculator = Object.freeze({
       .reduce(function(sum, pot) { return sum + Math.max(pot.savedThisMonth, 0); }, 0);
     const savedTowardsTarget = this.round(Math.max(savedThisMonth, 0) + recordedElsewhere);
 
+    // Historical commitments with no payment evidence: not deducted above, shown as potential liabilities.
+    // The conservative figure is what would remain if every one of them were still owed.
+    const unresolvedTotal = this.round(committed.carriedOver.reduce(function(sum, item) {
+      return sum + (item.amount === null || item.amount === undefined ? 0 : Number(item.amount) || 0);
+    }, 0));
+    const conservativeDisposable = this.round(disposable - unresolvedTotal);
+    if (unresolvedTotal > 0) {
+      warnings.push('Potential liability: ' + this.money(unresolvedTotal) + ' of unresolved earlier-month commitments. ' +
+        'Available money is ' + this.money(disposable) + ', or ' + this.money(conservativeDisposable) +
+        ' if they were all still owed. Mark them paid in Finance only with evidence.');
+    }
+
     const suggestion = this.suggest(input.settings || {}, disposable, savedTowardsTarget, warnings);
     const distribution = this.distribute(suggestion.amount, pots, warnings);
     const planned = this.planned(pots);
@@ -118,6 +130,8 @@ const PayTrackerSmartSavingsCalculator = Object.freeze({
       savedThisMonth: savedThisMonth,
       savedTowardsTarget: savedTowardsTarget,
       disposable: disposable,
+      potentialLiabilities: { total: unresolvedTotal, items: committed.carriedOver },
+      conservativeDisposable: conservativeDisposable,
       suggestion: suggestion,
       distribution: distribution.pots,
       unallocated: distribution.unallocated,
