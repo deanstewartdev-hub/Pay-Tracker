@@ -48,6 +48,10 @@ function runPayTrackerLiabilityReconciliation() {
     preview.potentialLiabilities.items.forEach(function(item) {
       log('CALC_LIABILITY', { name: item.name, kind: item.kind, dueDate: item.dueDate, amount: item.amount, status: item.status });
     });
+    (preview.warnings || []).forEach(function(w) { log('CALC_WARNING', String(w)); });
+    (preview.committed.likelyPaid || []).forEach(function(item) {
+      log('LIKELY_PAID', { name: item.name, dueDate: item.dueDate, amount: item.amount, paidDate: item.paidDate, transactionId: item.transactionId });
+    });
   } catch (error) {
     log('CALC_ERROR', String(error && error.message ? error.message : error));
   }
@@ -56,6 +60,9 @@ function runPayTrackerLiabilityReconciliation() {
   try {
     const timeline = PayTrackerUpcomingPaymentsService.get({ horizonDays: 32 });
     let occurrences = 0;
+    (timeline.history || []).filter(function(item) { return item.settled === false; }).forEach(function(item) {
+      log('HISTORY_UNSETTLED', { name: item.name, kind: item.kind, dueDate: item.dueDate, amount: item.amount, status: item.status, sourceId: item.sourceId, projected: item.projected });
+    });
     (timeline.risks || []).forEach(function(risk) {
       occurrences += Number(risk.count) || 0;
       log('TIMELINE', { name: risk.name, kind: risk.kind, sourceId: risk.sourceId, count: risk.count, oldestDue: risk.oldestDue, occurrences: risk.occurrences });
