@@ -831,6 +831,20 @@ const PayTrackerFinanceDashboard = Object.freeze({
     let populatedWeeks =
       0;
 
+    /*
+     * One read of the used block instead of several reads per week
+     * (each Sheets read is a round trip; this was the slowest step of the
+     * Savings workspace). Values are identical to the per-cell reads.
+     */
+    const usedRange = sheet.getRange(
+      1,
+      1,
+      Math.max(sheet.getLastRow(), 1),
+      Math.max(sheet.getLastColumn(), 1)
+    );
+    const displayGrid = usedRange.getDisplayValues();
+    const valueGrid = usedRange.getValues();
+
     for (
       let weekNumber = 1;
       weekNumber <= existingWeeks;
@@ -842,24 +856,24 @@ const PayTrackerFinanceDashboard = Object.freeze({
         );
 
       if (
-        !PayTrackerWeekManager.weekHasShiftData(
-          sheet,
+        !PayTrackerWeekManager.weekHasShiftDataFromGrid(
+          displayGrid,
           startRow
         )
       ) {
         continue;
       }
 
+      const summaryRow =
+        valueGrid[startRow + 5 - 1] || [];
+
       const weeklyTakeHome =
         Number(
-          sheet
-            .getRange(
-              startRow + 5,
-              PayTrackerConfig
-                .SHEET
-                .WEEKLY_SUMMARY_VALUE_COLUMN
-            )
-            .getValue()
+          summaryRow[
+            PayTrackerConfig
+              .SHEET
+              .WEEKLY_SUMMARY_VALUE_COLUMN - 1
+          ]
         ) || 0;
 
       totalTakeHome +=

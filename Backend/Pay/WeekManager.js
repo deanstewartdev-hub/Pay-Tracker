@@ -1020,6 +1020,51 @@ const PayTrackerWeekManager = Object.freeze({
 
 
   /**
+   * Same answer as weekHasShiftData(sheet, startRow), computed from display
+   * values that were already read in one call (grid[row - 1][column - 1],
+   * 1-based sheet coordinates). Missing cells count as empty.
+   *
+   * @param {Array<Array<*>>} grid Display values from row 1.
+   * @param {number} startRow First row of the week block.
+   * @return {boolean}
+   */
+  weekHasShiftDataFromGrid: function (
+    grid,
+    startRow
+  ) {
+    const firstDataRow =
+      startRow +
+      PayTrackerConfig.SHEET
+        .WEEK_DATA_ROW_OFFSET;
+
+    return getConfiguredPayTables_().some(
+      function (table) {
+        const shiftColumn =
+          table.startColumn + 2;
+
+        for (
+          let offset = 0;
+          offset <
+            PayTrackerConfig.SHEET
+              .WEEK_DATA_ROW_COUNT;
+          offset++
+        ) {
+          const row =
+            grid[firstDataRow + offset - 1] || [];
+
+          if (String(
+            row[shiftColumn - 1] || ''
+          ).trim() !== '') {
+            return true;
+          }
+        }
+
+        return false;
+      }
+    );
+  },
+
+  /**
    * Shows only:
    * - Current week
    * - Previous week
