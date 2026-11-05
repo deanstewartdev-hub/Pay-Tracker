@@ -43,6 +43,22 @@ const PayTrackerEmploymentPeriods = Object.freeze({
     return this.isActiveOn((this.JOB_PERIODS || {})[jobId] || [], dayKey);
   },
 
+  /** Job id for a pay table name (the calendar sync knows the table, not the job). Unknown tables return ''. */
+  jobIdForTable: function(tableName) {
+    return ({
+      'NHS': 'JOB-NHS',
+      'Relief Assistant Warden': 'JOB-RELIEF-WARDEN',
+      'Night Security Warden': 'JOB-NIGHT-SECURITY',
+      'Logging Cash': 'JOB-LOGGING-CASH'
+    })[String(tableName || '')] || '';
+  },
+
+  /** Local calendar day of a Date as yyyy-mm-dd (same convention as the pay resolver). */
+  dayKeyOf: function(date) {
+    const pad = function(n) { return (n < 10 ? '0' : '') + n; };
+    return date.getFullYear() + '-' + pad(date.getMonth() + 1) + '-' + pad(date.getDate());
+  },
+
   /** Recording pay already earned is never blocked by the employment period. */
   recordingAllowed: function() {
     return true;
@@ -54,6 +70,17 @@ const PayTrackerEmploymentPeriods = Object.freeze({
       return entry.effectiveFrom <= dayKey;
     });
     return applicable.length ? applicable[applicable.length - 1].hourly : null;
+  },
+
+  // Pay tables whose classification is not yet verified. Their values are kept, but the automatic
+  // minimum-wage check does not apply until the owner confirms what the table represents.
+  UNVERIFIED_CLASSIFICATION: Object.freeze({
+    'Logging Cash': 'Unverified: may be a real hourly employment rate, a cash-earnings category, or a fixed payment for logging work. Owner to classify.'
+  }),
+
+  /** The automatic minimum-wage check applies only to tables with a verified classification. */
+  minimumCheckApplies: function(tableName) {
+    return !Object.prototype.hasOwnProperty.call(this.UNVERIFIED_CLASSIFICATION, String(tableName || ''));
   },
 
   /** True when an hourly rate is below the minimum in force on dayKey. Unknown minimum: not flagged. */

@@ -47,15 +47,19 @@ test('the minimum rises by 50p on 1 April 2026; the module never moves a contrac
   // Contract rates are read from the pay rules, never derived from the minimum.
 });
 
-test('current basic rates in the pay rules: only Logging Cash (£10/hr) is below the minimum from 1 April 2026', () => {
+test('automatic minimum-wage check skips Logging Cash (unverified classification) and flags nothing else', () => {
   const rates = sb.json('(function () { var out = []; ' +
     'Object.keys(PayTrackerConfig.PAY_RULES).forEach(function (table) { ' +
     '  var rules = PayTrackerConfig.PAY_RULES[table]; ' +
     '  Object.keys(rules).forEach(function (shift) { ' +
     '    if (/basic|split|Logging/i.test(shift) && rules[shift] && rules[shift].hourlyRate) { out.push({ table: table, shift: shift, hourly: rules[shift].hourlyRate }); } ' +
     '  }); }); return out; })()');
-  const flagged = rates.filter(function (r) { return call(P + '.belowMinimum(' + r.hourly + ', "2026-04-01")'); });
-  assert.deepEqual(flagged.map(function (r) { return r.table; }), ['Logging Cash'], 'only Logging Cash is flagged for investigation');
+  const automatic = rates.filter(function (r) {
+    return call(P + '.minimumCheckApplies("' + r.table + '")') && call(P + '.belowMinimum(' + r.hourly + ', "2026-04-01")');
+  });
+  assert.deepEqual(automatic, [], 'no table is flagged automatically');
+  assert.equal(call(P + '.minimumCheckApplies("Logging Cash")'), false, 'Logging Cash is not checked automatically');
+  assert.equal(call(P + '.belowMinimum(10, "2026-04-01")'), true, 'the value is still reported if checked by hand');
 });
 
 test('Night Security and Relief Warden basic rates are above the minimum', () => {
@@ -91,6 +95,38 @@ test('reactivation adds a period and keeps the history: earlier days stay active
 test('an open-ended reactivation has no end date', () => {
   const periods = '[{ start: null, end: "2026-10-31" }, { start: "2027-03-01", end: null }]';
   assert.equal(call(P + '.isActiveOn(' + periods + ', "2029-01-01")'), true);
+});
+
+
+// Calendar guard: a seasonal shift dated after 31 October is flagged, and nothing is written.
+test('a Night Security shift dated after the contract end is flagged, and the PaySheet is not written', () => {
+  const sheetName = 'PaySheet';
+  const sheet = sb.getSheet(sheetName);
+  const before = JSON.stringify(sheet.rows);
+  const result = sb.json('(function () { return PayTrackerCalendarService.addShiftToSheet(' +
+    'SpreadsheetApp.getActiveSpreadsheet().getSheetByName(' + JSON.stringify(sheetName) + '), ' +
+    'new Date(2026, 10, 3, 12), "Night Security Warden", "Enhanced 1.50", 4, ' +
+    '{ eventKey: "E-NIGHT-1", event: {}, jobId: "JOB-NIGHT-SECURITY", isAnnualLeave: false }); })()');
+  assert.equal(result.status, 'flaggedAfterContractEnd');
+  assert.equal(result.jobId, 'JOB-NIGHT-SECURITY');
+  assert.equal(result.date, '2026-11-03');
+  assert.equal(JSON.stringify(sheet.rows), before, 'nothing was written to the PaySheet');
+});
+
+test('a repeated calendar pass over the same post-contract shift is idempotent: same flag, no writes', () => {
+  const sheet = sb.getSheet('PaySheet');
+  const before = JSON.stringify(sheet.rows);
+  const call2 = () => sb.json('(function () { return PayTrackerCalendarService.addShiftToSheet(SpreadsheetApp.getActiveSpreadsheet().getSheetByName("PaySheet"), new Date(2026, 10, 3, 12), "Night Security Warden", "Enhanced 1.50", 4, { eventKey: "E-NIGHT-1", event: {}, jobId: "JOB-NIGHT-SECURITY", isAnnualLeave: false }); })()');
+  const a = call2();
+  const b = call2();
+  assert.equal(a.status, 'flaggedAfterContractEnd');
+  assert.deepEqual(b, a);
+  assert.equal(JSON.stringify(sheet.rows), before, 'no writes across two passes');
+});
+
+test('the guard covers only seasonal tables: the NHS table is never flagged by it', () => {
+  assert.equal(call(P + '.jobIdForTable("NHS")'), 'JOB-NHS');
+  assert.equal(call(P + '.forecastAllowed("JOB-NHS", "2026-11-03")'), true);
 });
 
 const failed = results.filter((r) => !r.ok).length;

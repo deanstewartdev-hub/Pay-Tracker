@@ -252,6 +252,8 @@ const PayTrackerConfig = Object.freeze({
           fixedAmount: 83.48,
           hourlyRate: 20.87,
           contractConfirmed: false,
+          // Provisional: payslip-proven for w/e 11 and 18 Oct 2026; the contract start date is not confirmed.
+          status: 'provisional',
           evidence: 'Staffline payslips: w/e 04/10/2026 4.50 x 20.21 = 90.95 (old rate); ' +
             'w/e 11/10/2026 and w/e 18/10/2026 8.00 x 20.87 = 166.96 (new rate). ' +
             'Basic and other multipliers not evidenced as changed.'
@@ -315,17 +317,17 @@ const PayTrackerConfig = Object.freeze({
       }),
 
       'Enhanced 1.20': Object.freeze({
-        fixedAmount: 65.72,
+        fixedAmount: 65.71,
         hourlyRate: 16.43
       }),
 
       'Enhanced 1.33': Object.freeze({
-        fixedAmount: 72.84,
+        fixedAmount: 72.83,
         hourlyRate: 18.21
       }),
 
       'Enhanced 1.50': Object.freeze({
-        fixedAmount: 82.16,
+        fixedAmount: 82.14,
         hourlyRate: 20.54
       }),
 
@@ -340,17 +342,17 @@ const PayTrackerConfig = Object.freeze({
       }),
 
       'Overtime 1.20': Object.freeze({
-        fixedAmount: 65.72,
+        fixedAmount: 65.71,
         hourlyRate: 16.43
       }),
 
       'Overtime 1.33': Object.freeze({
-        fixedAmount: 72.84,
+        fixedAmount: 72.83,
         hourlyRate: 18.21
       }),
 
       'Overtime 1.50': Object.freeze({
-        fixedAmount: 82.16,
+        fixedAmount: 82.14,
         hourlyRate: 20.54
       }),
 
@@ -372,7 +374,7 @@ const PayTrackerConfig = Object.freeze({
       }),
 
       'Enhanced 1.20': Object.freeze({
-        fixedAmount: 64.64,
+        fixedAmount: 64.66,
         hourlyRate: 16.16
       }),
 
@@ -382,7 +384,7 @@ const PayTrackerConfig = Object.freeze({
       }),
 
       'Enhanced 1.50': Object.freeze({
-        fixedAmount: 80.84,
+        fixedAmount: 80.82,
         hourlyRate: 20.21
       }),
 
@@ -397,7 +399,7 @@ const PayTrackerConfig = Object.freeze({
       }),
 
       'Overtime 1.20': Object.freeze({
-        fixedAmount: 64.64,
+        fixedAmount: 64.66,
         hourlyRate: 16.16
       }),
 
@@ -407,7 +409,7 @@ const PayTrackerConfig = Object.freeze({
       }),
 
       'Overtime 1.50': Object.freeze({
-        fixedAmount: 80.84,
+        fixedAmount: 80.82,
         hourlyRate: 20.21
       }),
 

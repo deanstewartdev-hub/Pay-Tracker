@@ -68,6 +68,7 @@ const PayTrackerCalendarService = Object.freeze({
       adopted: 0,
       removed: 0,
       manualChangesPreserved: 0,
+      flaggedAfterContractEnd: 0,
       reviewItems: 0,
       skipped: 0,
       ignored: 0,
@@ -1109,6 +1110,13 @@ const PayTrackerCalendarService = Object.freeze({
         )
     ) {
       return { status: 'skipped' };
+    }
+
+    // A seasonal job whose contract has ended is not written from the Calendar after its end date.
+    // The shift is reported for review and nothing in PaySheet or the Calendar Sync Record changes.
+    const endedJobId = PayTrackerEmploymentPeriods.jobIdForTable(table.name);
+    if (endedJobId && !PayTrackerEmploymentPeriods.forecastAllowed(endedJobId, PayTrackerEmploymentPeriods.dayKeyOf(eventDate))) {
+      return { status: 'flaggedAfterContractEnd', jobId: endedJobId, date: PayTrackerEmploymentPeriods.dayKeyOf(eventDate) };
     }
 
     const weekNumber =
