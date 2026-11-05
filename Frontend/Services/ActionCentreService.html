@@ -46,12 +46,24 @@
       const list = documentObject.querySelector('[data-payment-risk-list]');
       if (!section || !list) return;
       list.textContent = ''; section.hidden = risks.length === 0;
+      // One collapsed line per obligation; expand to see every unsettled occurrence. Nothing is hidden by age.
       risks.forEach(function(risk) {
         const item = documentObject.createElement('li'); item.className = 'action-centre__risk';
-        const title = documentObject.createElement('strong');
-        title.textContent = risk.name + ' · ' + risk.kind + ' · £' + (Number(risk.amount) || 0).toFixed(2);
+        const details = documentObject.createElement('details');
+        const summary = documentObject.createElement('summary');
+        const count = Number(risk.count) || 0;
+        summary.textContent = risk.name + ' · ' + risk.kind + ' · ' + count + (count === 1 ? ' payment' : ' payments') +
+          ' · £' + (Number(risk.amount) || 0).toFixed(2);
         const message = documentObject.createElement('span'); message.textContent = risk.message;
-        item.append(title, message); list.appendChild(item);
+        const occurrences = documentObject.createElement('ul');
+        (risk.occurrences || []).forEach(function(occ) {
+          const line = documentObject.createElement('li');
+          const amount = occ.amount === null || occ.amount === undefined ? 'Amount unknown' : '£' + Number(occ.amount).toFixed(2);
+          const source = occ.recordedRow ? 'Finance Payments row' : 'schedule projection, no payment row';
+          line.textContent = occ.dueDate + ' · ' + amount + ' · ' + occ.status + ' · ' + source;
+          occurrences.appendChild(line);
+        });
+        details.append(summary, message, occurrences); item.appendChild(details); list.appendChild(item);
       });
     },
     card: function(item) {

@@ -810,200 +810,58 @@ const PayTrackerFinanceDashboard = Object.freeze({
    *
    * @return {number}
    */
-  calculateEstimatedMonthlyTakeHome: function () {
-    let sheet;
-
-    try {
-      sheet =
-        PayTrackerUtils.getPaySheet();
-    } catch (error) {
-      return 0;
-    }
-
-    const existingWeeks =
-      PayTrackerUtils.getExistingWeekCount(
-        sheet
-      );
-
-    let totalTakeHome =
-      0;
-
-    let populatedWeeks =
-      0;
-
-    for (
-      let weekNumber = 1;
-      weekNumber <= existingWeeks;
-      weekNumber++
-    ) {
-      const startRow =
-        PayTrackerUtils.getWeekStartRow(
-          weekNumber
-        );
-
-      if (
-        !PayTrackerWeekManager.weekHasShiftData(
-          sheet,
-          startRow
-        )
-      ) {
-        continue;
-      }
-
-      const weeklyTakeHome =
-        Number(
-          sheet
-            .getRange(
-              startRow + 5,
-              PayTrackerConfig
-                .SHEET
-                .WEEKLY_SUMMARY_VALUE_COLUMN
-            )
-            .getValue()
-        ) || 0;
-
-      totalTakeHome +=
-        weeklyTakeHome;
-
-      populatedWeeks++;
-    }
-
-    if (
-      populatedWeeks ===
-      0
-    ) {
-      return 0;
-    }
-
-    return (
-      totalTakeHome /
-      populatedWeeks *
-      52 /
-      12
-    );
-  },
-
-
-  /**
-   * Builds the complete visible dashboard.
-   *
-   * @param {GoogleAppsScript.Spreadsheet.Sheet} sheet
-   * @param {Object} figures
-   */
-  buildDashboard: function (
-    sheet,
-    figures
-  ) {
-    PayTrackerUtils.validateSheet(
-      sheet
-    );
-
-    const requiredRows =
-      105;
-
-    const requiredColumns =
-      20;
-
-    PayTrackerFinanceDashboard.ensureDashboardSize(
-      sheet,
-      requiredRows,
-      requiredColumns
-    );
-
-    sheet
-      .getRange(
-        1,
-        1,
-        sheet.getMaxRows(),
-        sheet.getMaxColumns()
-      )
-      .breakApart();
-
-    sheet.clear();
-
-    sheet.setTabColor(
-      '#9333ea'
-    );
-
-    sheet.setFrozenRows(
-      2
-    );
-
-    sheet
-      .getRange(
-        'A1:H1'
-      )
-      .merge()
-      .setValue(
-        'PERSONAL FINANCE & SAVINGS DASHBOARD'
-      )
-      .setBackground(
-        '#0f172a'
-      )
-      .setFontColor(
-        '#ffffff'
-      )
-      .setFontWeight(
-        'bold'
-      )
-      .setFontSize(
-        16
-      )
-      .setHorizontalAlignment(
-        'center'
-      );
-
-    PayTrackerFinanceDashboard.buildTopCards(
-      sheet,
-      figures
-    );
-
-    PayTrackerFinanceDashboard.buildFinancialProgress(
-      sheet,
-      figures
-    );
-
-    PayTrackerFinanceDashboard.buildStatusCards(
-      sheet,
-      figures
-    );
-
-    PayTrackerFinanceDashboard.buildDebtProgressSection(
-      sheet,
-      figures.debtRows
-    );
-
-    PayTrackerFinanceDashboard.buildSavingsPotSection(
-      sheet,
-      figures.savingsPotRows
-    );
-
-    PayTrackerFinanceDashboard.buildLifeGoalsSection(
-      sheet,
-      figures.goalRows
-    );
-
-    PayTrackerFinanceDashboard.buildSavingsScheduleSection(
-      sheet,
-      figures.savingsPotRows
-    );
-
-    for (
-      let column = 1;
-      column <= 8;
-      column++
-    ) {
-      sheet.setColumnWidth(
-        column,
-        125
-      );
-    }
-
-    sheet.setRowHeight(
-      1,
-      36
-    );
-  },
+  calculateEstimatedMonthlyTakeHome: function () {
+    let sheet;
+
+    try {
+      sheet = PayTrackerUtils.getPaySheet();
+    } catch (error) {
+      return 0;
+    }
+
+    const existingWeeks = PayTrackerUtils.getExistingWeekCount(sheet);
+
+    // One read of the used block (identical values to per-cell reads).
+    const usedRange = sheet.getRange(
+      1,
+      1,
+      Math.max(sheet.getLastRow(), 1),
+      Math.max(sheet.getLastColumn(), 1)
+    );
+    const displayGrid = usedRange.getDisplayValues();
+    const valueGrid = usedRange.getValues();
+
+    // Each populated week: take-home plus gross pay by job, so a mixed week keeps its NHS share.
+    // The estimate is decided by PayTrackerEmploymentPeriods.forecastTakeHome.
+    const tables = getConfiguredPayTables_();
+    const weeks = [];
+    for (let weekNumber = 1; weekNumber <= existingWeeks; weekNumber++) {
+      const startRow = PayTrackerUtils.getWeekStartRow(weekNumber);
+      if (!PayTrackerWeekManager.weekHasShiftDataFromGrid(displayGrid, startRow)) {
+        continue;
+      }
+      const summaryRow = valueGrid[startRow + 5 - 1] || [];
+      const weeklyTakeHome = Number(summaryRow[PayTrackerConfig.SHEET.WEEKLY_SUMMARY_VALUE_COLUMN - 1]) || 0;
+      const firstDataRow = startRow + PayTrackerConfig.SHEET.WEEK_DATA_ROW_OFFSET;
+      const grossByJob = {};
+      tables.forEach(function (table) {
+        const jobId = PayTrackerEmploymentPeriods.jobIdForTable(table.name) || table.name;
+        const payIndex = table.startColumn + 4 - 1;
+        // All WEEK_DATA_ROW_COUNT rows, including the Extra row: the weekly table total sums them too.
+        for (let r = 0; r < PayTrackerConfig.SHEET.WEEK_DATA_ROW_COUNT; r++) {
+          const row = valueGrid[firstDataRow - 1 + r] || [];
+          const pay = Number(row[payIndex]) || 0;
+          if (pay) grossByJob[jobId] = (grossByJob[jobId] || 0) + pay;
+        }
+      });
+      weeks.push({ takeHome: weeklyTakeHome, grossByJob: grossByJob });
+    }
+
+    return PayTrackerEmploymentPeriods.forecastTakeHome(
+      weeks,
+      PayTrackerEmploymentPeriods.dayKeyOf(new Date())
+    );
+  },
 
 
   /**

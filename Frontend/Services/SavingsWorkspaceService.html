@@ -79,7 +79,7 @@
             '[data-savings-refresh]'
           )
         ) {
-          load(true);
+          load(true, true);
         } else if (
           event.target.closest(
             '[data-savings-contribution-clear]'
@@ -202,26 +202,53 @@
     );
   }
 
-  function load(force) {
+  // A workspace call that never returns must not leave the page loading forever.
+  var WORKSPACE_TIMEOUT_MS = 45000;
+
+  // explicitRefresh: true only for the Refresh button, which may write the contribution queue.
+  // Every other load is read-only on the server.
+  function load(force, explicitRefresh) {
     if (
-      state.loading ||
-      (
-        state.loaded &&
-        force !== true
-      )
+      state.loading &&
+      force !== true
+    ) {
+      return;
+    }
+    if (
+      state.loaded &&
+      force !== true
     ) {
       return;
     }
 
     state.loading = true;
+    state.requestId = (state.requestId || 0) + 1;
+    var requestId = state.requestId;
+    var startedAt = Date.now();
     setLoading(true);
 
+    var timeoutId = window.setTimeout(function() {
+      if (state.requestId !== requestId || !state.loading) return;
+      state.loading = false;
+      setLoading(false);
+      console.warn('Savings workspace timed out after ' + WORKSPACE_TIMEOUT_MS + ' ms.');
+      showNotice(
+        'Savings is taking too long to load. Select Refresh to try again. If it keeps happening, a sync may be holding the spreadsheet.',
+        true
+      );
+    }, WORKSPACE_TIMEOUT_MS);
+
     call(
-      'getPayTrackerSavingsWorkspace',
+      explicitRefresh === true
+        ? 'refreshPayTrackerSavingsContributions'
+        : 'getPayTrackerSavingsWorkspace',
       [],
       function(data) {
+        if (state.requestId !== requestId) return;
+        window.clearTimeout(timeoutId);
         state.loading = false;
         setLoading(false);
+        console.info('Savings workspace loaded in ' + (Date.now() - startedAt) + ' ms.');
 
         if (
           !data ||
@@ -240,8 +267,11 @@
         loadMonzoPotOptions();
       },
       function(error) {
+        if (state.requestId !== requestId) return;
+        window.clearTimeout(timeoutId);
         state.loading = false;
         setLoading(false);
+        console.warn('Savings workspace failed after ' + (Date.now() - startedAt) + ' ms.');
         showNotice(
           getError(error),
           true
@@ -469,6 +499,9 @@
               '</td>',
               '<td>',
                 money(pot.currentBalance),
+                pot.balanceState
+                  ? balanceStateBadge(pot.balanceState)
+                  : '',
               '</td>',
               '<td>',
                 pot.goalAmount > 0
@@ -827,6 +860,10 @@
         runner.getPayTrackerSavingsWorkspace();
         break;
 
+      case 'refreshPayTrackerSavingsContributions':
+        runner.refreshPayTrackerSavingsContributions();
+        break;
+
       case 'markPayTrackerSavingsContributionDeposited':
         runner.markPayTrackerSavingsContributionDeposited(
           values[0]
@@ -992,6 +1029,18 @@
       );
 
     return element.innerHTML;
+  }
+
+  // Built with the DOM, not HTML text: the Apps Script template engine reads tag-like
+  // text inside JavaScript strings as markup, and on staging that rewrote '+' and then
+  // failed the whole include. This source therefore has no tag text for this badge.
+  function balanceStateBadge(state) {
+    const badge = document.createElement('small');
+    badge.className = state.verified
+      ? 'savings-balance-state savings-balance-state--verified'
+      : 'savings-balance-state savings-balance-state--stored';
+    badge.textContent = String(state.label === undefined || state.label === null ? '' : state.label);
+    return badge.outerHTML;
   }
 
   function empty(message) {

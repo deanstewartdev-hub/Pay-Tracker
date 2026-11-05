@@ -6,6 +6,19 @@
 
 ✅ Stable — live deployed web app, actively used
 
+## Production preflight (2026-11-05, v3.3 release candidate)
+
+Read-only preflight. No production code was pushed, no deployment changed, no data written, Monzo not connected.
+
+- **Production project:** the Script ID in `.clasp.json` (differs from the staging Script ID; the tooling refuses it).
+- **Production web-app deployment:** the deployment whose description is "v3.2.0 + fixes (main 64cf359)", at **version 143** (confirmed by listing, not assumed). Its deployment ID is recorded in the owner's release notes, not in this repository.
+- **Previous recorded version to roll back to:** 143 (main `64cf359`).
+- **Release candidate:** PR #53 head `70a913e` (includes a test-only input fix; no behaviour change for production inputs). Base `release/v3.3.0-rc1` at `a987c89`.
+- **Schema:** no sheet or column header changes between `main` and the release branch. Pay-rate constants change (NHS fixed amounts, Night Security rate history from 5 Oct 2026, contract date not yet confirmed; see `PAY_RULE_HISTORY` in `Backend/Core/Config.js`). Owner must confirm before release.
+- **Unintended production version:** during the preflight a `clasp version` was run against the production project by mistake (a scratch config pointed at production). It created **production version 144**, a snapshot of the same 168 files as version 143 (verified by pulling both). No deployment uses it and the live deployment is still @143. Versions cannot be deleted with clasp. Recorded here so the version history is explained.
+- **Production backup checklist (not yet performed):** (1) File > Make a copy of the production spreadsheet, named with the date and "pre-v3.3"; (2) store the copy outside the live spreadsheet and record its name, date and location here; (3) record the current production version (143) and the deployment ID in the owner's release notes; (4) do not run any script function against production to take the backup.
+- **Rollback (checked against the deployment list):** redeploy version 143 to the production web-app deployment described above, with `clasp deploy --deploymentId <production deployment ID> --versionNumber 143`. This changes code only.
+
 ## Development Stage
 
 v3 roadmap complete — all ten phases implemented (reconciliation foundation, navigation redesign, Annual Leave engine, Gmail Annual Leave import, Staffline reconciliation, Pay Adjustments ledger, Money Movements ledger, Transaction Matching Rules, Ledger Analytics, production hardening). v3.1.1 was a maintenance patch on top of v3.1.0. v3.2.0 is a post-roadmap initiative: a Unified Sync Engine that orchestrates every existing external-source sync behind one task registry, freshness gating and background schedule -- see below.

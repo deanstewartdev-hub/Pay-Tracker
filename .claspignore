@@ -1,0 +1,5 @@
+# Keep development-only files out of the Apps Script project (clasp pushes .json files by default).
+package.json
+package-lock.json
+node_modules/**
+Tests/**

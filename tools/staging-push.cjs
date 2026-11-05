@@ -21,7 +21,7 @@ const path = require('node:path');
 const { spawnSync } = require('node:child_process');
 
 const ROOT = path.resolve(__dirname, '..');
-const EXCLUDE_DIRS = new Set(['.git', 'node_modules', '.github', '.claude', 'docs', 'tools', '.ui-harness']);
+const EXCLUDE_DIRS = new Set(['.git', 'node_modules', '.github', '.claude', 'docs', 'tools', '.ui-harness', 'Tests']);
 const EXCLUDE_PATHS = new Set([path.join('Tests', 'node')]);
 
 function fail(message) { console.error('REFUSED: ' + message); process.exit(1); }

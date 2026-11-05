@@ -29,6 +29,15 @@ const PayTrackerSyncController = Object.freeze({
    */
   runSync: function(options) {
     const opts = options || {};
+    // A page load must not start a full pass again straight after one finished.
+    if (
+      opts.triggerSource === PayTrackerSyncConfig.TRIGGER_SOURCES.STARTUP &&
+      !opts.force &&
+      PayTrackerSyncController.finishedWithinCooldown_()
+    ) {
+      return { alreadyRunning: false, skipped: true, reason: 'Synced recently.' };
+    }
+
     const claim = PayTrackerSyncController.claimRunSlot_();
     if (!claim.claimed) {
       return { alreadyRunning: true, activeRun: claim.activeRun };
@@ -40,8 +49,25 @@ const PayTrackerSyncController = Object.freeze({
       );
       return Object.assign({ alreadyRunning: false }, result);
     } finally {
+      PayTrackerSyncController.markFinished_();
       PayTrackerSyncController.releaseRunSlot_(claim.runId);
     }
+  },
+
+  finishedWithinCooldown_: function() {
+    const raw = PropertiesService.getScriptProperties()
+      .getProperty(PayTrackerSyncConfig.LAST_FINISHED_PROPERTY_KEY);
+    const finished = raw ? new Date(raw).getTime() : NaN;
+    return !isNaN(finished) &&
+      Date.now() - finished < PayTrackerSyncConfig.STARTUP_COOLDOWN_MS;
+  },
+
+  markFinished_: function() {
+    PropertiesService.getScriptProperties()
+      .setProperty(
+        PayTrackerSyncConfig.LAST_FINISHED_PROPERTY_KEY,
+        new Date().toISOString()
+      );
   },
 
   /**

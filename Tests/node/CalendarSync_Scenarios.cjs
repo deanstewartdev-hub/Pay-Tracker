@@ -260,7 +260,9 @@ test('Relief Warden, Night Security and Logging shifts import with the right typ
     shift('Logging', days.fri, 9, 15)
   ] });
   const result = sb.sync();
-  assert.equal(result.imported, 7);
+  // 1 Nov 2026 is after the Night Security contract ended (31 Oct 2026): flagged, not written.
+  assert.equal(result.imported, 6);
+  assert.equal(result.flaggedAfterContractEnd, 1);
   assert.equal(result.uncertain, 0);
   assert.deepEqual(sb.shiftOn('Relief Assistant Warden', days.mon), ['Basic', 10, 136.9]);
   assert.deepEqual(sb.shiftOn('Relief Assistant Warden', days.tue), ['Enhanced 1.33', 3, 54.63]);
@@ -269,7 +271,8 @@ test('Relief Warden, Night Security and Logging shifts import with the right typ
   assert.deepEqual(sb.shiftOn('Night Security Warden', days.wed), ['Enhanced 1.33', 3, 53.76]);
   assert.deepEqual(sb.shiftOn('Night Security Warden', days.thu), ['Enhanced 1.33', 4, 71.68]);
   // 1 Nov 2026 is after the payslip-proven x1.50 rate change (from w/e 11 Oct): 4 x 20.87.
-  assert.deepEqual(sb.shiftOn('Night Security Warden', days.sun), ['Enhanced 1.50', 4, 83.48]);
+  assert.deepEqual(sb.shiftOn('Night Security Warden', days.sun), ['', '', ''], 'post-contract shift is not written');
+  assert.equal(sb.run("PayTrackerPayCalculator.calculatePay('Night Security Warden', 'Enhanced 1.50', 4, new Date(2026, 10, 1))"), 83.48, 'the rate itself is unchanged');
   assert.deepEqual(sb.shiftOn('Logging Cash', days.fri), ['Logging Cash £10/hr', 6, 60]);
   assert.deepEqual(sb.shiftOn('NHS', days.mon), ['', '', ''], 'non-NHS shifts must not land in the NHS table');
 });

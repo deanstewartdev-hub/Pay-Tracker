@@ -24,6 +24,8 @@
 
 const PayTrackerSmartSavingsCalculator = Object.freeze({
   MATCH_WINDOW_DAYS: 3,
+  // Shown on the Savings page so a stale deployment is visible. Update with each release.
+  BUILD: 'v3.3 finance · PR #53',
 
   /**
    * @param {Object} input
@@ -45,12 +47,19 @@ const PayTrackerSmartSavingsCalculator = Object.freeze({
     const pots = this.readPots(input.pots || [], actual.depositsByMonzoPot, input.history || [], period);
     // Net bank movement into pots this month (a withdrawal makes it smaller, or negative).
     const savedThisMonth = actual.savedThisMonth;
+    // Fuel is a forecast for the days after today only; spending so far is already in actual.spending.
+    const fuel = PayTrackerVariableExpenseForecast.fuelForecast({
+      today: todayKey, to: monthEnd,
+      observed: PayTrackerVariableExpenseForecast.observeFuel(input.cashFlow || [], todayKey)
+    });
 
     const disposable = this.round(
       actual.income - actual.spending + actual.refunds - actual.billsPaid
       - actual.uncertainOut - actual.pendingOut
       - actual.ownTransfersOut + actual.ownTransfersIn
-      - committed.total - savedThisMonth
+      // Left Monzo for the loan account: real cash out, unverified as a repayment. Future repayments are commitments.
+      - actual.loanTransfersOut
+      - committed.total - savedThisMonth - fuel.forecast
     );
 
     // Towards the monthly target and cap: money put into pots this month. A
@@ -59,6 +68,26 @@ const PayTrackerSmartSavingsCalculator = Object.freeze({
     const recordedElsewhere = pots.filter(function(pot) { return !pot.monzoPotId; })
       .reduce(function(sum, pot) { return sum + Math.max(pot.savedThisMonth, 0); }, 0);
     const savedTowardsTarget = this.round(Math.max(savedThisMonth, 0) + recordedElsewhere);
+
+    // Historical commitments with no payment evidence: not deducted above, shown as potential liabilities.
+    // The conservative figure is what would remain if every one of them were still owed.
+    // Split by evidence type, never mixed silently: recorded Finance Payments rows with no
+    // confirmed payment, and schedule projections that have no payment row at all.
+    const amountOf = function(item) { return item.amount === null || item.amount === undefined ? 0 : Number(item.amount) || 0; };
+    const recordedTotal = this.round(committed.carriedOver.filter(function(item) { return item.recordedRow; })
+      .reduce(function(sum, item) { return sum + amountOf(item); }, 0));
+    const projectedTotal = this.round(committed.carriedOver.filter(function(item) { return !item.recordedRow; })
+      .reduce(function(sum, item) { return sum + amountOf(item); }, 0));
+    const unresolvedTotal = this.round(recordedTotal + projectedTotal);
+    // Maximum-exposure scenario: every unresolved item counted once, on unverified assumptions.
+    const conservativeDisposable = this.round(disposable - unresolvedTotal);
+    if (unresolvedTotal > 0) {
+      warnings.push('Potential liability (maximum-exposure scenario, unverified assumptions): ' + this.money(unresolvedTotal) +
+        ' of unresolved earlier-month commitments. ' + this.money(recordedTotal) + ' is recorded in Finance Payments with no confirmed payment; ' +
+        this.money(projectedTotal) + ' is from recurring schedules with no payment row. ' +
+        'Available money is ' + this.money(disposable) + ', or ' + this.money(conservativeDisposable) +
+        ' if they were all still owed. This is not a confirmed debt. Mark them paid in Finance only with evidence.');
+    }
 
     const suggestion = this.suggest(input.settings || {}, disposable, savedTowardsTarget, warnings);
     const distribution = this.distribute(suggestion.amount, pots, warnings);
@@ -75,6 +104,22 @@ const PayTrackerSmartSavingsCalculator = Object.freeze({
     if (actual.uncertainIn > 0) {
       warnings.push(this.money(actual.uncertainIn) + ' of incoming money needs confirming in Money Movements before it can count.');
     }
+    if (actual.loanTransfersOut > 0) {
+      warnings.push(this.money(actual.loanTransfersOut) + ' sent to your loan account this month is deducted once as money that left Monzo. ' +
+        'It is not confirmed as a repayment until it is matched to a Debt payment in Finance.');
+      if (committed.debts === 0) {
+        warnings.push('Loan transfers are going out but no active Debt commitment covers the next repayments. Check the Debts sheet.');
+      }
+      const overdueDebt = committed.items.filter(function(item) { return item.kind === 'Debt' && item.status === 'Overdue'; });
+      if (overdueDebt.length) {
+        warnings.push(overdueDebt.length + ' overdue loan payment(s) do not match these transfers by amount and date. ' +
+          'Check them in Finance so each repayment is counted once.');
+      }
+    }
+    committed.items.filter(function(item) { return /fuel|fual/i.test(item.name); }).forEach(function(item) {
+      warnings.push('"' + item.name + '" is a fixed bill that looks like fuel. Fuel is also forecast, so it may be counted twice. ' +
+        'Keep whichever is right, not both.');
+    });
 
     const confirmations = this.confirmations(input.contributions || [], pots, actual.potDeposits, period);
     const unverified = this.unverifiedRecords(input.history || [], pots, actual.potDeposits, confirmations, period);
@@ -83,19 +128,34 @@ const PayTrackerSmartSavingsCalculator = Object.freeze({
         'They are not counted as saved; check Monzo if a sync has run since.');
     }
 
+    const overdueContributions = confirmations.filter(function(c) { return c.dueDate < period.from; });
+    if (overdueContributions.length) {
+      warnings.push(overdueContributions.length + ' planned contribution(s) due before this month (' +
+        this.money(this.round(overdueContributions.reduce(function(s, c) { return s + (c.amount || 0); }, 0))) +
+        ') are not recorded as deposited. They are not counted as saved or as this month\'s plan. Record them only with bank evidence.');
+    }
+
     return {
       period: period,
       actual: actual.summary,
       committed: committed,
+      variable: { fuel: fuel },
+      build: this.BUILD,
+      presentation: this.presentation(actual, fuel, disposable, period),
       savedThisMonth: savedThisMonth,
       savedTowardsTarget: savedTowardsTarget,
       disposable: disposable,
+      potentialLiabilities: { total: unresolvedTotal, recordedTotal: recordedTotal, projectedTotal: projectedTotal,
+        items: committed.carriedOver },
+      conservativeDisposable: conservativeDisposable,
       suggestion: suggestion,
       distribution: distribution.pots,
       unallocated: distribution.unallocated,
       planned: planned,
       goals: this.goals(input.goals || [], pots, distribution.pots),
-      confirmations: confirmations,
+      // This month's planned contributions only. Older undeposited ones are listed separately and never counted.
+      confirmations: confirmations.filter(function(c) { return c.dueDate >= period.from; }),
+      overdueContributions: confirmations.filter(function(c) { return c.dueDate < period.from; }),
       unverifiedRecords: unverified,
       warnings: warnings
     };
@@ -108,10 +168,12 @@ const PayTrackerSmartSavingsCalculator = Object.freeze({
     const S = PayTrackerCashFlowClassifier.STATUSES;
     const T = PayTrackerPaymentTimeline;
     const sum = { income: 0, spending: 0, refunds: 0, billsPaid: 0, debtPaid: 0, subscriptionsPaid: 0,
-      uncertainOut: 0, uncertainIn: 0, pendingOut: 0, savedThisMonth: 0, ownTransfersOut: 0, ownTransfersIn: 0 };
+      uncertainOut: 0, uncertainIn: 0, pendingOut: 0, savedThisMonth: 0, ownTransfersOut: 0, ownTransfersIn: 0,
+      loanTransfersOut: 0 };
     const transactionIds = {};
     const depositsByMonzoPot = {};
     const potDeposits = [];
+    const loanTransfers = [];
     // Settled outgoing payments, used to spot a past-due bill or subscription already paid.
     const debits = [];
 
@@ -125,6 +187,13 @@ const PayTrackerSmartSavingsCalculator = Object.freeze({
       // A "Possible duplicate" of a manual ledger entry is still real bank money:
       // judge it by how sure its category is, not by the ledger doubt.
       const unsure = (p.categoryConfidence || p.confidence) === K.NEEDS_CONFIRMATION;
+      if (p.loanAccount && out) {
+        // Money sent to the loan account has left Monzo (pending or settled). It is not spending;
+        // commitments() drops the matching Debt commitment, so the repayment is counted once.
+        sum.loanTransfersOut += p.amount;
+        loanTransfers.push({ date: day, amount: p.amount });
+        return;
+      }
       if (p.status === S.PENDING) {
         // Pending money out has already left the spendable balance (pot moves included).
         if (out) sum.pendingOut += p.amount;
@@ -179,9 +248,11 @@ const PayTrackerSmartSavingsCalculator = Object.freeze({
         incomeReceived: sum.income, spending: sum.spending, refunds: sum.refunds,
         billsPaid: sum.billsPaid, debtRepaymentsPaid: sum.debtPaid, subscriptionsPaid: sum.subscriptionsPaid,
         pendingOutgoing: sum.pendingOut, unconfirmedOutgoing: sum.uncertainOut, unconfirmedIncoming: sum.uncertainIn,
-        movedToOwnAccounts: sum.ownTransfersOut, receivedFromOwnAccounts: sum.ownTransfersIn
+        movedToOwnAccounts: sum.ownTransfersOut, receivedFromOwnAccounts: sum.ownTransfersIn,
+        sentToLoanAccount: sum.loanTransfersOut
       },
       transactionIds: transactionIds,
+      loanTransfers: loanTransfers,
       debits: debits,
       depositsByMonzoPot: depositsByMonzoPot,
       potDeposits: potDeposits
@@ -201,11 +272,16 @@ const PayTrackerSmartSavingsCalculator = Object.freeze({
     const likelyPaid = [];
     const carriedOver = [];
     const usedDebits = {};
+    // Bills already listed, so a Debt with the same name, date and amount is not counted again.
+    const billKeys = {};
+    const warnedDuplicates = {};
     let outstanding = 0;
     (input.pastDue || []).concat(input.upcoming || []).forEach(function(item) {
+      if (item.kind === 'Bill') billKeys[self.obligationKey(item)] = true;
       if (item.dueDate > period.to) return;
       if (item.dueDate < period.from) {
-        carriedOver.push({ kind: item.kind, name: item.name, dueDate: item.dueDate, amount: item.amount, status: item.status });
+        carriedOver.push({ kind: item.kind, name: item.name, dueDate: item.dueDate, amount: item.amount, status: item.status,
+          recordedRow: Boolean(item.recordedRow) });
         return;
       }
       // Its bank transaction is already in this month's actuals: don't subtract it twice.
@@ -224,11 +300,31 @@ const PayTrackerSmartSavingsCalculator = Object.freeze({
       if (item.daysRemaining < 0) outstanding++;
       items.push({ kind: item.kind, name: item.name, dueDate: item.dueDate, amount: item.amount, status: item.status });
     });
-    this.debtCommitments(input, period).forEach(function(item) {
+    const loanTransfers = (actual.loanTransfers || []).slice();
+    this.debtCommitments(input, period, warnings).forEach(function(item) {
       if (item.dueDate < period.from) {
-        carriedOver.push(item);
+        // The same obligation already listed as a carried-over Bill is shown once. If that
+        // bill occurrence was only a schedule projection, the Finance Payments debt row is
+        // the record of it, so it is marked recorded.
+        const key = self.obligationKey(item);
+        if (!billKeys[key]) {
+          carriedOver.push(item);
+        } else if (item.recordedRow) {
+          carriedOver.forEach(function(c) { if (self.obligationKey(c) === key) c.recordedRow = true; });
+        }
         return;
       }
+      // The same obligation listed as a Bill is already counted: one obligation, one deduction.
+      if (billKeys[self.obligationKey(item)]) {
+        const key = self.obligationKey(item);
+        if (!warnedDuplicates[key]) {
+          warnedDuplicates[key] = true;
+          warnings.push('"' + item.name + '" is listed as both a bill and a debt on ' + item.dueDate + '. Counted once.');
+        }
+        return;
+      }
+      // A loan transfer of the same amount on about the same day IS this repayment: count it once, as the transfer.
+      if (self.takeLoanTransfer(item, loanTransfers)) return;
       if (item.dueDate < period.today) outstanding++;
       items.push(item);
     });
@@ -258,6 +354,65 @@ const PayTrackerSmartSavingsCalculator = Object.freeze({
   },
 
   /*
+   * The three different money figures, kept apart, plus an explanation when the
+   * result cannot be complete. Nothing here changes the calculation.
+   *  - connected: money that has actually moved in the connected Monzo accounts this month
+   *  - awaiting: incoming or outgoing money that still needs classifying
+   *  - available: the overall genuinely-available figure (may be incomplete)
+   */
+  presentation: function(actual, fuel, disposable, period) {
+    const T = PayTrackerPaymentTimeline;
+    const parts = period.today.split('-').map(Number);
+    const firstFuelDay = T.dayKey(new Date(parts[0], parts[1] - 1, parts[2] + 1));
+    const noSalary = actual.income === 0;
+    const awaiting = actual.uncertainIn > 0;
+    let incomplete = null;
+    if (noSalary || awaiting) {
+      const reasons = [];
+      if (noSalary) reasons.push('No salary has reached the connected Monzo accounts this month.');
+      if (awaiting) reasons.push(this.money(actual.uncertainIn) + ' of incoming money is still awaiting classification.');
+      incomplete = reasons.join(' ') + ' This figure is incomplete: if pay goes into another account, move it into Monzo and confirm it in Money Movements before relying on it.';
+    }
+    return {
+      connected: {
+        label: 'Net movement in connected Monzo accounts (confirmed items; pending counted as out)',
+        amount: this.round(actual.income + actual.refunds + actual.ownTransfersIn - actual.spending -
+          actual.billsPaid - actual.ownTransfersOut - actual.loanTransfersOut - actual.pendingOut)
+      },
+      awaiting: { incoming: actual.uncertainIn, outgoing: actual.uncertainOut },
+      fuel: {
+        label: 'Estimated fuel to come', amount: fuel.forecast, dailyRate: fuel.dailyRate,
+        daysAhead: fuel.daysAhead, from: fuel.daysAhead > 0 ? firstFuelDay : '', to: period.to, source: fuel.source
+      },
+      available: { label: 'Genuinely available', amount: disposable },
+      incomplete: incomplete
+    };
+  },
+
+  // Name, due date and amount: the same obligation whether it is listed as a Bill or a Debt.
+  obligationKey: function(item) {
+    return PayTrackerPaymentTimeline.normaliseName(item.name) + '|' + item.dueDate + '|' +
+      (item.amount === null || item.amount === undefined ? '' : this.round(item.amount));
+  },
+
+  /*
+   * Removes and returns true for the first unused loan transfer that is this
+   * repayment: same amount, within MATCH_WINDOW_DAYS of its due date.
+   */
+  takeLoanTransfer: function(item, transfers) {
+    const T = PayTrackerPaymentTimeline;
+    for (let i = 0; i < transfers.length; i++) {
+      const transfer = transfers[i];
+      if (Math.abs(transfer.amount - item.amount) < 0.005 &&
+          Math.abs(T.daysBetween(item.dueDate, transfer.date)) <= this.MATCH_WINDOW_DAYS) {
+        transfers.splice(i, 1);
+        return true;
+      }
+    }
+    return false;
+  },
+
+  /*
    * A settled debit this month that is plausibly this payment: same
    * amount (within 1p or 1%), dated 5 days before to 10 days after the
    * due date, and the payee's name contains the payment's name (or the
@@ -283,7 +438,7 @@ const PayTrackerSmartSavingsCalculator = Object.freeze({
    * queue holds only the next repayment per debt, so later repayments of
    * weekly/fortnightly debts are projected from the Debts sheet.
    */
-  debtCommitments: function(input, period) {
+  debtCommitments: function(input, period, warnings) {
     const T = PayTrackerPaymentTimeline;
     const matched = input.matchedPaymentIds || {};
     const items = [];
@@ -301,7 +456,7 @@ const PayTrackerSmartSavingsCalculator = Object.freeze({
       // A bank transaction already matched to this repayment is counted in the actuals.
       if (matched[String(row.paymentId || '')]) return;
       const amount = Number(row.amountDue);
-      items.push({ kind: 'Debt', name: String(row.billOrDebtName || ''), dueDate: due, amount: amount > 0 ? amount : null,
+      items.push({ kind: 'Debt', recordedRow: true, name: String(row.billOrDebtName || ''), dueDate: due, amount: amount > 0 ? amount : null,
         status: due < period.today ? 'Overdue' : 'Upcoming' });
     });
     (input.debts || []).forEach(function(debt) {
@@ -313,16 +468,37 @@ const PayTrackerSmartSavingsCalculator = Object.freeze({
       const anchor = anchors[id] || T.dayKey(debt.nextPaymentDate);
       if (!anchor) return;
       if (!anchors[id] && anchor >= period.today && anchor <= period.to) {
-        items.push({ kind: 'Debt', name: String(debt.debtName || id), dueDate: anchor, amount: amount > 0 ? amount : null, status: 'Upcoming' });
+        items.push({ kind: 'Debt', recordedRow: false, name: String(debt.debtName || id), dueDate: anchor, amount: amount > 0 ? amount : null, status: 'Upcoming' });
       }
       for (let step = 1; step <= 10; step++) {
         const due = T.stepKey(anchor, frequency, step);
         if (!due || due > period.to) break;
         if (due < period.today) continue;
-        items.push({ kind: 'Debt', name: String(debt.debtName || id), dueDate: due, amount: amount > 0 ? amount : null, status: 'Upcoming' });
+        items.push({ kind: 'Debt', recordedRow: false, name: String(debt.debtName || id), dueDate: due, amount: amount > 0 ? amount : null, status: 'Upcoming' });
       }
     });
-    return items;
+    // Two rows for the same repayment (same debt, due date and amount) are one obligation.
+    // Counted once, and reported, so a duplicated scheduled record cannot double the deduction.
+    const seen = {};
+    const sameDay = {};
+    const unique = [];
+    items.forEach(function(item) {
+      const key = this.obligationKey(item);
+      const dayKey = PayTrackerPaymentTimeline.normaliseName(item.name) + '|' + item.dueDate;
+      if (seen[key]) {
+        if (warnings) warnings.push('"' + item.name + '" has more than one repayment due ' + item.dueDate + ' for ' + this.money(item.amount || 0) + '. Counted once; check Finance Payments for the duplicate.');
+        return;
+      }
+      // Same debt and date, different amount: not provably the same obligation, so both stay (the
+      // conservative choice), and the owner is asked to check them.
+      if (sameDay[dayKey] && warnings) {
+        warnings.push('"' + item.name + '" has repayments on ' + item.dueDate + ' for different amounts. Both are counted; check Finance Payments.');
+      }
+      seen[key] = true;
+      sameDay[dayKey] = true;
+      unique.push(item);
+    }, this);
+    return unique;
   },
 
   readPots: function(rows, depositsByMonzoPot, history, period) {

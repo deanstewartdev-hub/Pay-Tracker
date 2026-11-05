@@ -573,21 +573,28 @@ const PayTrackerWebFinanceWorkspaceService =
           )
           .getValues()[0];
 
+      // The stored label alone is not trusted: the state also needs a local access
+      // token (a property check, no Monzo request), the last successful sync and any error.
+      const state = PayTrackerMonzoConnectionState.derive({
+        hasToken: PayTrackerMonzoService.hasAccessToken(),
+        storedStatus: row[6],
+        lastSuccess: row[8],
+        error: row[10],
+        now: new Date()
+      });
+
       return {
-        connected:
-          row[6] ===
-          PayTrackerFinanceIntegrationConfig
-            .CONNECTION_STATUSES
-            .CONNECTED,
+        connected: state.usable,
+        state: state.state,
+        detail: state.detail,
+        storedStatus: row[6] || '',
         provider:
           row[1] ||
           'Monzo',
         accountName:
           row[3] ||
           '',
-        status:
-          row[6] ||
-          'Not Connected',
+        status: state.status,
         lastSuccessfulSync:
           PayTrackerWebFinanceWorkspaceService
             .serializeDate(

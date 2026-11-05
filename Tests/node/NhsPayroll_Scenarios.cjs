@@ -156,7 +156,7 @@ test('historical pay: a Night x1.33 row written at the old 17.91 is corrected; a
   assert.deepEqual(sb.shiftOn('Night Security Warden', days.mon), ['Enhanced 1.33', 4, 71.68], 'calendar-owned row: 4 x 17.92');
   assert.deepEqual(sb.shiftOn('Night Security Warden', days.tue), ['Enhanced 1.33', 4.5, 80.6], 'manual correction kept');
   assert.equal(r.manualChangesPreserved, 1);
-  assert.equal(sb.run(`PayTrackerPayCalculator.calculatePay('Night Security Warden', 'Enhanced 1.33', 4)`), 71.68);
+  assert.equal(sb.run(`PayTrackerPayCalculator.calculatePay('Night Security Warden', 'Enhanced 1.33', 4, new Date(2026, 9, 27))`), 71.68, 'dated: from 16 Aug 2026');
   assert.equal(sb.run(`PayTrackerPayCalculator.calculatePay('Night Security Warden', 'Enhanced 1.50', 4)`), 80.84);
 });
 

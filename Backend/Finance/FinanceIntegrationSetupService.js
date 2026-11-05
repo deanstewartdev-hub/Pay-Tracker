@@ -65,13 +65,6 @@ const PayTrackerFinanceIntegrationSetupService =
 
       SpreadsheetApp.flush();
 
-      console.log(
-        JSON.stringify(
-          result,
-          null,
-          2
-        )
-      );
 
       return result;
     },

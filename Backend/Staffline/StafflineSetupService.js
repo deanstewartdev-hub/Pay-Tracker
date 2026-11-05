@@ -69,6 +69,5 @@ const PayTrackerStafflineSetupService = Object.freeze({
 
 function setupPayTrackerStaffline() {
   const result = PayTrackerStafflineSetupService.setup();
-  console.log(JSON.stringify(result, null, 2));
   return result;
 }

@@ -1,0 +1,12 @@
+{
+  "name": "pay-tracker-dev",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Development-only test dependencies. Apps Script code is not built from this package.",
+  "scripts": {
+    "test": "node Tests/node/run-all.cjs"
+  },
+  "devDependencies": {
+    "jsdom": "24.1.3"
+  }
+}

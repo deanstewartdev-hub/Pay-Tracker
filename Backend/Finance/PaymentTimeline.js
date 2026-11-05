@@ -216,7 +216,12 @@ const PayTrackerPaymentTimeline = Object.freeze({
         paymentId: anchor ? String(anchor.row.paymentId || '').trim() : '',
         name: name, category: String(bill.category || ''), frequency: String(bill.frequency || ''),
         amount: amount > 0 ? Math.round(amount * 100) / 100 : null,
-        nextDue: due, priceChange: 0, records: records
+        nextDue: due, priceChange: 0, records: records,
+        // Due dates that have a Finance Payments row. An occurrence without one is a schedule projection.
+        rowsByDue: queue.reduce(function(map, entry) {
+          map[entry.due] = String(entry.row.paymentId || '').trim() || 'row ' + (entry.row.rowNumber || '?');
+          return map;
+        }, {})
       });
     });
     // Payment History of bills that are no longer shown stays visible as history.
@@ -398,13 +403,17 @@ const PayTrackerPaymentTimeline = Object.freeze({
       const kept = past.filter(function(entry, position) {
         return entry.index === 0 || position >= past.length - self.PAST_OCCURRENCES_PER_SERIES;
       });
+      // Every unsettled past occurrence is an obligation: it is always listed and never capped or
+      // dropped by age. Only settled history is limited to the newest PAST_OCCURRENCES_PER_SERIES.
+      const keptKeys = {};
+      kept.forEach(function(entry) { keptKeys[entry.dueKey] = true; });
       const unsettled = [];
-      kept.forEach(function(entry) {
+      past.forEach(function(entry) {
         const evidence = evidenceFor(entry.dueKey);
         const status = !evidence ? S.UNVERIFIED : evidence.state === 'paid' ? S.PAID : evidence.state === 'failed' ? S.FAILED : S.NEEDS_REVIEW;
         const item = self.occurrence(series, entry.dueKey, todayKey, evidence, entry.index, status);
-        history.push(item);
-        if (!item.settled && entry.dueKey < graceKey && (entry.index === 0 || entry.dueKey >= riskFromKey)) unsettled.push(item);
+        if (keptKeys[entry.dueKey] || !item.settled) history.push(item);
+        if (!item.settled && entry.dueKey < graceKey) unsettled.push(item);
       });
       if (unsettled.length) risks.push(self.risk(series, unsettled));
 
@@ -448,8 +457,13 @@ const PayTrackerPaymentTimeline = Object.freeze({
         const right = historyDay(b);
         return left === right ? 0 : (left < right ? 1 : -1);
       });
+    // Only settled history is capped. An unsettled past payment is still an obligation
+    // (it feeds the potential liability), so it is never dropped by the cap.
     history = [this.KINDS.BILL, this.KINDS.SUBSCRIPTION].reduce(function(kept, kind) {
-      return kept.concat(history.filter(function(item) { return item.kind === kind; }).slice(0, self.HISTORY_LIMIT_PER_KIND));
+      const ofKind = history.filter(function(item) { return item.kind === kind; });
+      const unsettled = ofKind.filter(function(item) { return item.settled === false; });
+      const settled = ofKind.filter(function(item) { return item.settled !== false; }).slice(0, self.HISTORY_LIMIT_PER_KIND);
+      return kept.concat(unsettled, settled);
     }, []).sort(function(a, b) {
       const left = historyDay(a);
       const right = historyDay(b);
@@ -457,14 +471,31 @@ const PayTrackerPaymentTimeline = Object.freeze({
     });
 
     if (!opts.kind) {
+      // One obligation, one line: a debt row for a repayment already listed as a bill
+      // occurrence (same name, date and amount) is not shown again as a separate debt.
+      const listed = {};
+      const obligationKey = function(name, dueDate, amount) {
+        return self.normaliseName(name) + '|' + dueDate + '|' + (amount === null || amount === undefined ? '' : Math.round(Number(amount) * 100));
+      };
+      risks.forEach(function(risk) {
+        (risk.occurrences || []).forEach(function(o) { listed[obligationKey(risk.name, o.dueDate, o.amount)] = o; });
+      });
       (model.debtsDue || []).filter(function(debt) { return debt.dueDate < graceKey; }).forEach(function(debt) {
+        const key = obligationKey(debt.name, debt.dueDate, debt.amount);
+        if (listed[key]) {
+          // The Finance Payments debt row is the record of a schedule projection shown as a bill.
+          if (debt.paymentId) listed[key].recordedRow = true;
+          return;
+        }
+        listed[key] = {};
         risks.push({
           riskId: 'DEBT:' + (debt.paymentId || debt.itemId + '@' + debt.dueDate), kind: 'Debt', sourceId: debt.itemId, name: debt.name,
           count: 1, amount: debt.amount || 0, unknownAmountCount: debt.amount === null ? 1 : 0,
           oldestDue: debt.dueDate, latestDue: debt.dueDate, statuses: { Unverified: 1 },
           message: 'Debt repayment due on ' + debt.dueDate + ' is not marked paid and has no confirmed Monzo match. ' +
             'It is still owed until you confirm it in Finance.',
-          occurrences: [{ dueDate: debt.dueDate, amount: debt.amount, status: S.UNVERIFIED, evidence: 'No bank confirmation yet' }]
+          occurrences: [{ dueDate: debt.dueDate, amount: debt.amount, status: S.UNVERIFIED, evidence: 'No bank confirmation yet',
+            recordedRow: Boolean(debt.paymentId) }]
         });
       });
     }
@@ -502,7 +533,10 @@ const PayTrackerPaymentTimeline = Object.freeze({
       paidDate: settled && evidence ? evidence.date || '' : '',
       evidence: source, source: source,
       evidenceTransactionId: (evidence && evidence.transactionId) || '',
-      transactionId: (evidence && evidence.transactionId) || ''
+      transactionId: (evidence && evidence.transactionId) || '',
+      // A Finance Payments row exists for this due date (recorded), or it is only a schedule projection.
+      recordedRow: Boolean(series.rowsByDue && series.rowsByDue[dueKey]),
+      paymentRowId: (series.rowsByDue && series.rowsByDue[dueKey]) || ''
     };
   },
 
@@ -522,7 +556,8 @@ const PayTrackerPaymentTimeline = Object.freeze({
         (items.length === 1 ? 'on ' + items[0].dueDate : 'between ' + items[0].dueDate + ' and ' + items[items.length - 1].dueDate) +
         ' with no confirmed payment. Check your bank, then mark it paid in Finance or confirm the Monzo match.',
       occurrences: items.map(function(item) {
-        return { dueDate: item.dueDate, amount: item.amount, status: item.status, evidence: item.evidence };
+        return { dueDate: item.dueDate, amount: item.amount, status: item.status, evidence: item.evidence,
+          recordedRow: item.recordedRow === true };
       })
     };
   },

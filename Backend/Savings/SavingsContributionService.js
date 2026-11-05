@@ -325,7 +325,12 @@ const PayTrackerSavingsContributionService = Object.freeze({
    *
    * A pot receives only one queue row for each due date.
    */
-  syncUpcomingContributions: function () {
+  syncUpcomingContributions: function (options) {
+  // A page load asks for read-only: it never writes the queue or the sync fingerprint.
+  // Writes happen only through the explicit refresh, a pot edit, or the setup/menu actions.
+  if (options && options.readOnly) {
+    return { created: 0, updated: 0, skipped: 0, readOnly: true };
+  }
   /*
    * Apply all pending spreadsheet changes before retrieving
    * sheet objects. This prevents stale references after setup,
@@ -447,6 +452,54 @@ const PayTrackerSavingsContributionService = Object.freeze({
         config.HEADERS.length
       )
       .getValues();
+
+  /*
+   * Skip the write path when nothing it depends on has changed since the last
+   * successful run. The sync is idempotent: with the same pot schedule and the
+   * same queue size, it would write the same rows and sort the same way.
+   * Any pot change, or any change in the queue's row count, runs it in full.
+   */
+  const syncFingerprintFor = function (queueRowCount) {
+    let hash = 5381;
+    const text = rows.map(function (row) {
+      return [
+        row[columns.ID - 1],
+        row[columns.NAME - 1],
+        row[columns.ACTIVE - 1],
+        row[columns.NEXT_DEPOSIT_DATE - 1] instanceof Date
+          ? row[columns.NEXT_DEPOSIT_DATE - 1].getTime()
+          : String(row[columns.NEXT_DEPOSIT_DATE - 1]),
+        row[columns.CONTRIBUTION_AMOUNT - 1],
+        row[columns.CONTRIBUTION_METHOD - 1],
+        row[columns.CONTRIBUTION_FREQUENCY - 1]
+      ].join('|');
+    }).join('\n') + '#' + queueRowCount;
+    for (let i = 0; i < text.length; i++) {
+      hash = ((hash * 33) ^ text.charCodeAt(i)) >>> 0;
+    }
+    return String(hash) + ':' + text.length;
+  };
+
+  const syncFingerprint =
+    syncFingerprintFor(contributionsSheet.getLastRow());
+
+  const syncStateKey =
+    'SAVINGS_CONTRIBUTION_SYNC_FINGERPRINT';
+
+  const scriptProperties =
+    PropertiesService.getScriptProperties();
+
+  if (
+    scriptProperties.getProperty(syncStateKey) ===
+    syncFingerprint
+  ) {
+    return {
+      created: 0,
+      updated: 0,
+      skipped: 0,
+      unchanged: true
+    };
+  }
 
   let created =
     0;
@@ -588,6 +641,17 @@ const PayTrackerSavingsContributionService = Object.freeze({
   );
 
   SpreadsheetApp.flush();
+
+  /*
+   * Store the state as it is after this run (the queue may have grown),
+   * so the next identical call can skip.
+   */
+  scriptProperties.setProperty(
+    syncStateKey,
+    syncFingerprintFor(
+      refreshedContributionsSheet.getLastRow()
+    )
+  );
 
   return {
     created:

@@ -222,7 +222,7 @@ const PayTrackerConfig = Object.freeze({
     LOGGING_CASH: Object.freeze({
       name: 'Logging Cash',
       startColumn: 19,
-      taxable: false,
+      taxable: false, // Excluded from the taxable-gross total pending owner classification. A reporting setting, not a tax finding.
 
       shifts: Object.freeze([
         'Logging Cash £10/hr'
@@ -246,12 +246,36 @@ const PayTrackerConfig = Object.freeze({
    */
   PAY_RULE_HISTORY: Object.freeze({
     'Night Security Warden': Object.freeze({
+      'Enhanced 1.33': Object.freeze([
+        Object.freeze({
+          effectiveFrom: '2026-08-16',
+          fixedAmount: 71.68,
+          hourlyRate: 17.92,
+          contractConfirmed: false,
+          status: 'evidenced-earliest',
+          evidence: 'Staffline payslip N621105, line dated 16/08/2026: Enhanced 1.33, 16.00h at 17.92 = 286.72. ' +
+            'Earliest evidenced date. Shifts before 16 Aug 2026 keep the previous rate (17.91 / 71.64); no earlier evidence exists.'
+        })
+      ]),
+      'Overtime 1.33': Object.freeze([
+        Object.freeze({
+          effectiveFrom: '2026-08-16',
+          fixedAmount: 71.68,
+          hourlyRate: 17.92,
+          contractConfirmed: false,
+          status: 'evidenced-earliest',
+          evidence: 'Staffline payslip N621105, line dated 16/08/2026: Enhanced 1.33, 16.00h at 17.92 = 286.72. ' +
+            'Earliest evidenced date. Shifts before 16 Aug 2026 keep the previous rate (17.91 / 71.64); no earlier evidence exists.'
+        })
+      ]),
       'Enhanced 1.50': Object.freeze([
         Object.freeze({
           effectiveFrom: '2026-10-05',
           fixedAmount: 83.48,
           hourlyRate: 20.87,
           contractConfirmed: false,
+          // Provisional: payslip-proven for w/e 11 and 18 Oct 2026; the contract start date is not confirmed.
+          status: 'provisional',
           evidence: 'Staffline payslips: w/e 04/10/2026 4.50 x 20.21 = 90.95 (old rate); ' +
             'w/e 11/10/2026 and w/e 18/10/2026 8.00 x 20.87 = 166.96 (new rate). ' +
             'Basic and other multipliers not evidenced as changed.'
@@ -315,17 +339,17 @@ const PayTrackerConfig = Object.freeze({
       }),
 
       'Enhanced 1.20': Object.freeze({
-        fixedAmount: 65.72,
+        fixedAmount: 65.71,
         hourlyRate: 16.43
       }),
 
       'Enhanced 1.33': Object.freeze({
-        fixedAmount: 72.84,
+        fixedAmount: 72.83,
         hourlyRate: 18.21
       }),
 
       'Enhanced 1.50': Object.freeze({
-        fixedAmount: 82.16,
+        fixedAmount: 82.14,
         hourlyRate: 20.54
       }),
 
@@ -340,17 +364,17 @@ const PayTrackerConfig = Object.freeze({
       }),
 
       'Overtime 1.20': Object.freeze({
-        fixedAmount: 65.72,
+        fixedAmount: 65.71,
         hourlyRate: 16.43
       }),
 
       'Overtime 1.33': Object.freeze({
-        fixedAmount: 72.84,
+        fixedAmount: 72.83,
         hourlyRate: 18.21
       }),
 
       'Overtime 1.50': Object.freeze({
-        fixedAmount: 82.16,
+        fixedAmount: 82.14,
         hourlyRate: 20.54
       }),
 
@@ -372,17 +396,17 @@ const PayTrackerConfig = Object.freeze({
       }),
 
       'Enhanced 1.20': Object.freeze({
-        fixedAmount: 64.64,
+        fixedAmount: 64.66,
         hourlyRate: 16.16
       }),
 
       'Enhanced 1.33': Object.freeze({
-        fixedAmount: 71.68,
-        hourlyRate: 17.92
+        fixedAmount: 71.64,
+        hourlyRate: 17.91
       }),
 
       'Enhanced 1.50': Object.freeze({
-        fixedAmount: 80.84,
+        fixedAmount: 80.82,
         hourlyRate: 20.21
       }),
 
@@ -397,17 +421,17 @@ const PayTrackerConfig = Object.freeze({
       }),
 
       'Overtime 1.20': Object.freeze({
-        fixedAmount: 64.64,
+        fixedAmount: 64.66,
         hourlyRate: 16.16
       }),
 
       'Overtime 1.33': Object.freeze({
-        fixedAmount: 71.68,
-        hourlyRate: 17.92
+        fixedAmount: 71.64,
+        hourlyRate: 17.91
       }),
 
       'Overtime 1.50': Object.freeze({
-        fixedAmount: 80.84,
+        fixedAmount: 80.82,
         hourlyRate: 20.21
       }),
 

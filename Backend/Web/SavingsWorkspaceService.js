@@ -18,8 +18,9 @@ const PayTrackerWebSavingsWorkspaceService =
         );
       }
 
+      // Read-only: opening the page must not write the contribution queue.
       PayTrackerSavingsContributionService
-        .syncUpcomingContributions();
+        .syncUpcomingContributions({ readOnly: true });
 
       const dashboard =
         PayTrackerSavingsDashboardService
@@ -504,6 +505,17 @@ function makePayTrackerSavingsResponseBrowserSafe_(data) {
 }
 
 function getPayTrackerSavingsWorkspace() {
+  return makePayTrackerSavingsResponseBrowserSafe_(
+    PayTrackerWebSavingsWorkspaceService.getData()
+  );
+}
+
+/**
+ * The explicit Refresh: the only page-level action that writes the upcoming contribution queue.
+ * Opening or re-opening the Savings page never calls this (see getData, which is read-only).
+ */
+function refreshPayTrackerSavingsContributions() {
+  PayTrackerSavingsContributionService.syncUpcomingContributions();
   return makePayTrackerSavingsResponseBrowserSafe_(
     PayTrackerWebSavingsWorkspaceService.getData()
   );

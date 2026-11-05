@@ -31,6 +31,12 @@
  * Savings Transactions architecture.
  *******************************************************/
 
+/*
+ * Settings read once per execution (see getSettingValue). Cleared by setSettingValue,
+ * so a value written during an execution is read back correctly.
+ */
+let payTrackerSettingsMemo_ = null;
+
 const PayTrackerSavingsService = Object.freeze({
   /**
    * Creates or safely upgrades the complete savings module.
@@ -2249,22 +2255,112 @@ const PayTrackerSavingsService = Object.freeze({
       return null;
     }
 
-    const row =
-      PayTrackerSavingsService.findSettingRow(
-        settingsSheet,
-        settingName
-      );
+    /*
+     * Same answer as findSettingRow + getRange(row, 2).getValue(), but the
+     * settings block is read once per execution instead of twice per lookup.
+     */
+    if (
+      payTrackerSettingsMemo_ === null ||
+      payTrackerSettingsMemo_.sheetName !==
+        settingsSheet.getName()
+    ) {
+      payTrackerSettingsMemo_ =
+        PayTrackerSavingsService.readSettingsMemo_(
+          settingsSheet
+        );
+    }
 
-    if (!row) {
+    const target =
+      String(
+        settingName || ''
+      ).trim();
+
+    if (
+      !Object.prototype.hasOwnProperty.call(
+        payTrackerSettingsMemo_.valueByName,
+        target
+      )
+    ) {
       return null;
     }
 
-    return settingsSheet
-      .getRange(
-        row,
-        2
-      )
-      .getValue();
+    return payTrackerSettingsMemo_.valueByName[target];
+  },
+
+  /**
+   * Reads the settings names and values in two calls. The first setting with a
+   * given name wins, as in findSettingRow.
+   *
+   * @param {GoogleAppsScript.Spreadsheet.Sheet} sheet
+   * @return {{sheetName: string, valueByName: Object}}
+   */
+  readSettingsMemo_: function (sheet) {
+    const memo = {
+      sheetName: sheet.getName(),
+      valueByName: {}
+    };
+
+    if (
+      sheet.getLastRow() <
+      PayTrackerSavingsConfig.FIRST_DATA_ROW
+    ) {
+      return memo;
+    }
+
+    const rowCount =
+      sheet.getLastRow() -
+      PayTrackerSavingsConfig.FIRST_DATA_ROW +
+      1;
+
+    const names =
+      sheet
+        .getRange(
+          PayTrackerSavingsConfig.FIRST_DATA_ROW,
+          1,
+          rowCount,
+          1
+        )
+        .getDisplayValues();
+
+    const values =
+      sheet
+        .getRange(
+          PayTrackerSavingsConfig.FIRST_DATA_ROW,
+          1,
+          rowCount,
+          2
+        )
+        .getValues();
+
+    for (
+      let index = 0;
+      index < rowCount;
+      index++
+    ) {
+      const name =
+        String(
+          names[index][0] || ''
+        ).trim();
+
+      if (
+        !Object.prototype.hasOwnProperty.call(
+          memo.valueByName,
+          name
+        )
+      ) {
+        memo.valueByName[name] =
+          values[index][1];
+      }
+    }
+
+    return memo;
+  },
+
+  /**
+   * Forgets the settings read for this execution.
+   */
+  clearSettingsMemo_: function () {
+    payTrackerSettingsMemo_ = null;
   },
 
 
@@ -2308,6 +2404,8 @@ const PayTrackerSavingsService = Object.freeze({
       .setValue(
         value
       );
+
+    PayTrackerSavingsService.clearSettingsMemo_();
   },
 
 

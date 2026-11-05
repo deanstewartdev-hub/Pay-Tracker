@@ -151,6 +151,16 @@ const PayTrackerCashFlowClassifier = Object.freeze({
 
     if (!result) result = this.fromPayTrackerCategory(tx, isCredit);
 
+    // Money sent to the Credit Union loan account is a transfer out of Monzo,
+    // not spending: the loan repayment itself is the Debt commitment (or the
+    // matched Debt payment), so it is counted once, there.
+    let loanAccount = false;
+    if (!result && !isCredit && this.isLoanAccountPayment(text)) {
+      result = [C.TRANSFER, K.LIKELY,
+        'Payment to your loan account. It counts towards the loan only once matched to a Debt payment.'];
+      loanAccount = true;
+    }
+
     if (!result && isCredit) {
       if (/\binterest\b/.test(text)) {
         result = [C.INTEREST, K.LIKELY, 'Credit described as interest.'];
@@ -179,8 +189,18 @@ const PayTrackerCashFlowClassifier = Object.freeze({
       result = [C.UNRECOGNISED, K.NEEDS_CONFIRMATION, 'Not enough information to classify.'];
     }
 
-    return this.proposal(tx, result[0], result[1], result[2],
+    const proposal = this.proposal(tx, result[0], result[1], result[2],
       this.isTrue(tx.pending) ? this.STATUSES.PENDING : this.STATUSES.NEW);
+    proposal.loanAccount = loanAccount;
+    return proposal;
+  },
+
+  // Payees that are the owner's loan accounts (outgoing payments only).
+  LOAN_ACCOUNT_NAMES: Object.freeze(['credit union']),
+
+  isLoanAccountPayment: function(text) {
+    const lower = String(text || '').toLowerCase();
+    return this.LOAN_ACCOUNT_NAMES.some(function(name) { return lower.indexOf(name) !== -1; });
   },
 
   fromFinanceMatch: function(tx) {
@@ -303,6 +323,8 @@ const PayTrackerCashFlowClassifier = Object.freeze({
       category: category,
       movementType: this.movementTypeFor(category, direction),
       internalTransfer: internal,
+      loanAccount: false,
+      payTrackerCategory: String(tx.payTrackerCategory || '').trim(),
       confidence: confidence,
       // How sure the CATEGORY is, kept even when a ledger duplicate later
       // lowers `confidence` (that doubt is about the ledger, not the money).

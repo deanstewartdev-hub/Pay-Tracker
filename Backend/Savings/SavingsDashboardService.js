@@ -147,6 +147,13 @@ const PayTrackerSavingsDashboardService = Object.freeze({
         result.totalMonthlyContributions
       );
 
+    // Every pot says whether its balance is verified from Monzo or only stored.
+    const monzoSync = PayTrackerSavingsDashboardService.readMonzoSyncState();
+    result.monzoSync = monzoSync;
+    result.potRows.forEach(function (row) {
+      row.balanceState = PayTrackerMonzoPotSync.balanceState(row, monzoSync, new Date());
+    });
+
     result.totalAnnualInterest =
       PayTrackerUtils.roundCurrency(
         result.totalAnnualInterest
@@ -177,6 +184,41 @@ const PayTrackerSavingsDashboardService = Object.freeze({
    * @param {Object} result
    * @param {GoogleAppsScript.Spreadsheet.Sheet|null} potsSheet
    */
+  /*
+   * Last successful Monzo sync, from the sync status row. Balances are only
+   * "verified" from this when it is recent (see MonzoPotSync.balanceState).
+   */
+  readMonzoSyncState: function () {
+    // hasAccessToken is a local property check: no Monzo request is made on page load.
+    return PayTrackerSavingsDashboardService.monzoSyncFromBank(
+      PayTrackerUpcomingPaymentsService.readBankFreshness(),
+      PayTrackerMonzoService.hasAccessToken()
+    );
+  },
+
+  /*
+   * Pure (given the bank row and token presence): only a CONNECTED state is usable.
+   * Balances are verified from Monzo only in that state; everything else is stale.
+   */
+  monzoSyncFromBank: function (bank, hasToken, now) {
+    const state = PayTrackerMonzoConnectionState.derive({
+      hasToken: Boolean(hasToken),
+      storedStatus: bank.status,
+      lastSuccess: bank.lastSuccess,
+      error: bank.message,
+      now: now || new Date()
+    });
+    return {
+      connected: state.usable,
+      state: state.state,
+      freshness: state.freshness,
+      label: state.status,
+      detail: state.detail,
+      syncedAt: state.lastSuccess,
+      status: bank.status || 'Unknown'
+    };
+  },
+
   addPotFigures: function (
     result,
     potsSheet
@@ -581,7 +623,18 @@ const PayTrackerSavingsDashboardService = Object.freeze({
             columns.DUE_DATE - 1
           ];
 
+        // Overdue means unresolved and past due. A Completed or Processing row is not overdue.
+        const status = String(
+          row[columns.STATUS - 1] || ''
+        ).trim();
+        const unresolved =
+          status ===
+            PayTrackerSavingsConfig.CONTRIBUTION_STATUSES.UPCOMING ||
+          status ===
+            PayTrackerSavingsConfig.CONTRIBUTION_STATUSES.ERROR;
+
         if (
+          unresolved &&
           dueDate instanceof Date &&
           PayTrackerUtils
             .stripTime(
