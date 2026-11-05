@@ -623,7 +623,18 @@ const PayTrackerSavingsDashboardService = Object.freeze({
             columns.DUE_DATE - 1
           ];
 
+        // Overdue means unresolved and past due. A Completed or Processing row is not overdue.
+        const status = String(
+          row[columns.STATUS - 1] || ''
+        ).trim();
+        const unresolved =
+          status ===
+            PayTrackerSavingsConfig.CONTRIBUTION_STATUSES.UPCOMING ||
+          status ===
+            PayTrackerSavingsConfig.CONTRIBUTION_STATUSES.ERROR;
+
         if (
+          unresolved &&
           dueDate instanceof Date &&
           PayTrackerUtils
             .stripTime(
