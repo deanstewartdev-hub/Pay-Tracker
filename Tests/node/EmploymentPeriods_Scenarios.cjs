@@ -200,6 +200,18 @@ test('a week with only Logging Cash pay contributes nothing to the forecast', ()
   assert.equal(call(P + '.forecastTakeHome([' + week + ', { takeHome: 400, grossByJob: { "JOB-NHS": 400 } }], "2026-11-05")'), 400 * 52 / 12);
 });
 
+// The sheet function keys gross pay by JOB id (as the live forecast does). Keys by job id and by table name must agree.
+test('Logging Cash keyed by its JOB id (as the live forecast passes it) is excluded too', () => {
+  const week = '{ takeHome: 595.52, grossByJob: { "JOB-NHS": 470.86, "JOB-LOGGING-CASH": 200 } }';
+  const est = call(P + '.forecastTakeHome([' + week + '], "2026-11-05")');
+  assert.ok(Math.abs(est - 395.52 * 52 / 12) < 1e-6, 'got ' + est);
+});
+test('job-id keys and table-name keys give the same forecast for the seasonal end', () => {
+  const byJob = '[{ takeHome: 862.21, grossByJob: { "JOB-NHS": 526.14, "JOB-RELIEF-WARDEN": 136.9, "JOB-NIGHT-SECURITY": 367.38, "JOB-LOGGING-CASH": 110 } }, { takeHome: 400, grossByJob: { "JOB-NHS": 400 } }]';
+  const byName = '[{ takeHome: 862.21, grossByJob: { "NHS": 526.14, "Relief Assistant Warden": 136.9, "Night Security Warden": 367.38, "Logging Cash": 110 } }, { takeHome: 400, grossByJob: { "JOB-NHS": 400 } }]';
+  assert.ok(Math.abs(call(P + '.forecastTakeHome(' + byJob + ', "2026-11-05")') - call(P + '.forecastTakeHome(' + byName + ', "2026-11-05")')) < 1e-6);
+});
+
 const failed = results.filter((r) => !r.ok).length;
 console.log('Employment periods: ' + (results.length - failed) + '/' + results.length + ' passed.');
 module.exports = { results };

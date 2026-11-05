@@ -94,27 +94,32 @@ const PayTrackerEmploymentPeriods = Object.freeze({
    */
   forecastTakeHome: function(weeks, todayKey) {
     const list = Array.isArray(weeks) ? weeks : [];
-    const unverified = Object.keys(this.UNVERIFIED_CLASSIFICATION);
+    // Gross pay may be keyed by table name or by job id: both are normalised to the job id.
+    const jobOf = (key) => this.jobIdForTable(key) || key;
+    const unverified = Object.keys(this.UNVERIFIED_CLASSIFICATION).map(jobOf);
     const kept = [];
     list.forEach((week) => {
-      const gross = week.grossByJob || {};
+      const grossN = {};
+      Object.keys(week.grossByJob || {}).forEach((key) => {
+        const job = jobOf(key);
+        grossN[job] = (grossN[job] || 0) + (Number(week.grossByJob[key]) || 0);
+      });
       // Unverified categories (e.g. Logging Cash) are non-taxable: their take-home equals their gross.
       // They are kept in history but are not annualised, so they leave the take-home and the shares.
-      const unverifiedGross = unverified.reduce((sum, key) => sum + (Number(gross[key]) || 0), 0);
-      const jobIds = Object.keys(gross).filter((jobId) => unverified.indexOf(jobId) === -1);
-      const total = jobIds.reduce((sum, jobId) => sum + (Number(gross[jobId]) || 0), 0);
+      const unverifiedGross = unverified.reduce((sum, job) => sum + (grossN[job] || 0), 0);
+      const jobIds = Object.keys(grossN).filter((job) => unverified.indexOf(job) === -1);
+      const total = jobIds.reduce((sum, job) => sum + grossN[job], 0);
       const takeHome = Math.max((Number(week.takeHome) || 0) - unverifiedGross, 0);
       if (total <= 0 && unverifiedGross === 0) {
         // No per-job pay for this week: keep the old whole-week rule (drop it only if a seasonal job ended).
-        const ended = (week.seasonalJobIds || []).some((jobId) => !this.forecastAllowed(jobId, todayKey));
+        const ended = (week.seasonalJobIds || []).some((job) => !this.forecastAllowed(job, todayKey));
         if (!ended) kept.push(takeHome);
         return;
       }
       if (total <= 0) return; // only unverified pay this week: nothing recurring
       // Job-level: only the share of the week's take-home that belongs to a job still active counts.
-      const activeGross = jobIds.reduce((sum, jobId) => {
-        const value = Number(gross[jobId]) || 0;
-        return this.forecastAllowed(jobId, todayKey) ? sum + value : sum;
+      const activeGross = jobIds.reduce((sum, job) => {
+        return this.forecastAllowed(job, todayKey) ? sum + grossN[job] : sum;
       }, 0);
       if (activeGross <= 0) return; // a week made only of ended seasonal work: no ordinary earnings
       kept.push(takeHome * activeGross / total);
