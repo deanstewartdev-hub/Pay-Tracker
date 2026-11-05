@@ -246,6 +246,28 @@ const PayTrackerConfig = Object.freeze({
    */
   PAY_RULE_HISTORY: Object.freeze({
     'Night Security Warden': Object.freeze({
+      'Enhanced 1.33': Object.freeze([
+        Object.freeze({
+          effectiveFrom: '2026-08-16',
+          fixedAmount: 71.68,
+          hourlyRate: 17.92,
+          contractConfirmed: false,
+          status: 'evidenced-earliest',
+          evidence: 'Staffline payslip N621105, line dated 16/08/2026: Enhanced 1.33, 16.00h at 17.92 = 286.72. ' +
+            'Earliest evidenced date. Shifts before 16 Aug 2026 keep the previous rate (17.91 / 71.64); no earlier evidence exists.'
+        })
+      ]),
+      'Overtime 1.33': Object.freeze([
+        Object.freeze({
+          effectiveFrom: '2026-08-16',
+          fixedAmount: 71.68,
+          hourlyRate: 17.92,
+          contractConfirmed: false,
+          status: 'evidenced-earliest',
+          evidence: 'Staffline payslip N621105, line dated 16/08/2026: Enhanced 1.33, 16.00h at 17.92 = 286.72. ' +
+            'Earliest evidenced date. Shifts before 16 Aug 2026 keep the previous rate (17.91 / 71.64); no earlier evidence exists.'
+        })
+      ]),
       'Enhanced 1.50': Object.freeze([
         Object.freeze({
           effectiveFrom: '2026-10-05',
@@ -379,8 +401,8 @@ const PayTrackerConfig = Object.freeze({
       }),
 
       'Enhanced 1.33': Object.freeze({
-        fixedAmount: 71.68,
-        hourlyRate: 17.92
+        fixedAmount: 71.64,
+        hourlyRate: 17.91
       }),
 
       'Enhanced 1.50': Object.freeze({
@@ -404,8 +426,8 @@ const PayTrackerConfig = Object.freeze({
       }),
 
       'Overtime 1.33': Object.freeze({
-        fixedAmount: 71.68,
-        hourlyRate: 17.92
+        fixedAmount: 71.64,
+        hourlyRate: 17.91
       }),
 
       'Overtime 1.50': Object.freeze({

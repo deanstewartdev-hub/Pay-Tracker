@@ -40,6 +40,16 @@ function assembleIndex() {
   return html;
 }
 
+/** Polls a condition until it holds, or fails with a clear message after a generous ceiling. */
+async function waitUntil(predicate, label, ceilingMs = 15000) {
+  const deadline = Date.now() + ceilingMs;
+  while (Date.now() < deadline) {
+    if (predicate()) return;
+    await new Promise((resolve) => setTimeout(resolve, 25));
+  }
+  throw new Error(label + ' did not appear within ' + ceilingMs + ' ms');
+}
+
 async function waitForSavingsBinding(window) {
   const deadline = Date.now() + 8000;
   while (Date.now() < deadline) {
@@ -146,7 +156,11 @@ test('a workspace request that never returns shows the timeout notice and stops 
   window.google = { script: { run: runner } };
   await waitForSavingsBinding(window);
   window.document.dispatchEvent(new window.CustomEvent('paytracker:routechange', { detail: { route: 'savings' } }));
-  await new Promise((resolve) => setTimeout(resolve, 300));
+  // Deterministic readiness: wait for the timeout notice itself (no fixed sleep).
+  await waitUntil(() => {
+    const n = window.document.querySelector('[data-savings-notice]');
+    return Boolean(n && /taking too long to load/.test(n.textContent));
+  }, 'the timeout notice');
   const notice = window.document.querySelector('[data-savings-notice]');
   assert.match(notice.textContent, /taking too long to load/);
   assert.equal(window.document.querySelector('[data-savings-loading]').hidden, true, 'the loading state is cleared');

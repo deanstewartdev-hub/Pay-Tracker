@@ -810,92 +810,61 @@ const PayTrackerFinanceDashboard = Object.freeze({
    *
    * @return {number}
    */
-  calculateEstimatedMonthlyTakeHome: function () {
-    let sheet;
-
-    try {
-      sheet =
-        PayTrackerUtils.getPaySheet();
-    } catch (error) {
-      return 0;
-    }
-
-    const existingWeeks =
-      PayTrackerUtils.getExistingWeekCount(
-        sheet
-      );
-
-    let totalTakeHome =
-      0;
-
-    let populatedWeeks =
-      0;
-
-    /*
-     * One read of the used block instead of several reads per week
-     * (each Sheets read is a round trip; this was the slowest step of the
-     * Savings workspace). Values are identical to the per-cell reads.
-     */
-    const usedRange = sheet.getRange(
-      1,
-      1,
-      Math.max(sheet.getLastRow(), 1),
-      Math.max(sheet.getLastColumn(), 1)
-    );
-    const displayGrid = usedRange.getDisplayValues();
-    const valueGrid = usedRange.getValues();
-
-    for (
-      let weekNumber = 1;
-      weekNumber <= existingWeeks;
-      weekNumber++
-    ) {
-      const startRow =
-        PayTrackerUtils.getWeekStartRow(
-          weekNumber
-        );
-
-      if (
-        !PayTrackerWeekManager.weekHasShiftDataFromGrid(
-          displayGrid,
-          startRow
-        )
-      ) {
-        continue;
-      }
-
-      const summaryRow =
-        valueGrid[startRow + 5 - 1] || [];
-
-      const weeklyTakeHome =
-        Number(
-          summaryRow[
-            PayTrackerConfig
-              .SHEET
-              .WEEKLY_SUMMARY_VALUE_COLUMN - 1
-          ]
-        ) || 0;
-
-      totalTakeHome +=
-        weeklyTakeHome;
-
-      populatedWeeks++;
-    }
-
-    if (
-      populatedWeeks ===
-      0
-    ) {
-      return 0;
-    }
-
-    return (
-      totalTakeHome /
-      populatedWeeks *
-      52 /
-      12
-    );
-  },
+  calculateEstimatedMonthlyTakeHome: function () {
+    let sheet;
+
+    try {
+      sheet = PayTrackerUtils.getPaySheet();
+    } catch (error) {
+      return 0;
+    }
+
+    const existingWeeks = PayTrackerUtils.getExistingWeekCount(sheet);
+
+    // One read of the used block (identical values to per-cell reads; see Savings timing notes).
+    const usedRange = sheet.getRange(
+      1,
+      1,
+      Math.max(sheet.getLastRow(), 1),
+      Math.max(sheet.getLastColumn(), 1)
+    );
+    const displayGrid = usedRange.getDisplayValues();
+    const valueGrid = usedRange.getValues();
+
+    // Each populated week, tagged with any seasonal job that worked in it. The estimate itself is
+    // decided by PayTrackerEmploymentPeriods.forecastTakeHome, so a seasonal contract that has ended
+    // stops contributing to the projection while its historical pay stays in the sheet.
+    const seasonalTables = { 'Night Security Warden': true, 'Relief Assistant Warden': true };
+    const weeks = [];
+    for (let weekNumber = 1; weekNumber <= existingWeeks; weekNumber++) {
+      const startRow = PayTrackerUtils.getWeekStartRow(weekNumber);
+      if (!PayTrackerWeekManager.weekHasShiftDataFromGrid(displayGrid, startRow)) {
+        continue;
+      }
+      const summaryRow = valueGrid[startRow + 5 - 1] || [];
+      const weeklyTakeHome = Number(summaryRow[PayTrackerConfig.SHEET.WEEKLY_SUMMARY_VALUE_COLUMN - 1]) || 0;
+      const firstDataRow = startRow + PayTrackerConfig.SHEET.WEEK_DATA_ROW_OFFSET;
+      const seasonalJobIds = [];
+      Object.keys(seasonalTables).forEach(function (tableName) {
+        const table = getConfiguredPayTableByName_(tableName);
+        if (!table) return;
+        const hoursIndex = table.startColumn + 3 - 1;
+        for (let r = 0; r < 7; r++) {
+          const row = valueGrid[firstDataRow - 1 + r] || [];
+          if ((Number(row[hoursIndex]) || 0) > 0) {
+            seasonalJobIds.push(PayTrackerEmploymentPeriods.jobIdForTable(tableName));
+            return;
+          }
+        }
+      });
+      weeks.push({ takeHome: weeklyTakeHome, seasonalJobIds: seasonalJobIds });
+    }
+
+    return PayTrackerEmploymentPeriods.forecastTakeHome(
+      weeks,
+      PayTrackerEmploymentPeriods.dayKeyOf(new Date())
+    );
+  },
 
 
   /**

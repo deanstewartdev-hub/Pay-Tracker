@@ -59,6 +59,49 @@ const PayTrackerEmploymentPeriods = Object.freeze({
     return date.getFullYear() + '-' + pad(date.getMonth() + 1) + '-' + pad(date.getDate());
   },
 
+  /** Action Centre action type for a Calendar shift dated after a contract ended. */
+  REVIEW_ACTION_TYPE: 'Post-contract Calendar shift',
+
+  /**
+   * The review item for a Calendar shift that is NOT written to PaySheet because its contract ended.
+   * The item goes to the Action Centre queue only. It is keyed by the calendar event, so repeated syncs
+   * produce one item. Nothing here is a pay row, and nothing is marked paid.
+   */
+  postContractReviewItem: function(input) {
+    const i = input || {};
+    const day = i.date ? this.dayKeyOf(i.date) : '';
+    const hours = Number(i.hours) || 0;
+    return {
+      actionType: this.REVIEW_ACTION_TYPE,
+      title: 'Calendar shift after a contract end: ' + String(i.tableName || '') + ' on ' + day,
+      description: 'Calendar event "' + String(i.eventTitle || '').slice(0, 120) + '" on ' + day + ' (' + String(i.shiftType || '') +', ' + hours + ' hours) was NOT added to PaySheet, because the ' +
+        String(i.tableName || '') + ' contract ended on ' + ((this.JOB_PERIODS[i.jobId] || [])[0] || {}).end + '. ' +
+        'Decide whether it is a genuine shift (for example a reactivation or final work) and record it by hand if so. Nothing has been paid or changed.',
+      priority: 'Normal',
+      sourceType: 'Google Calendar',
+      sourceId: String(i.eventKey || ''),
+      confidence: 'Manual review required',
+      suggestedResolution: 'Confirm with Staffline. Add the shift by hand only with a contract or payslip reason.'
+    };
+  },
+
+  /**
+   * Estimated monthly take-home from historical weeks (average week x 52 / 12).
+   * weeks: [{takeHome, seasonalJobIds: [job ids whose shifts were worked that week]}].
+   * A week is left out of the average once one of its seasonal jobs has ENDED as of todayKey,
+   * so earnings from a finished contract are not projected forward. Before the end, every week counts,
+   * as before. Returns 0 when no usable week exists (no evidence, so no estimate).
+   */
+  forecastTakeHome: function(weeks, todayKey) {
+    const list = Array.isArray(weeks) ? weeks : [];
+    const usable = list.filter((week) => {
+      return !(week.seasonalJobIds || []).some((jobId) => !this.forecastAllowed(jobId, todayKey));
+    });
+    if (usable.length === 0) return 0;
+    const total = usable.reduce((sum, week) => sum + (Number(week.takeHome) || 0), 0);
+    return total / usable.length * 52 / 12;
+  },
+
   /** Recording pay already earned is never blocked by the employment period. */
   recordingAllowed: function() {
     return true;

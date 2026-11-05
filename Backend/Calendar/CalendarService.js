@@ -1116,6 +1116,20 @@ const PayTrackerCalendarService = Object.freeze({
     // The shift is reported for review and nothing in PaySheet or the Calendar Sync Record changes.
     const endedJobId = PayTrackerEmploymentPeriods.jobIdForTable(table.name);
     if (endedJobId && !PayTrackerEmploymentPeriods.forecastAllowed(endedJobId, PayTrackerEmploymentPeriods.dayKeyOf(eventDate))) {
+      // Durable review: one Action Centre item per calendar event (the queue is idempotent by event).
+      // This never writes PaySheet, the Calendar Sync Record or any pay value.
+      if (ownership && ownership.eventKey) {
+        try {
+          PayTrackerActionCentreRepository.create(
+            PayTrackerEmploymentPeriods.postContractReviewItem({
+              jobId: endedJobId, tableName: table.name, shiftType: shiftType, hours: hours, date: eventDate,
+              eventKey: ownership.eventKey,
+              eventTitle: ownership.event && ownership.event.getTitle ? String(ownership.event.getTitle() || '') : ''
+            }));
+        } catch (ignored) {
+          // The review queue must never stop a sync. The flag is still counted in the sync summary.
+        }
+      }
       return { status: 'flaggedAfterContractEnd', jobId: endedJobId, date: PayTrackerEmploymentPeriods.dayKeyOf(eventDate) };
     }
 

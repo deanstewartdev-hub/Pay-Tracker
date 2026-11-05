@@ -129,6 +129,37 @@ test('the guard covers only seasonal tables: the NHS table is never flagged by i
   assert.equal(call(P + '.forecastAllowed("JOB-NHS", "2026-11-03")'), true);
 });
 
+test('a post-contract shift creates ONE Action Centre review item across repeated passes, and nothing else changes', () => {
+  const sheet = sb.getSheet('PaySheet');
+  const before = JSON.stringify(sheet.rows);
+  const call3 = () => sb.json('(function () { return PayTrackerCalendarService.addShiftToSheet(SpreadsheetApp.getActiveSpreadsheet().getSheetByName("PaySheet"), new Date(2026, 10, 3, 12), "Night Security Warden", "Enhanced 1.50", 4, { eventKey: "E-REVIEW-1", event: { getTitle: function () { return "Night security"; } }, jobId: "JOB-NIGHT-SECURITY", isAnnualLeave: false }); })()');
+  assert.equal(call3().status, 'flaggedAfterContractEnd');
+  assert.equal(call3().status, 'flaggedAfterContractEnd');
+  const items = sb.json('PayTrackerActionCentreRepository.getAll({}).filter(function (i) { return i.sourceId === "E-REVIEW-1"; })');
+  assert.equal(items.length, 1, 'one review item for the event');
+  assert.equal(items[0].actionType, 'Post-contract Calendar shift');
+  assert.equal(JSON.stringify(sheet.rows), before, 'PaySheet unchanged');
+});
+
+// Forecast: a seasonal contract that has ended stops contributing to the take-home estimate.
+const MIXED = '[{ takeHome: 400, seasonalJobIds: [] }, { takeHome: 800, seasonalJobIds: ["JOB-NIGHT-SECURITY"] }]';
+test('forecast before the end (15 Oct 2026) still includes the seasonal week (unchanged behaviour): 2600', () => {
+  assert.equal(call(P + '.forecastTakeHome(' + MIXED + ', "2026-10-15")'), 2600);
+});
+test('forecast after the end (5 Nov 2026) excludes the seasonal week: NHS-only average 1733.33', () => {
+  assert.ok(Math.abs(call(P + '.forecastTakeHome(' + MIXED + ', "2026-11-05")') - 1733.3333333) < 1e-6);
+});
+test('forecast on a far-future date (1 Jun 2027) still excludes the seasonal week', () => {
+  assert.ok(Math.abs(call(P + '.forecastTakeHome(' + MIXED + ', "2027-06-01")') - 1733.3333333) < 1e-6);
+});
+test('NHS-only history gives the same forecast before and after the seasonal end', () => {
+  const nhs = '[{ takeHome: 400, seasonalJobIds: [] }, { takeHome: 420, seasonalJobIds: ["JOB-NHS"] }]';
+  assert.equal(call(P + '.forecastTakeHome(' + nhs + ', "2026-10-15")'), call(P + '.forecastTakeHome(' + nhs + ', "2026-11-05")'));
+});
+test('seasonal-only history after the end gives no estimate (0), not a projection of ended earnings', () => {
+  assert.equal(call(P + '.forecastTakeHome([{ takeHome: 800, seasonalJobIds: ["JOB-NIGHT-SECURITY"] }], "2026-11-05")'), 0);
+});
+
 const failed = results.filter((r) => !r.ok).length;
 console.log('Employment periods: ' + (results.length - failed) + '/' + results.length + ' passed.');
 module.exports = { results };
