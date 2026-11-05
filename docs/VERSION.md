@@ -15,6 +15,9 @@ Read-only preflight. No production code was pushed, no deployment changed, no da
 - **Previous recorded version to roll back to:** 143 (main `64cf359`).
 - **Release candidate:** PR #53 head `70a913e` (includes a test-only input fix; no behaviour change for production inputs). Base `release/v3.3.0-rc1` at `a987c89`.
 - **Schema:** no sheet or column header changes between `main` and the release branch. Pay-rate constants change (NHS fixed amounts, Night Security rate history from 5 Oct 2026, contract date not yet confirmed; see `PAY_RULE_HISTORY` in `Backend/Core/Config.js`). Owner must confirm before release.
+- **Unintended production version:** during the preflight a `clasp version` was run against the production project by mistake (a scratch config pointed at production). It created **production version 144**, a snapshot of the same 168 files as version 143 (verified by pulling both). No deployment uses it and the live deployment is still @143. Versions cannot be deleted with clasp. Recorded here so the version history is explained.
+- **Production backup checklist (not yet performed):** (1) File > Make a copy of the production spreadsheet, named with the date and "pre-v3.3"; (2) store the copy outside the live spreadsheet and record its name, date and location here; (3) record the current production version (143) and the deployment ID in the owner's release notes; (4) do not run any script function against production to take the backup.
+- **Rollback (checked against the deployment list):** redeploy version 143 to the production web-app deployment described above, with `clasp deploy --deploymentId <production deployment ID> --versionNumber 143`. This changes code only.
 
 ## Development Stage
 
