@@ -79,7 +79,7 @@
             '[data-savings-refresh]'
           )
         ) {
-          load(true);
+          load(true, true);
         } else if (
           event.target.closest(
             '[data-savings-contribution-clear]'
@@ -205,7 +205,9 @@
   // A workspace call that never returns must not leave the page loading forever.
   var WORKSPACE_TIMEOUT_MS = 45000;
 
-  function load(force) {
+  // explicitRefresh: true only for the Refresh button, which may write the contribution queue.
+  // Every other load is read-only on the server.
+  function load(force, explicitRefresh) {
     if (
       state.loading &&
       force !== true
@@ -237,7 +239,9 @@
     }, WORKSPACE_TIMEOUT_MS);
 
     call(
-      'getPayTrackerSavingsWorkspace',
+      explicitRefresh === true
+        ? 'refreshPayTrackerSavingsContributions'
+        : 'getPayTrackerSavingsWorkspace',
       [],
       function(data) {
         if (state.requestId !== requestId) return;
@@ -854,6 +858,10 @@
     switch (functionName) {
       case 'getPayTrackerSavingsWorkspace':
         runner.getPayTrackerSavingsWorkspace();
+        break;
+
+      case 'refreshPayTrackerSavingsContributions':
+        runner.refreshPayTrackerSavingsContributions();
         break;
 
       case 'markPayTrackerSavingsContributionDeposited':

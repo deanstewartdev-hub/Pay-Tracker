@@ -325,7 +325,12 @@ const PayTrackerSavingsContributionService = Object.freeze({
    *
    * A pot receives only one queue row for each due date.
    */
-  syncUpcomingContributions: function () {
+  syncUpcomingContributions: function (options) {
+  // A page load asks for read-only: it never writes the queue or the sync fingerprint.
+  // Writes happen only through the explicit refresh, a pot edit, or the setup/menu actions.
+  if (options && options.readOnly) {
+    return { created: 0, updated: 0, skipped: 0, readOnly: true };
+  }
   /*
    * Apply all pending spreadsheet changes before retrieving
    * sheet objects. This prevents stale references after setup,
