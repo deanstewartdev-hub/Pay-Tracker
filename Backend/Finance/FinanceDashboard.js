@@ -847,7 +847,8 @@ const PayTrackerFinanceDashboard = Object.freeze({
       tables.forEach(function (table) {
         const jobId = PayTrackerEmploymentPeriods.jobIdForTable(table.name) || table.name;
         const payIndex = table.startColumn + 4 - 1;
-        for (let r = 0; r < 7; r++) {
+        // All WEEK_DATA_ROW_COUNT rows, including the Extra row: the weekly table total sums them too.
+        for (let r = 0; r < PayTrackerConfig.SHEET.WEEK_DATA_ROW_COUNT; r++) {
           const row = valueGrid[firstDataRow - 1 + r] || [];
           const pay = Number(row[payIndex]) || 0;
           if (pay) grossByJob[jobId] = (grossByJob[jobId] || 0) + pay;
