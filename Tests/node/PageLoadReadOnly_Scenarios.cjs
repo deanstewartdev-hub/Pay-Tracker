@@ -110,6 +110,14 @@ test('the explicit Refresh writes the queue, and a page load afterwards is read-
   assert.equal(snapshot(true), before, 'a page load after the refresh changes nothing');
 });
 
+test('repeated explicit Refresh is idempotent: a second refresh creates no duplicate queue row', () => {
+  callJson('refreshPayTrackerSavingsContributions()');
+  const after1 = queue.rows.length;
+  callJson('refreshPayTrackerSavingsContributions()');
+  callJson('refreshPayTrackerSavingsContributions()');
+  assert.equal(queue.rows.length, after1, 'repeated refreshes add no duplicate rows');
+});
+
 test('historical PaySheet values are unchanged by any page load', () => {
   const pay = sb.getSheet('PaySheet');
   pay.rows.length = 0;
