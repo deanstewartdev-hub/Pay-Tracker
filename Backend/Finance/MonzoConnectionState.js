@@ -46,7 +46,7 @@ const PayTrackerMonzoConnectionState = Object.freeze({
    * @return {{state, usable, freshness, status, detail, lastSuccess, ageHours}}
    */
   derive: function(input) {
-    const now = input.now instanceof Date ? input.now : new Date();
+    const now = input.now instanceof Date ? input.now : (input.now ? new Date(input.now) : new Date());
     const status = String(input.storedStatus || '');
     const message = String(input.error || '');
     const last = this.toDate_(input.lastSuccess);
