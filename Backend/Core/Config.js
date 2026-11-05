@@ -222,7 +222,7 @@ const PayTrackerConfig = Object.freeze({
     LOGGING_CASH: Object.freeze({
       name: 'Logging Cash',
       startColumn: 19,
-      taxable: false,
+      taxable: false, // Excluded from the taxable-gross total pending owner classification. A reporting setting, not a tax finding.
 
       shifts: Object.freeze([
         'Logging Cash £10/hr'

@@ -188,8 +188,8 @@ test('the sample values 2600 and 1733.33 are synthetic: a real forecast must com
   assert.ok(call(P + '.forecastTakeHome([' + NHS_ONLY + ', ' + MIXED_WEEK + '], "2026-10-15")') !== 1733.33);
 });
 
-// Logging Cash is an unclassified, non-taxable category: it is kept in history but not annualised.
-test('Logging Cash pay is not annualised into the take-home forecast (non-taxable, unclassified)', () => {
+// Logging Cash is an unclassified category paid with no deductions at payment: it is kept in history but not annualised.
+test('Logging Cash pay is not annualised into the take-home forecast (unclassified, paid with no deductions at payment)', () => {
   // Real staging week 29 (2-8 Nov 2026): take-home 595.52 = NHS 395.52 + Logging Cash 200. Only the NHS part is recurring.
   const week = '{ takeHome: 595.52, grossByJob: { "JOB-NHS": 470.86, "Logging Cash": 200 } }';
   const est = call(P + '.forecastTakeHome([' + week + '], "2026-11-05")');

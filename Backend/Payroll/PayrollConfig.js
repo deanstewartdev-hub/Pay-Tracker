@@ -261,7 +261,7 @@ const PayTrackerPayrollConfig = Object.freeze({
     LOGGING_CASH: Object.freeze({
       KEY: 'logging',
       DISPLAY_NAME: 'Logging Cash',
-      TAXABLE: false
+      TAXABLE: false // Excluded from the taxable-gross total pending owner classification. A reporting setting, not a tax finding.
     })
   }),
 
@@ -356,7 +356,7 @@ const PayTrackerPayrollConfig = Object.freeze({
    * paid together on one payslip.
    *
    * Logging Cash is deliberately excluded because it is
-   * separate and non-taxable.
+   * separate, paid in cash with no PAYE or National Insurance deducted at payment, and not yet classified.
    */
   DEFAULT_PAYROLL_GROUPS: Object.freeze([
     Object.freeze({

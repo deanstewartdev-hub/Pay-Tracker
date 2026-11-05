@@ -129,6 +129,16 @@ test('historical PaySheet values are unchanged by any page load', () => {
   assert.equal(JSON.stringify(pay.rows), before, 'a page load altered the PaySheet');
 });
 
+// Action Centre items are raised only by the Calendar sync. That task is never startup-eligible, and the
+// startup pass only checks a task's dependencies, so a page load cannot reach the calendar write.
+test('the Calendar task is not startup-eligible, so a forced page-load pass writes no sheet (including Action Centre)', () => {
+  const calendar = sb.json('PayTrackerSyncConfig.TASKS.filter(function (t) { return t.id === "CALENDAR"; })[0]');
+  assert.equal(calendar.startupEligible, false, 'the Calendar task must not run on page load');
+  const before = snapshot(false);
+  callJson('PayTrackerSyncService.run({ triggerSource: "STARTUP", force: true })');
+  assert.equal(snapshot(false), before, 'a forced startup pass changed a sheet, including Action Centre');
+});
+
 const failed = results.filter((r) => !r.ok).length;
 console.log('Page loads read-only: ' + (results.length - failed) + '/' + results.length + ' passed.');
 module.exports = { results };

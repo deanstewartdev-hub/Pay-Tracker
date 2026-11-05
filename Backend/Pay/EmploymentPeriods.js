@@ -104,7 +104,7 @@ const PayTrackerEmploymentPeriods = Object.freeze({
         const job = jobOf(key);
         grossN[job] = (grossN[job] || 0) + (Number(week.grossByJob[key]) || 0);
       });
-      // Unverified categories (e.g. Logging Cash) are non-taxable: their take-home equals their gross.
+      // Unverified categories (e.g. Logging Cash) are paid with no PAYE or National Insurance deducted at payment, so their take-home equals their gross. This describes the payment only, not a tax finding.
       // They are kept in history but are not annualised, so they leave the take-home and the shares.
       const unverifiedGross = unverified.reduce((sum, job) => sum + (grossN[job] || 0), 0);
       const jobIds = Object.keys(grossN).filter((job) => unverified.indexOf(job) === -1);
@@ -144,7 +144,7 @@ const PayTrackerEmploymentPeriods = Object.freeze({
   // Pay tables whose classification is not yet verified. Their values are kept, but the automatic
   // minimum-wage check does not apply until the owner confirms what the table represents.
   UNVERIFIED_CLASSIFICATION: Object.freeze({
-    'Logging Cash': 'Unverified: may be a real hourly employment rate, a cash-earnings category, or a fixed payment for logging work. Owner to classify.'
+    'Logging Cash': 'Unverified classification. Owner-confirmed: paid at 10 per hour directly in cash, with no PAYE or National Insurance deducted at payment. The employment classification is not yet confirmed. Owner to classify.'
   }),
 
   /** The automatic minimum-wage check applies only to tables with a verified classification. */
