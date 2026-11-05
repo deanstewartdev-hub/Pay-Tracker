@@ -94,12 +94,28 @@ const PayTrackerEmploymentPeriods = Object.freeze({
    */
   forecastTakeHome: function(weeks, todayKey) {
     const list = Array.isArray(weeks) ? weeks : [];
-    const usable = list.filter((week) => {
-      return !(week.seasonalJobIds || []).some((jobId) => !this.forecastAllowed(jobId, todayKey));
+    const kept = [];
+    list.forEach((week) => {
+      const gross = week.grossByJob || {};
+      const jobIds = Object.keys(gross);
+      const total = jobIds.reduce((sum, jobId) => sum + (Number(gross[jobId]) || 0), 0);
+      const takeHome = Number(week.takeHome) || 0;
+      if (total <= 0) {
+        // No per-job pay for this week: keep the old whole-week rule (drop it only if a seasonal job ended).
+        const ended = (week.seasonalJobIds || []).some((jobId) => !this.forecastAllowed(jobId, todayKey));
+        if (!ended) kept.push(takeHome);
+        return;
+      }
+      // Job-level: only the share of the week's take-home that belongs to a job still active counts.
+      const activeGross = jobIds.reduce((sum, jobId) => {
+        const value = Number(gross[jobId]) || 0;
+        return this.forecastAllowed(jobId, todayKey) ? sum + value : sum;
+      }, 0);
+      if (activeGross <= 0) return; // a week made only of ended seasonal work: no ordinary earnings
+      kept.push(takeHome * activeGross / total);
     });
-    if (usable.length === 0) return 0;
-    const total = usable.reduce((sum, week) => sum + (Number(week.takeHome) || 0), 0);
-    return total / usable.length * 52 / 12;
+    if (kept.length === 0) return 0;
+    return kept.reduce((sum, value) => sum + value, 0) / kept.length * 52 / 12;
   },
 
   /** Recording pay already earned is never blocked by the employment period. */

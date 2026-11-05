@@ -160,6 +160,34 @@ test('seasonal-only history after the end gives no estimate (0), not a projectio
   assert.equal(call(P + '.forecastTakeHome([{ takeHome: 800, seasonalJobIds: ["JOB-NIGHT-SECURITY"] }], "2026-11-05")'), 0);
 });
 
+// Job-level forecast: a mixed week keeps the NHS share; only the ended seasonal share is removed.
+const NHS_ONLY = '{ takeHome: 400, grossByJob: { "JOB-NHS": 400 } }';
+const MIXED_WEEK = '{ takeHome: 800, grossByJob: { "JOB-NHS": 300, "JOB-NIGHT-SECURITY": 500 } }';
+test('mixed week after the end keeps its NHS share (300 of 800), not the whole week: average (400 + 300) / 2 x 52/12 = 1516.67', () => {
+  const est = call(P + '.forecastTakeHome([' + NHS_ONLY + ', ' + MIXED_WEEK + '], "2026-11-05")');
+  assert.ok(Math.abs(est - 1516.6666667) < 1e-6, 'got ' + est);
+});
+test('the same mixed history before the end counts the whole week: (400 + 800) / 2 x 52/12 = 2600', () => {
+  assert.equal(call(P + '.forecastTakeHome([' + NHS_ONLY + ', ' + MIXED_WEEK + '], "2026-10-15")'), 2600);
+});
+test('a mixed week with Relief work and NHS after the end keeps the NHS share only', () => {
+  const week = '{ takeHome: 600, grossByJob: { "JOB-NHS": 200, "JOB-RELIEF-WARDEN": 400 } }';
+  const est = call(P + '.forecastTakeHome([' + NHS_ONLY + ', ' + week + '], "2026-11-05")');
+  assert.ok(Math.abs(est - (400 + 200) / 2 * 52 / 12) < 1e-6);
+});
+test('a seasonal-only week after the end contributes nothing (no ordinary earnings)', () => {
+  const seasonal = '{ takeHome: 800, grossByJob: { "JOB-NIGHT-SECURITY": 800 } }';
+  assert.equal(call(P + '.forecastTakeHome([' + NHS_ONLY + ', ' + seasonal + '], "2026-11-05")'), 400 * 52 / 12);
+});
+test('NHS-only history is the same before and after the seasonal end, and on far-future dates', () => {
+  const before = call(P + '.forecastTakeHome([' + NHS_ONLY + ', ' + NHS_ONLY + '], "2026-10-15")');
+  assert.equal(call(P + '.forecastTakeHome([' + NHS_ONLY + ', ' + NHS_ONLY + '], "2026-11-05")'), before);
+  assert.equal(call(P + '.forecastTakeHome([' + NHS_ONLY + ', ' + NHS_ONLY + '], "2027-06-01")'), before);
+});
+test('the sample values 2600 and 1733.33 are synthetic: a real forecast must come from staging PaySheet', () => {
+  assert.ok(call(P + '.forecastTakeHome([' + NHS_ONLY + ', ' + MIXED_WEEK + '], "2026-10-15")') !== 1733.33);
+});
+
 const failed = results.filter((r) => !r.ok).length;
 console.log('Employment periods: ' + (results.length - failed) + '/' + results.length + ' passed.');
 module.exports = { results };

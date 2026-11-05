@@ -821,7 +821,7 @@ const PayTrackerFinanceDashboard = Object.freeze({
 
     const existingWeeks = PayTrackerUtils.getExistingWeekCount(sheet);
 
-    // One read of the used block (identical values to per-cell reads; see Savings timing notes).
+    // One read of the used block (identical values to per-cell reads).
     const usedRange = sheet.getRange(
       1,
       1,
@@ -831,10 +831,9 @@ const PayTrackerFinanceDashboard = Object.freeze({
     const displayGrid = usedRange.getDisplayValues();
     const valueGrid = usedRange.getValues();
 
-    // Each populated week, tagged with any seasonal job that worked in it. The estimate itself is
-    // decided by PayTrackerEmploymentPeriods.forecastTakeHome, so a seasonal contract that has ended
-    // stops contributing to the projection while its historical pay stays in the sheet.
-    const seasonalTables = { 'Night Security Warden': true, 'Relief Assistant Warden': true };
+    // Each populated week: take-home plus gross pay by job, so a mixed week keeps its NHS share.
+    // The estimate is decided by PayTrackerEmploymentPeriods.forecastTakeHome.
+    const tables = getConfiguredPayTables_();
     const weeks = [];
     for (let weekNumber = 1; weekNumber <= existingWeeks; weekNumber++) {
       const startRow = PayTrackerUtils.getWeekStartRow(weekNumber);
@@ -844,20 +843,17 @@ const PayTrackerFinanceDashboard = Object.freeze({
       const summaryRow = valueGrid[startRow + 5 - 1] || [];
       const weeklyTakeHome = Number(summaryRow[PayTrackerConfig.SHEET.WEEKLY_SUMMARY_VALUE_COLUMN - 1]) || 0;
       const firstDataRow = startRow + PayTrackerConfig.SHEET.WEEK_DATA_ROW_OFFSET;
-      const seasonalJobIds = [];
-      Object.keys(seasonalTables).forEach(function (tableName) {
-        const table = getConfiguredPayTableByName_(tableName);
-        if (!table) return;
-        const hoursIndex = table.startColumn + 3 - 1;
+      const grossByJob = {};
+      tables.forEach(function (table) {
+        const jobId = PayTrackerEmploymentPeriods.jobIdForTable(table.name) || table.name;
+        const payIndex = table.startColumn + 4 - 1;
         for (let r = 0; r < 7; r++) {
           const row = valueGrid[firstDataRow - 1 + r] || [];
-          if ((Number(row[hoursIndex]) || 0) > 0) {
-            seasonalJobIds.push(PayTrackerEmploymentPeriods.jobIdForTable(tableName));
-            return;
-          }
+          const pay = Number(row[payIndex]) || 0;
+          if (pay) grossByJob[jobId] = (grossByJob[jobId] || 0) + pay;
         }
       });
-      weeks.push({ takeHome: weeklyTakeHome, seasonalJobIds: seasonalJobIds });
+      weeks.push({ takeHome: weeklyTakeHome, grossByJob: grossByJob });
     }
 
     return PayTrackerEmploymentPeriods.forecastTakeHome(
@@ -865,128 +861,6 @@ const PayTrackerFinanceDashboard = Object.freeze({
       PayTrackerEmploymentPeriods.dayKeyOf(new Date())
     );
   },
-
-
-  /**
-   * Builds the complete visible dashboard.
-   *
-   * @param {GoogleAppsScript.Spreadsheet.Sheet} sheet
-   * @param {Object} figures
-   */
-  buildDashboard: function (
-    sheet,
-    figures
-  ) {
-    PayTrackerUtils.validateSheet(
-      sheet
-    );
-
-    const requiredRows =
-      105;
-
-    const requiredColumns =
-      20;
-
-    PayTrackerFinanceDashboard.ensureDashboardSize(
-      sheet,
-      requiredRows,
-      requiredColumns
-    );
-
-    sheet
-      .getRange(
-        1,
-        1,
-        sheet.getMaxRows(),
-        sheet.getMaxColumns()
-      )
-      .breakApart();
-
-    sheet.clear();
-
-    sheet.setTabColor(
-      '#9333ea'
-    );
-
-    sheet.setFrozenRows(
-      2
-    );
-
-    sheet
-      .getRange(
-        'A1:H1'
-      )
-      .merge()
-      .setValue(
-        'PERSONAL FINANCE & SAVINGS DASHBOARD'
-      )
-      .setBackground(
-        '#0f172a'
-      )
-      .setFontColor(
-        '#ffffff'
-      )
-      .setFontWeight(
-        'bold'
-      )
-      .setFontSize(
-        16
-      )
-      .setHorizontalAlignment(
-        'center'
-      );
-
-    PayTrackerFinanceDashboard.buildTopCards(
-      sheet,
-      figures
-    );
-
-    PayTrackerFinanceDashboard.buildFinancialProgress(
-      sheet,
-      figures
-    );
-
-    PayTrackerFinanceDashboard.buildStatusCards(
-      sheet,
-      figures
-    );
-
-    PayTrackerFinanceDashboard.buildDebtProgressSection(
-      sheet,
-      figures.debtRows
-    );
-
-    PayTrackerFinanceDashboard.buildSavingsPotSection(
-      sheet,
-      figures.savingsPotRows
-    );
-
-    PayTrackerFinanceDashboard.buildLifeGoalsSection(
-      sheet,
-      figures.goalRows
-    );
-
-    PayTrackerFinanceDashboard.buildSavingsScheduleSection(
-      sheet,
-      figures.savingsPotRows
-    );
-
-    for (
-      let column = 1;
-      column <= 8;
-      column++
-    ) {
-      sheet.setColumnWidth(
-        column,
-        125
-      );
-    }
-
-    sheet.setRowHeight(
-      1,
-      36
-    );
-  },
 
 
   /**
